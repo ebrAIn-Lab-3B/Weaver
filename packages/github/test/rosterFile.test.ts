@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchRepositoryFile, refreshRosterFile, rosterCacheKey, type FetchFn, type RosterCacheEntry } from '../src';
+import { fetchRepositoryFile, refreshGuidelineFile, refreshRosterFile, rosterCacheKey, type FetchFn, type RosterCacheEntry } from '../src';
 
 type Call = { url: string; headers: Record<string, string> };
 
@@ -75,5 +75,33 @@ describe('rosterCacheKey', () => {
   it('ignores the case of the repository and tells paths and refs apart', () => {
     expect(rosterCacheKey({ repository: 'A/b', path: 'r.yaml' })).toBe(rosterCacheKey({ repository: 'a/B', path: 'r.yaml' }));
     expect(rosterCacheKey({ repository: 'a/b', path: 'r.yaml', ref: 'x' })).not.toBe(rosterCacheKey({ repository: 'a/b', path: 'r.yaml' }));
+  });
+});
+
+describe('refreshGuidelineFile', () => {
+  const guideline = { repository: 'Org/Base', path: '.weaver/process.yaml' };
+
+  it('keeps the guideline text and renews the age on an unchanged answer', async () => {
+    const first = await refreshGuidelineFile('t', guideline, undefined, NOW, answer(200, { text: 'version: 1\n', etag: '"g1"' }).fetchFn);
+    expect(first).toEqual({ entry: { text: 'version: 1\n', etag: '"g1"', readAt: NOW.toISOString() }, changed: true });
+    const { fetchFn, calls } = answer(304);
+    const later = new Date('2026-11-07T10:00:00Z');
+    const second = await refreshGuidelineFile('t', guideline, first.entry, later, fetchFn);
+    expect(calls[0].headers['If-None-Match']).toBe('"g1"');
+    expect(second).toEqual({ entry: { ...first.entry, readAt: later.toISOString() }, changed: false });
+  });
+
+  it('keeps the old copy when GitHub cannot be reached', async () => {
+    const before = { text: 'version: 1\n', readAt: '2026-11-05T10:00:00.000Z' };
+    const result = await refreshGuidelineFile('t', guideline, before, NOW, answer(0, { fails: true }).fetchFn);
+    expect(result.entry).toBe(before);
+    expect(result.changed).toBe(false);
+    expect(result.error).toBeDefined();
+  });
+
+  it('asks once, to read only', async () => {
+    const { fetchFn, calls } = answer(200, { text: 'x' });
+    await refreshGuidelineFile('t', guideline, undefined, NOW, fetchFn);
+    expect(calls).toHaveLength(1);
   });
 });

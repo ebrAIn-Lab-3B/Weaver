@@ -23,6 +23,7 @@ export { setFrontmatterFields, yamlValue } from './frontmatter';
 export * from './assign';
 export * from './config';
 export * from './rootConfig';
+export * from './guideline';
 export * from './repositoryList';
 export * from './process';
 export * from './taskContract';

@@ -410,6 +410,7 @@ export const en = {
   'validation.roster-no-contributors': 'The roster lists no contributors.',
   'validation.roster-agent-incomplete': 'Agent "{id}" has no "{field}". Say which tool it is and how it is reached.',
   'validation.roster-invalid-reference': 'The roster reference "{field}" must name a repository (owner/name) and a file path; it is ignored.',
+  'validation.guideline-invalid-reference': 'The guideline reference "{field}" must name a repository (owner/name) and, if it gives a path, a relative path inside it; it is ignored.',
   'validation.roster-invalid-roles': 'Contributor "{id}" has "roles" that is not a list of words; it is ignored.',
   'validation.roster-invalid-reach': 'A "reach" entry of "{id}" needs a "type" and a "value"; it is ignored.',
   'validation.roster-shared-unavailable': 'The shared roster {reference} could not be read and none is kept, so owners are not checked against it.',

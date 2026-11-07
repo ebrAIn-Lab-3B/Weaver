@@ -1,6 +1,7 @@
 import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from 'yaml';
 import { FabricProject, FabricRegistry, FabricRepository, readFabricProject, readFabricRepositories } from './fabric';
 import type { MessageArgs } from './i18n';
+import { DeclaredGuideline, GuidelineRef, readGuidelineRef } from './guideline';
 import { readRoster, Roster, RosterLayerName, stackRosters } from './roster';
 import type { ValidationIssue } from './types';
 
@@ -10,6 +11,8 @@ export interface UserConfig {
   /** Left out: every repository that has cards on the Project is shown. */
   repositories?: FabricRepository[];
   roster?: Roster;
+  /** The operating guideline this file names (DEC-019). It is read by reference and never written to. */
+  guideline?: GuidelineRef;
 }
 
 export interface ConfigParseResult {
@@ -18,7 +21,7 @@ export interface ConfigParseResult {
   issues: ValidationIssue[];
 }
 
-const KNOWN_FIELDS = ['project', 'repositories', 'roster'];
+const KNOWN_FIELDS = ['project', 'repositories', 'roster', 'guideline'];
 
 const isMapping = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -47,9 +50,10 @@ export function parseConfig(path: string, text: string): ConfigParseResult {
   const project = readFabricProject(data.project, add);
   const repositories = data.repositories === undefined || data.repositories === null ? undefined : readFabricRepositories(data.repositories, add);
   const roster = data.roster === undefined || data.roster === null ? undefined : readRoster(data.roster, add);
+  const guideline = readGuidelineRef(data.guideline, add, 'guideline');
 
   if (issues.some((issue) => issue.severity === 'error') || !project) return { issues };
-  return { config: { project, ...(repositories ? { repositories } : {}), ...(roster ? { roster } : {}) }, issues };
+  return { config: { project, ...(repositories ? { repositories } : {}), ...(roster ? { roster } : {}), ...(guideline ? { guideline } : {}) }, issues };
 }
 
 /** A Project named by its address (`.../users/you/projects/3`, `.../orgs/team/projects/7`) or as `owner/3`. */
@@ -77,6 +81,8 @@ export interface Setup {
   /** Absent: show every repository that has cards on the Project. */
   repositories?: FabricRepository[];
   roster?: Roster;
+  /** The guideline of the root file, else of the personal file: the first declared wins (DEC-019 item 4). The repository's own process file is nearer still and is judged per repository. */
+  guideline?: DeclaredGuideline;
   /** The root file that decided, when `source` is `root`. */
   rootFile?: string;
   /** The path of the file that decided `project` and `repositories`, when the caller knew it (DEC-018 item 9). */
@@ -124,7 +130,12 @@ export function resolveSetup(workspace: FabricRegistry | undefined, user: UserCo
     ...(root?.config.roster ? [{ layer: 'root' as const, file: root.path }] : []),
     ...(user?.roster ? [{ layer: 'personal' as const, ...(files.user ? { file: files.user } : {}) }] : []),
   ];
-  const common = { ...(roster ? { roster } : {}), rosterFiles, rosterOrigins: origins };
+  const guideline: DeclaredGuideline | undefined = root?.config.guideline
+    ? { ref: root.config.guideline, source: 'root', file: root.path }
+    : user?.guideline
+      ? { ref: user.guideline, source: 'personal', ...(files.user ? { file: files.user } : {}) }
+      : undefined;
+  const common = { ...(roster ? { roster } : {}), ...(guideline ? { guideline } : {}), rosterFiles, rosterOrigins: origins };
   if (workspace) return { source: 'workspace', project: workspace.project, repositories: workspace.repositories, ...(files.workspace ? { decidedBy: files.workspace } : {}), ...common };
   if (root) {
     const { project, repositories } = root.config;
@@ -165,6 +176,7 @@ export function serializeConfig(config: UserConfig): string {
       ...(config.roster.contributors.length ? { contributors: config.roster.contributors.map((c) => ({ ...c })) } : {}),
     };
   }
+  if (config.guideline) data.guideline = { ...config.guideline };
   return `${CONFIG_HEADER}${stringifyYaml(data)}`;
 }
 

@@ -1,0 +1,23 @@
+# Started from the defaults: the Issues of this repository have no status labels, so the columns come from the board Status.
+# This file belongs to this repository; change it through a reviewed pull request.
+version: 1
+
+columns:
+  # The Project board's Status decides the column.
+  source: board-status
+  # Board Status option -> column. Change the names to match the options of your board.
+  board:
+    Todo: Backlog
+    In Progress: In progress
+    Done: Verified
+
+evidence:
+  # A pull request is expected in Review and Verified (`required`), or not (`optional`).
+  pull-request: required
+  # Verified needs a merged pull request that closes the Issue.
+  closing-pull-request: true
+  exceptions: true
+
+stale:
+  # Days without a change before an open card in an active column is idle.
+  idle-days: 14

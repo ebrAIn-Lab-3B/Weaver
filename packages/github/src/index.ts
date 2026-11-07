@@ -9,4 +9,5 @@ export * from './processFile';
 export * from './processes';
 export * from './rosterFile';
 export * from './guidelineFile';
+export * from './filePullRequest';
 export * from './size';

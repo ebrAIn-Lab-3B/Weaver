@@ -36,7 +36,11 @@ Proposed in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)
 ## Tasks
 
 - `TASK-084` Decide how an operating guideline is referenced and offered — [GitHub Issue #218](https://github.com/ebrAIn-Lab-3B/Weaver/issues/218)
+<<<<<<< HEAD
 - `TASK-088` Write the guide and sample for operating guidelines — [GitHub Issue #229](https://github.com/ebrAIn-Lab-3B/Weaver/issues/229)
+=======
+- `TASK-085` Read an operating guideline by reference and keep a copy — [GitHub Issue #223](https://github.com/ebrAIn-Lab-3B/Weaver/issues/223)
+>>>>>>> origin/docs/task-085-read-an-operating-guideline-by-reference
 
 Tasks are listed here once the open decisions are recorded.
 

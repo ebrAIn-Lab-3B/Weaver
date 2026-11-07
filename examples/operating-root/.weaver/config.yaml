@@ -71,3 +71,11 @@ roster:
 
     # Never write instance details here: node addresses, chat channel ids, tokens, or passwords. They are
     # not part of the roster, Weaver never reads them, and a field it does not know is reported.
+
+# The operating guideline for every repository under this folder (DEC-019). Optional. Weaver reads it by
+# reference and never writes to it. `agentic-base` is only an example of a guideline repository; Weaver
+# knows no guideline by name. `path` and `ref` may be left out.
+# guideline:
+#   repository: ebrAIn-Lab-3B/agentic-base
+#   path: .weaver/process.yaml
+#   ref: main

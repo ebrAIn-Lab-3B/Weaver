@@ -405,6 +405,7 @@ export const ko: Record<MessageKey, Message> = {
   'validation.roster-no-contributors': '명단에 참여자가 없습니다.',
   'validation.roster-agent-incomplete': '에이전트 "{id}"에 "{field}"가 없습니다. 어떤 도구인지, 어떻게 연결하는지 적어 주세요.',
   'validation.roster-invalid-reference': '명단 참조 "{field}"에는 저장소(owner/name)와 파일 경로가 있어야 합니다. 이 참조는 무시합니다.',
+  'validation.guideline-invalid-reference': '지침 참조 "{field}"에는 저장소(owner/name)가 있어야 하고, 경로를 적는다면 저장소 안의 상대 경로여야 합니다. 이 참조는 무시합니다.',
   'validation.roster-invalid-roles': '"{id}"의 "roles"가 낱말 목록이 아닙니다. 무시합니다.',
   'validation.roster-invalid-reach': '"{id}"의 "reach" 항목에는 "type"과 "value"가 있어야 합니다. 이 항목은 무시합니다.',
   'validation.roster-shared-unavailable': '공유 명단 {reference}을(를) 읽지 못했고 보관한 사본도 없어서, 담당자를 이 명단과 견주어 보지 않습니다.',

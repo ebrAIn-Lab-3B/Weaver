@@ -1,3 +1,4 @@
+import { GuidelineRef, readGuidelineRef } from './guideline';
 import { readRosterRef, RosterRef } from './roster';
 import { parse as parseYaml } from 'yaml';
 import type { MessageArgs } from './i18n';
@@ -65,6 +66,8 @@ export const defaultSources = (): Record<ProcessSection, SectionSource> => ({ co
 export interface ProcessParseResult {
   /** The shared roster the file names with `roster.from` (DEC-017). Not a section: it has no default and no source. */
   rosterRef?: RosterRef;
+  /** The guideline the file records as the one the repository follows (DEC-019 item 4). Not a section. */
+  guidelineRef?: GuidelineRef;
   /** Always present: what was read, with the defaults where a section or field is missing or was ignored. */
   process: ProcessConfig;
   /** For each section, whether it came from the file or is the default. */
@@ -180,9 +183,10 @@ export function parseProcess(path: string, text: string): ProcessParseResult {
     report('error', 'process-unsupported-version', { version: String(data.version) });
     return allDefault();
   }
-  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
+  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && field !== 'guideline' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
 
   const rosterRef = readRosterEntry(data.roster, (code, args) => report('warning', code, args));
+  const guidelineRef = readGuidelineRef(data.guideline, (severity, code, args) => report(severity, code, args), 'guideline');
   const process = defaultProcess();
   const sources = defaultSources();
   const readers = { columns: readColumns, evidence: readEvidence, stale: readStale, task: readTaskContract } as const;
@@ -205,7 +209,7 @@ export function parseProcess(path: string, text: string): ProcessParseResult {
       sources[section] = 'repository';
     }
   }
-  return { process, sources, issues, ...(rosterRef ? { rosterRef } : {}) };
+  return { process, sources, issues, ...(rosterRef ? { rosterRef } : {}), ...(guidelineRef ? { guidelineRef } : {}) };
 }
 
 /** The `roster` entry of a process file: only `from` is read here; the entries of a roster live in the roster file. */

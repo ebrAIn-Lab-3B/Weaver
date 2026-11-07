@@ -8,4 +8,5 @@ export * from './discover';
 export * from './processFile';
 export * from './processes';
 export * from './rosterFile';
+export * from './guidelineFile';
 export * from './size';

@@ -28,3 +28,11 @@ roster:
       kind: agent
       tool: Claude Code
       reach: assigned as the Issue assignee
+
+# The operating guideline you follow. Optional. Weaver reads it from the repository and never writes to it.
+# It is used to start a process file for a repository that has none; a repository that has one is read from it.
+# Only `repository` is required; `path` defaults to .weaver/process.yaml and `ref` to the default branch.
+# guideline:
+#   repository: your-org/your-guideline
+#   path: .weaver/process.yaml
+#   ref: main

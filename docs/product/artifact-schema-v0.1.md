@@ -144,9 +144,13 @@ roster:                  # optional; see "Contributor roster" for the entries
   contributors:
     - id: blcktgr73
       kind: human
+guideline:               # optional; the operating guideline this folder or person follows (DEC-019)
+  repository: ebrAIn-Lab-3B/agentic-base
+  path: .weaver/process.yaml   # default
+  ref: main                    # default: the default branch
 ```
 
-`project` and `repositories` follow the rules of the fabric registry; a workspace `fabric.yaml` overrides them for that workspace. `roster` always comes from this file.
+`project` and `repositories` follow the rules of the fabric registry; a workspace `fabric.yaml` overrides them for that workspace. `roster` always comes from this file. `guideline` is a reference, `{repository, path, ref}`, to a repository the organization owns; Weaver reads it and never writes to it. A root file's `guideline` applies before the personal file's, and a repository's own `process.yaml` may record one with the same three fields. Only `repository` is required. A reference that is not valid is reported and ignored.
 
 ## Contributor roster
 

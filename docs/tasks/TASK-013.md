@@ -5,6 +5,7 @@ title: Assign a task owner from the Requirement view
 requirement: REQ-002
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/36
 repository: ebrAIn-Lab-3B/Weaver
+evidence_exception: Delivered by merged PR #140 (assign owners from the Requirement view), which referenced the Issue instead of closing it. Closed by the maintainer on 2026-11-08.
 assignee_type: agent
 criteria: [AC-001]
 assignee: claude-code

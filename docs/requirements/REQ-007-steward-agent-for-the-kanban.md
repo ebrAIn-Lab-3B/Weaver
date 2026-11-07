@@ -3,10 +3,10 @@ id: REQ-007
 type: requirement
 title: A steward agent keeps the Kanban, the Issues, and the repository files in step
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-027, US-028, US-031]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # A steward agent keeps the Kanban, the Issues, and the repository files in step

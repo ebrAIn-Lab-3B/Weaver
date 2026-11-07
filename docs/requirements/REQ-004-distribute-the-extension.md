@@ -3,10 +3,10 @@ id: REQ-004
 type: requirement
 title: People can install Weaver without building it
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-021]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # People can install Weaver without building it

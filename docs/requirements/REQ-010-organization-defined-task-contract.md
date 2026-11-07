@@ -3,10 +3,10 @@ id: REQ-010
 type: requirement
 title: An organization defines its own task contract
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-043]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # An organization defines its own task contract

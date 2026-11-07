@@ -3,10 +3,10 @@ id: REQ-012
 type: requirement
 title: Weaver proposes who takes a card next
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-045]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # Weaver proposes who takes a card next

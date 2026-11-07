@@ -3,10 +3,10 @@ id: REQ-009
 type: requirement
 title: Everything the steward does can also be done by hand in the editor, and every card says why
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-038, US-039, US-040, US-041]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # Everything the steward does can also be done by hand in the editor, and every card says why

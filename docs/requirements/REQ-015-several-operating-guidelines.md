@@ -36,6 +36,7 @@ Proposed in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)
 ## Tasks
 
 - `TASK-084` Decide how an operating guideline is referenced and offered — [GitHub Issue #218](https://github.com/ebrAIn-Lab-3B/Weaver/issues/218)
+- `TASK-086` Show which guideline applies to each repository — [GitHub Issue #225](https://github.com/ebrAIn-Lab-3B/Weaver/issues/225)
 
 Tasks are listed here once the open decisions are recorded.
 

@@ -5,6 +5,7 @@ title: Record reviewers and human approval of agent work
 requirement: REQ-002
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/38
 repository: ebrAIn-Lab-3B/Weaver
+evidence_exception: Delivered by merged PR #140 (reviewers and approvals from the Requirement view), which referenced the Issue instead of closing it. Closed by the maintainer on 2026-11-08.
 assignee_type: agent
 criteria: [AC-004]
 assignee: claude-code

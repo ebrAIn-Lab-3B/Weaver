@@ -5,6 +5,7 @@ title: Show the maintainer's other projects on the Overview
 requirement: REQ-006
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/117
 repository: ebrAIn-Lab-3B/Weaver
+evidence_exception: Delivered as the personal configuration of DEC-014 (and the root file of DEC-018); which projects to show is a setting, so no single pull request proves it. Closed by the maintainer on 2026-11-08.
 assignee_type: agent
 criteria: [AC-001]
 assignee: claude-code

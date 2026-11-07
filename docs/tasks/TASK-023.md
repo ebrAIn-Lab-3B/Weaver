@@ -5,6 +5,7 @@ title: Decide the process configuration format
 requirement: REQ-005
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/53
 repository: ebrAIn-Lab-3B/Weaver
+evidence_exception: The decision is DEC-015, accepted when PR #131 merged on 2026-11-01, and applied by later pull requests. PR #131 did not close the Issue. Closed by the maintainer on 2026-11-08.
 assignee_type: human
 criteria: [AC-001]
 assignee: blcktgr73

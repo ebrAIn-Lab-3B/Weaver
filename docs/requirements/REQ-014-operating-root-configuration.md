@@ -28,7 +28,7 @@ A folder that holds projects (an operating root, such as `prj` or `ebr_prj`) may
 - A root file does not carry process settings. A `columns`, `evidence`, `stale`, or `task` section there is reported and not applied, because the repository is the single source of truth for its process ([DEC-015](../decisions/DEC-015-process-configuration.md)).
 - When a root file is found, its folder is the default clone folder; an explicit `weaver.fabricRoot` wins.
 - The Overview and the tool say which file decided, with its path.
-- `weaver init --root <folder>` and the editor's setup can write a root file, showing it first and asking before writing ([DEC-008](../decisions/DEC-008-agent-identity-and-write-confirmation.md)).
+- `weaver init --root <folder>` and the editor's setup can write a root file, showing it first and asking before writing ([DEC-008](../decisions/DEC-008-agent-identity-and-write-confirmation.md)). Deferred on 2026-11-08 ([TASK-081](../tasks/TASK-081.md), Issue #208 stays open): the first version relies on the commented sample and the guide, since a root file is a few lines. `weaver init` writes only the personal file.
 - A repository named in `repositories` that has no card on the Project is shown with a visible note instead of being dropped, and the person can add it to the list. Repositories found as clones under the root count as named. (From proposal [#189](https://github.com/ebrAIn-Lab-3B/Weaver/issues/189).)
 - The repository list found on the Project is saved with the time it was read, in the personal folder and never in a repository. The picker opens from it and refreshes on a command and when it is old.
 - Nothing in code, schema, or tests assumes a folder name such as `prj` or `ebr_prj`. A guide and a commented sample show the file.

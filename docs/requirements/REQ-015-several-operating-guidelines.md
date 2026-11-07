@@ -31,13 +31,15 @@ A guideline is a repository or a folder the organization owns, and a root folder
 
 ## Open decisions
 
-Proposed in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md), for the maintainer to accept: the levels of a guideline stay outside Weaver and are not made configurable now (item 9); a guideline never overrides a repository's own `process.yaml` and only starts a file for a repository that has none (items 5 and 7).
+Recorded in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md), accepted: the levels of a guideline stay outside Weaver and are not made configurable now (item 9); a guideline never overrides a repository's own `process.yaml` and only starts a file for a repository that has none (items 5 and 7).
 
 ## Tasks
 
 - `TASK-084` Decide how an operating guideline is referenced and offered — [GitHub Issue #218](https://github.com/ebrAIn-Lab-3B/Weaver/issues/218)
-
-Tasks are listed here once the open decisions are recorded.
+- `TASK-085` Read an operating guideline by reference and keep a copy — [GitHub Issue #223](https://github.com/ebrAIn-Lab-3B/Weaver/issues/223)
+- `TASK-086` Show which guideline applies to each repository — [GitHub Issue #225](https://github.com/ebrAIn-Lab-3B/Weaver/issues/225)
+- `TASK-087` Offer a starting process file for a repository that has none — [GitHub Issue #227](https://github.com/ebrAIn-Lab-3B/Weaver/issues/227)
+- `TASK-088` Write the guide and sample for operating guidelines — [GitHub Issue #229](https://github.com/ebrAIn-Lab-3B/Weaver/issues/229)
 
 Origin: the maintainer, 2026-11-07: ebrAIn.lab keeps its operating guideline in `agentic-base`, and Weaver should handle several guidelines. Absorbs proposal [#173](https://github.com/ebrAIn-Lab-3B/Weaver/issues/173).
 

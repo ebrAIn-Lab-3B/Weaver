@@ -3,10 +3,10 @@ id: REQ-001
 type: requirement
 title: Weaver manages its own development flow
 status: in-progress
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-001, US-004, US-007, US-010, US-012]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # Weaver manages its own development flow

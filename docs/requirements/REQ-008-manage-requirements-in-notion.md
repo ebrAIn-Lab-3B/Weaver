@@ -3,10 +3,10 @@ id: REQ-008
 type: requirement
 title: Teams can draft and follow requirements in Notion while the repository stays authoritative
 status: draft
-owner: PALab
+owner: ebrAIn.lab
 story_ids: [US-032, US-033, US-034]
 repository: ebrAIn-Lab-3B/Weaver
-github_project: PALab Ops Kanban
+github_project: ebrAIn.lab Kanban
 ---
 
 # Teams can draft and follow requirements in Notion while the repository stays authoritative

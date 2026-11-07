@@ -56,6 +56,9 @@ This page is the contract. Every JSON example below is checked by a test against
     "roster": [],
     "contributors": []
   },
+  "repositories": [
+    { "repository": "me/Weaver", "process": "missing", "guideline": null, "startable": false }
+  ],
   "cards": [
     {
       "repository": "me/Weaver",
@@ -90,6 +93,8 @@ This page is the contract. Every JSON example below is checked by a test against
 ```
 
 `config` says where the Project and the repositories came from ([DEC-018](../decisions/DEC-018-operating-root-configuration.md) item 9): `source` is `workspace` (a `fabric.yaml`), `root` (a `.weaver/config.yaml` found in a folder above the one the tool runs in), or `user` (`~/.weaver/config.yaml`), and `file` is its path. `roster` lists the files that gave the roster, lowest layer first (`layer` is `root` or `personal`), and `contributors` gives, for each person or agent, the `layers` it comes from, for example `["root", "personal"]`. With `--text`, a note on standard error names the file when it is not the personal one. A Project that changes because a file in a parent folder says so is therefore never silent.
+
+`repositories` says, for each repository shown, whether it has a process file (`process`: `read`, `missing`, or `failed`) and which operating guideline applies to it ([DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md) item 4). `guideline` is `null` when none applies; otherwise it has `source` (`process`: the repository's own file records it; `root`; or `personal`), `repository`, `path`, `ref` (`null` for the default branch), and `file` (the file that declared it, or `null` for the repository's own). `startable` is `true` only when the repository has no process file and a guideline applies, so a starting file can be offered. A guideline shown here never changes how the repository is judged: a repository with a process file is read from that file alone.
 
 `weaver show <card>` prints one card with its task file, requirement, and the merged pull requests that close it or name its task. `<card>` is `owner/name#number`, an Issue address, or `TASK-###`.
 
@@ -151,7 +156,7 @@ This page is the contract. Every JSON example below is checked by a test against
 }
 ```
 
-`weaver process [--repository owner/name]` prints how each repository of the Project tracks its work, from its `.weaver/process.yaml` ([DEC-015](../decisions/DEC-015-process-configuration.md)). For each repository it says whether the file exists (`read`, `missing`, or `failed`), for each of `columns`, `evidence`, and `stale` whether the file set it or it is the default, the values in use, and what is wrong in the file. A repository without the file uses the defaults, which are what Weaver does today.
+`weaver process [--repository owner/name]` prints how each repository of the Project tracks its work, from its `.weaver/process.yaml` ([DEC-015](../decisions/DEC-015-process-configuration.md)). For each repository it says whether the file exists (`read`, `missing`, or `failed`), for each of `columns`, `evidence`, and `stale` whether the file set it or it is the default, the values in use, and what is wrong in the file. A repository without the file uses the defaults, which are what Weaver does today. Each repository also carries `guideline` and `startable` as described under `weaver list`.
 
 ## Write: the confirmation flow
 

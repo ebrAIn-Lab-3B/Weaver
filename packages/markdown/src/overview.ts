@@ -1,5 +1,6 @@
 import type { FabricRegistry } from './fabric';
 import { KANBAN_COLUMNS, KanbanColumn, KanbanPlacement } from './kanban';
+import type { GuidelineSource } from './guideline';
 import type { Artifact } from './types';
 
 export interface RequirementLink {
@@ -64,6 +65,15 @@ export interface Lane<T> {
   columns: Record<KanbanColumn, T[]>;
   /** `clone`: the repository is a clone on this computer that no list names and the Project has no card of (DEC-018 item 11). */
   note?: 'clone';
+  /** The guideline that applies to the repository (DEC-019), when one does. Set by the host, which knows the process files. */
+  guideline?: LaneGuideline;
+}
+
+/** What a lane says about its guideline: the label, where the reference was declared, and whether a starting file can be offered. */
+export interface LaneGuideline {
+  label: string;
+  source: GuidelineSource;
+  startable: boolean;
 }
 
 /**

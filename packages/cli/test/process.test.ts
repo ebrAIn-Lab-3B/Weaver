@@ -133,3 +133,59 @@ describe('weaver process', () => {
     expect(JSON.parse(other.out.join('')).repositories).toEqual([]);
   });
 });
+
+describe('which guideline applies (DEC-019)', () => {
+  const root = { ref: { repository: 'org/base', path: '.weaver/process.yaml' }, source: 'root' as const, file: '/work/.weaver/config.yaml' };
+
+  it('shows the root guideline for a repository with no process file, and says a file can be started', async () => {
+    const { fetchFn } = contents({});
+    const [a] = await readProcesses('t', ['me/a'], 'en', fetchFn, root);
+    expect(a).toMatchObject({
+      file: 'missing',
+      startable: true,
+      guideline: { source: 'root', repository: 'org/base', path: '.weaver/process.yaml', ref: null, file: '/work/.weaver/config.yaml' },
+    });
+  });
+
+  it('shows the guideline for a repository that has a file, but never offers to start one, and never changes its rules', async () => {
+    const { fetchFn } = contents({ 'me/a': { status: 200, text: 'columns:\n  source: board-status\n' } });
+    const [withGuideline] = await readProcesses('t', ['me/a'], 'en', fetchFn, root);
+    const [without] = await readProcesses('t', ['me/a'], 'en', fetchFn);
+    expect(withGuideline).toMatchObject({ file: 'read', startable: false, guideline: { source: 'root' } });
+    expect(withGuideline.process).toEqual(without.process);
+    expect(withGuideline.sources).toEqual(without.sources);
+  });
+
+  it('prefers the guideline a repository records in its own file', async () => {
+    const { fetchFn } = contents({ 'me/a': { status: 200, text: 'guideline:\n  repository: org/own\n  ref: v2\n' } });
+    const [a] = await readProcesses('t', ['me/a'], 'en', fetchFn, root);
+    expect(a.guideline).toMatchObject({ source: 'process', repository: 'org/own', path: '.weaver/process.yaml', ref: 'v2', file: null });
+  });
+
+  it('judges repositories under different guidelines each by its own file', async () => {
+    const { fetchFn } = contents({
+      'me/a': { status: 200, text: 'guideline:\n  repository: org/one\ncolumns:\n  source: board-status\n' },
+      'me/b': { status: 200, text: 'guideline:\n  repository: org/two\n' },
+    });
+    const [a, b] = await readProcesses('t', ['me/a', 'me/b'], 'en', fetchFn);
+    expect(a.guideline?.repository).toBe('org/one');
+    expect(b.guideline?.repository).toBe('org/two');
+    expect(a.process.columns.source).toBe('board-status');
+    expect(b.process.columns.source).not.toBe('board-status');
+  });
+
+  it('shows nothing when no guideline applies, and does not offer when a file could not be read', async () => {
+    const { fetchFn } = contents({ 'me/a': 'offline' });
+    const [a] = await readProcesses('t', ['me/a'], 'en', fetchFn);
+    expect(a).toMatchObject({ guideline: null, startable: false });
+    const [failed] = await readProcesses('t', ['me/a'], 'en', fetchFn, root);
+    expect(failed).toMatchObject({ file: 'failed', startable: false, guideline: { source: 'root' } });
+  });
+
+  it('prints it in the text form', async () => {
+    const { fetchFn } = contents({});
+    const text = processText(await readProcesses('t', ['me/a'], 'en', fetchFn, { ...root, ref: { ...root.ref, ref: 'main' } }));
+    expect(text).toContain('me/a\tmissing\t');
+    expect(text).toContain('\tguideline=org/base@main(root) can-start');
+  });
+});

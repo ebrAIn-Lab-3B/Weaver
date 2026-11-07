@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import { ColumnRules, EvidenceRules, TaskContract, parseProcess, ProcessConfig, ProcessSection, SectionSource, defaultProcess, defaultSources } from '@palab/weaver-markdown';
+import { ColumnRules, DeclaredGuideline, EvidenceRules, GuidelineNote, guidelineNote, GuidelineRef, ProcessFileState, TaskContract, parseProcess, ProcessConfig, ProcessSection, SectionSource, defaultProcess, defaultSources } from '@palab/weaver-markdown';
 import { ProcessCacheEntry, refreshProcessFiles } from '@palab/weaver-github';
 
 const KEY = 'weaver.process.cache';
@@ -13,7 +13,7 @@ export interface ProcessSummary {
   process: ProcessConfig;
 }
 
-type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource> };
+type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource>; guidelineRef?: GuidelineRef };
 
 /**
  * The process of each repository (DEC-015), kept between runs so the Overview can draw its first
@@ -59,7 +59,7 @@ export class ProcessStore {
     const entry = this.entries.get(key);
     if (!entry || entry.missing) return undefined;
     const result = parseProcess(`${repository}/.weaver/process.yaml`, entry.text);
-    const config = { ...result.process, sources: result.sources };
+    const config = { ...result.process, sources: result.sources, ...(result.guidelineRef ? { guidelineRef: result.guidelineRef } : {}) };
     this.parsed.set(key, config);
     return config;
   }
@@ -72,6 +72,17 @@ export class ProcessStore {
     if (config) return { repository, file: 'read', sources: config.sources, process: config };
     const entry = this.entries.get(repository.toLowerCase());
     return { repository, file: entry ? 'missing' : 'unknown', sources: defaultSources(), process: defaultProcess() };
+  }
+
+  /**
+   * The guideline that applies to a repository, and whether a starting file could be offered (DEC-019).
+   * A repository that was never asked has no state, so it shows the guideline of the root or personal file only.
+   */
+  guidelineFor(repository: string, fromSetup: DeclaredGuideline | undefined): GuidelineNote | undefined {
+    const config = this.config(repository);
+    const entry = this.entries.get(repository.toLowerCase());
+    const file: ProcessFileState = config ? 'read' : entry ? 'missing' : 'unknown';
+    return guidelineNote(file, config?.guidelineRef, fromSetup);
   }
 
   evidenceFor = (repository: string): EvidenceRules | undefined => this.config(repository)?.evidence;

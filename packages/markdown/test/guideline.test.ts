@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseGuideline, DEFAULT_GUIDELINE_PATH, describeGuideline, guidelineCacheKey, parseConfig, parseProcess, readGuidelineRef, resolveSetup, serializeConfig } from '../src';
+import { chooseGuideline, DEFAULT_GUIDELINE_PATH, guidelineNote, describeGuideline, guidelineCacheKey, parseConfig, parseProcess, readGuidelineRef, resolveSetup, serializeConfig } from '../src';
 import type { ValidationIssue } from '../src';
 
 function read(data: unknown) {
@@ -138,5 +138,26 @@ describe('the guideline a repository records in its process file', () => {
     const result = parseProcess('p.yaml', 'version: 1\nguideline: 3\n');
     expect(result.guidelineRef).toBeUndefined();
     expect(codes(result.issues)).toEqual(['guideline-invalid-reference']);
+  });
+});
+
+describe('guidelineNote', () => {
+  const root = { ref: { repository: 'org/base', path: '.weaver/process.yaml' }, source: 'root' as const };
+
+  it('is nothing when no guideline applies', () => {
+    expect(guidelineNote('missing', undefined, undefined)).toBeUndefined();
+  });
+
+  it('can offer a starting file only for a repository with no process file', () => {
+    expect(guidelineNote('missing', undefined, root)?.startable).toBe(true);
+    expect(guidelineNote('read', undefined, root)?.startable).toBe(false);
+    expect(guidelineNote('failed', undefined, root)?.startable).toBe(false);
+    expect(guidelineNote('unknown', undefined, root)?.startable).toBe(false);
+  });
+
+  it('prefers the reference recorded in the repository', () => {
+    const note = guidelineNote('read', { repository: 'org/own', path: 'p.yaml' }, root);
+    expect(note?.guideline.source).toBe('process');
+    expect(note?.guideline.ref.repository).toBe('org/own');
   });
 });

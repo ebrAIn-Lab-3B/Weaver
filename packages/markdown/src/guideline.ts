@@ -66,3 +66,24 @@ export function guidelineCacheKey(ref: GuidelineRef): string {
 export function chooseGuideline(layers: readonly (DeclaredGuideline | undefined)[]): DeclaredGuideline | undefined {
   return layers.find((layer) => layer !== undefined);
 }
+
+/** What is known of a repository's process file: it has one, it has none, it could not be read, or it was not asked yet. */
+export type ProcessFileState = 'read' | 'missing' | 'failed' | 'unknown';
+
+/** The guideline that applies to one repository, and whether Weaver can offer to start its process file from it. */
+export interface GuidelineNote {
+  guideline: DeclaredGuideline;
+  /** The repository has no process file, so a starting file can be offered (DEC-019 item 6). A file that could not be read is not "none". */
+  startable: boolean;
+}
+
+/**
+ * Which guideline applies to a repository, for showing it (DEC-019 item 4): the one its own process
+ * file records, else the one from the root or personal file. Showing it changes nothing about the
+ * repository's rules; a repository with a process file is read from that file alone (item 5).
+ * Returns nothing when no guideline applies.
+ */
+export function guidelineNote(file: ProcessFileState, recorded: GuidelineRef | undefined, fromSetup: DeclaredGuideline | undefined): GuidelineNote | undefined {
+  const guideline = chooseGuideline([recorded ? { ref: recorded, source: 'process' } : undefined, fromSetup]);
+  return guideline ? { guideline, startable: file === 'missing' } : undefined;
+}

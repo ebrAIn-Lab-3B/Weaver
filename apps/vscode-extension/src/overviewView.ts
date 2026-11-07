@@ -17,6 +17,8 @@ import {
   moveLane,
   readSnapshot,
   snapshotAge,
+  DeclaredGuideline,
+  describeGuideline,
   normalizeIssueUrl,
   offlineCards,
   Notice,
@@ -25,6 +27,7 @@ import {
   requirementsByIssue,
   honoredException,
   staleNotices,
+  LaneGuideline,
   ValidationIssue,
 } from '@palab/weaver-markdown';
 import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject } from '@palab/weaver-github';
@@ -62,7 +65,7 @@ export type Registry =
    * `derived`: the configuration gives no repository list, so the repositories are the ones the Project has cards of.
    * `file` is the path of the file that decided, so the Overview can name it (DEC-018 item 9).
    */
-  | { kind: 'ok'; registry: FabricRegistry; source: 'workspace' | 'root' | 'user'; derived: boolean; file?: string };
+  | { kind: 'ok'; registry: FabricRegistry; source: 'workspace' | 'root' | 'user'; derived: boolean; file?: string; guideline?: DeclaredGuideline };
 
 /** True when the workspace has a shared `fabric.yaml` (DEC-010); only then does the Overview open by itself. */
 export async function hasWorkspaceRegistry(): Promise<boolean> {
@@ -89,12 +92,27 @@ export async function readRegistry(): Promise<Registry> {
   if (root.kind === 'ok') {
     rememberRootFile(root.path);
     const { project, repositories } = root.config;
-    return { kind: 'ok', registry: { project, repositories: repositories ?? [] }, source: 'root', derived: repositories === undefined, file: root.path };
+    // The root file's guideline comes before the personal file's (DEC-019 item 4).
+    const guideline: DeclaredGuideline | undefined = root.config.guideline ? { ref: root.config.guideline, source: 'root', file: root.path } : await personalGuideline();
+    return { kind: 'ok', registry: { project, repositories: repositories ?? [] }, source: 'root', derived: repositories === undefined, file: root.path, ...(guideline ? { guideline } : {}) };
   }
   const user = await readUserConfig();
   if (user.kind !== 'ok') return user.kind === 'none' ? { kind: 'none' } : { kind: 'invalid', issues: user.issues };
   const { project, repositories } = user.config;
-  return { kind: 'ok', registry: { project, repositories: repositories ?? [] }, source: 'user', derived: repositories === undefined, file: user.path };
+  return {
+    kind: 'ok',
+    registry: { project, repositories: repositories ?? [] },
+    source: 'user',
+    derived: repositories === undefined,
+    file: user.path,
+    ...(user.config.guideline ? { guideline: { ref: user.config.guideline, source: 'personal' as const, file: user.path } } : {}),
+  };
+}
+
+/** The guideline of the personal file, which applies when the root file names none (DEC-019 item 4). */
+async function personalGuideline(): Promise<DeclaredGuideline | undefined> {
+  const user = await readUserConfig();
+  return user.kind === 'ok' && user.config.guideline ? { ref: user.config.guideline, source: 'personal', file: user.path } : undefined;
 }
 
 /** The Overview Kanban: one lane per registered repository, columns by stage, cards linked to requirements (REQ-006). */
@@ -123,6 +141,12 @@ export class OverviewView {
   private showFinished = false;
   /** Clones on this computer that no list names and the Project has no card of, shown as lanes with a note (DEC-018 item 11). */
   private cloneOnly = new Set<string>();
+
+  /** What a lane says about its guideline (DEC-019): nothing when none applies. Showing it never changes the lane's rules. */
+  private guidelineOfLane(repository: string): { guideline?: LaneGuideline } {
+    const note = processStore.guidelineFor(repository, this.registry.kind === 'ok' ? this.registry.guideline : undefined);
+    return note ? { guideline: { label: describeGuideline(note.guideline.ref), source: note.guideline.source, startable: note.startable } } : {};
+  }
 
   constructor(
     private readonly store: vscode.Memento,
@@ -599,7 +623,7 @@ export class OverviewView {
       };
     });
     const ordered = applyLaneOrder(buildLanes(this.registry.registry, cards), this.order).map((lane) =>
-      this.cloneOnly.has(lane.repository.toLowerCase()) ? { ...lane, note: 'clone' as const } : lane,
+      ({ ...lane, ...(this.cloneOnly.has(lane.repository.toLowerCase()) ? { note: 'clone' as const } : {}), ...this.guidelineOfLane(lane.repository) }),
     );
     const folds = ordered.map((lane) => ({ repository: lane.repository, ...foldFinished(lane) }));
     return {

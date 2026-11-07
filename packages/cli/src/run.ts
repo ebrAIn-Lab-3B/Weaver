@@ -24,7 +24,7 @@ import { CliCard, findCards, toCliCards } from './cards';
 import { Deps, EXIT, SCHEMA } from './contract';
 import { planProjectAdd } from './projectAdd';
 import { runInit } from './init';
-import { processText, readProcesses } from './processCommand';
+import { processText, readProcesses, type ProcessReport } from './processCommand';
 import { loadSetup } from './setup';
 import { planReconcile } from './reconcile';
 import { nextTaskNumber, planTaskCreate, usedTaskTexts } from './taskCreate';
@@ -103,6 +103,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       repositories.filter((name) => !wanted || name.toLowerCase() === wanted),
       locale,
       deps.fetch as unknown as FetchFn | undefined,
+      setup.guideline,
     );
     if (wantsText) deps.out(processText(reports));
     else deps.out(`${JSON.stringify({ schema: SCHEMA, repositories: reports })}\n`);
@@ -187,7 +188,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   // How each repository tracks its work (DEC-015). One without a file, or whose file cannot be read,
   // keeps today's defaults, and the person is told about the one that could not be read.
   const processes = new Map(
-    (await readProcesses(token, repositories, locale, deps.fetch as unknown as FetchFn | undefined)).map((r) => [r.repository.toLowerCase(), r] as const),
+    (await readProcesses(token, repositories, locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline)).map((r) => [r.repository.toLowerCase(), r] as const),
   );
   for (const r of processes.values()) {
     if (r.file === 'failed') deps.err(`${formatNotice({ code: 'cli.process-unreadable', args: { repository: r.repository, detail: r.error?.message ?? '' } }, locale)}\n`);
@@ -288,7 +289,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       if (setup.source !== 'user' && setup.decidedBy) deps.err(`${formatNotice({ code: 'cli.config-decided', args: { file: setup.decidedBy, source: setup.source } }, locale)}\n`);
     } else {
       const project = { owner: setup.project.owner, number: setup.project.number, title: read.read.title };
-      deps.out(`${JSON.stringify({ schema: SCHEMA, project, config: configOf(setup), cards, skipped: read.read.skipped })}\n`);
+      deps.out(`${JSON.stringify({ schema: SCHEMA, project, config: configOf(setup), repositories: repositorySummaries(repositories, processes), cards, skipped: read.read.skipped })}\n`);
     }
     return EXIT.ok;
   }
@@ -348,6 +349,17 @@ function configOf(setup: Setup): { source: string; file: string | null; roster: 
     roster: setup.rosterFiles.map((r) => ({ layer: r.layer, file: r.file ?? null })),
     contributors: (setup.roster?.contributors ?? []).map((c) => ({ id: c.id, layers: setup.rosterOrigins.get(c.id.toLowerCase()) ?? [] })),
   };
+}
+
+/** What `list` says about each repository: whether it has a process file, and which guideline applies (DEC-019). */
+function repositorySummaries(
+  repositories: readonly string[],
+  processes: ReadonlyMap<string, ProcessReport>,
+): { repository: string; process: ProcessReport['file']; guideline: ProcessReport['guideline']; startable: boolean }[] {
+  return repositories.map((repository) => {
+    const found = processes.get(repository.toLowerCase());
+    return { repository, process: found?.file ?? 'missing', guideline: found?.guideline ?? null, startable: found?.startable ?? false };
+  });
 }
 
 function textLine(card: CliCard): string {

@@ -206,6 +206,8 @@ There is a reason not to use `weaver task create` here. That command is for a re
 4. In that tab, read the PR, comment, and merge it.
 5. When you come back from another window, or after about a minute, the status bar at the bottom says that the pull request was merged. The card changes by itself.
 
+How long the sign-in is kept, which group the tab opens in, and when the notice comes are explained in [Finish work on GitHub's own page inside VS Code](finish-in-vs-code.md).
+
 To open a page in the system browser instead, choose **Issue #number in the system browser** in the card menu.
 
 ## 8. A last check
@@ -231,7 +233,7 @@ The table below says where the documents this guide points to are. All of them a
 | What you want to read | Where |
 | --- | --- |
 | This guide (Korean, English) | `docs/onboarding/dogfooding-round-2.ko.md`, `dogfooding-round-2.md` |
-| The other guides (install, setup, process file, operating guideline, agent contract) | `docs/onboarding/` |
+| The other guides (install, setup, process file, operating guideline, agent contract, finishing work inside VS Code) | `docs/onboarding/` |
 | Requirements (`REQ-number`) | `docs/requirements/`. In the Overview, pressing a card opens the requirement view. |
 | Decisions (`DEC-number`) | `docs/decisions/` |
 | Tasks (`TASK-number`) | `docs/tasks/` |

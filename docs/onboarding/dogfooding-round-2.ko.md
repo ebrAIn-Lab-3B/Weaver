@@ -206,6 +206,8 @@ done
 4. 이 탭에서 PR을 읽고, 댓글을 달고, 합칩니다.
 5. 다른 창에 갔다가 돌아오거나 1분쯤 기다리면, 화면 아래 상태 표시줄에 "풀 리퀘스트 #번호이(가) 병합됐습니다"가 뜹니다. 카드도 알아서 바뀝니다.
 
+로그인을 얼마나 기억할지, 탭을 어느 칸에 열지, 알림이 오는 때는 [VS Code 안에서 GitHub 페이지로 일 끝내기](finish-in-vs-code.ko.md)에 자세히 있습니다.
+
 VS Code 안이 아니라 시스템 브라우저로 열고 싶다면, 카드 메뉴에서 **시스템 브라우저에서 Issue #번호 열기**를 고릅니다.
 
 ## 8. 마무리 점검
@@ -231,7 +233,7 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 | 보고 싶은 것 | 위치 |
 | --- | --- |
 | 이 안내서(한글, 영어) | `docs/onboarding/dogfooding-round-2.ko.md`, `dogfooding-round-2.md` |
-| 다른 안내서(설치, 설정, process 파일, 운영 지침, 에이전트 계약) | `docs/onboarding/` |
+| 다른 안내서(설치, 설정, process 파일, 운영 지침, 에이전트 계약, VS Code 안에서 일 끝내기) | `docs/onboarding/` |
 | 요구사항(`REQ-번호`) | `docs/requirements/`. 전체 보기에서 카드를 누르면 요구사항 화면이 열립니다. |
 | 결정(`DEC-번호`) | `docs/decisions/` |
 | 작업(`TASK-번호`) | `docs/tasks/` |

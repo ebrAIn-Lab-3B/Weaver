@@ -26,17 +26,21 @@ A card that is done can be marked Verified from the card, with the plan and the 
 - A card that still has an open pull request does not offer the button, because its work is not over ([REQ-019](./REQ-019-a-pull-request-is-one-click-from-its-card.md)).
 - A card whose title names a task (`[TASK-number]`) but whose task file is not in the folder says so under its title, and says that the folder may need updating.
 - A card that is a plain Issue, with no task in its title, says nothing more than it does now.
+- For such a card, Weaver asks GitHub whether the task file exists on the default branch, and the line says which of the two it is: the file is on GitHub and the folder is behind, or there is no file at all.
+- When the file is on GitHub, the line offers to update the folder. Weaver brings the folder up to date only by a fast-forward, only when its working tree has no change and its branch has no commit of its own, and only after it has shown how far behind the folder is and the person has confirmed. When a condition does not hold, it says which and does nothing.
+- When there is no file, the line offers to make it. Weaver drafts the task file from the Issue and opens a pull request that adds it and adds its line to the requirement, after showing the whole file and the line and being confirmed. The requirement is the one the Issue names, or one the person picks. A repository with no requirement file is told why it cannot.
 - When Weaver notices that a pull request that closes an Issue was merged ([REQ-018](./REQ-018-finish-work-without-leaving-weaver.md)), its notice offers the same action for that card.
 
 ## Open decisions
 
-Proposed in [DEC-023](../decisions/DEC-023-mark-a-card-verified-and-say-why-it-has-no-task-file.md): the button, and the line on a card without a task file. Still open: the offer in the notice after a merge (the last criterion), and whether Weaver should check GitHub for the file instead of only the folder.
+Accepted in [DEC-023](../decisions/DEC-023-mark-a-card-verified-and-say-why-it-has-no-task-file.md): the button, and the line on a card without a task file. Proposed in [DEC-024](../decisions/DEC-024-a-card-without-a-task-file-gets-one.md): asking GitHub whether the file exists, updating the folder, and making the file. Still open: the offer in the notice after a merge (the last criterion), and the offer inside the plan of a move.
 
 ## Tasks
 
 - `TASK-101` Decide how a card is marked Verified and says why it has no task file — [GitHub Issue #277](https://github.com/ebrAIn-Lab-3B/Weaver/issues/277)
 - `TASK-102` Say on a card why it has no task file — [GitHub Issue #279](https://github.com/ebrAIn-Lab-3B/Weaver/issues/279)
 - `TASK-103` Mark a finished card Verified from the card — [GitHub Issue #281](https://github.com/ebrAIn-Lab-3B/Weaver/issues/281)
+- `TASK-105` Decide how a card without a task file gets one — [GitHub Issue #287](https://github.com/ebrAIn-Lab-3B/Weaver/issues/287)
 
 Origin: the maintainer, 2026-11-08, while trying the pull request follow of REQ-018 and the cards of REQ-019: a card opened its Issue instead of the requirement, and the card could not be marked Verified, which the maintainer had to ask for. Absorbs the label step that was done by hand for every closed task that day.
 

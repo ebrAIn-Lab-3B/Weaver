@@ -35,7 +35,7 @@ Proposed in [DEC-022](../decisions/DEC-022-a-card-carries-its-pull-requests.md):
 
 ## Tasks
 
-Tasks are listed here once DEC-022 is accepted.
+- `TASK-097` Decide how a card carries the pull requests of its work — [GitHub Issue #269](https://github.com/ebrAIn-Lab-3B/Weaver/issues/269)
 
 Origin: the maintainer, 2026-11-08, while trying [REQ-018](./REQ-018-finish-work-without-leaving-weaver.md): the right-click menu is hard to discover and awkward, a card should say it plainly, and going from a requirement to the pull request of its task and merging there should work too. The maintainer asked for it to be done now, for the dogfooding.
 

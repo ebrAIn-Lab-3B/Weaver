@@ -25,18 +25,21 @@ import {
   parseFabric,
   RequirementLink,
   requirementsByIssue,
+  taskDirectoryOf,
   honoredException,
   staleNotices,
   LaneGuideline,
   ValidationIssue,
 } from '@ebrain-lab/weaver-markdown';
-import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject } from '@ebrain-lab/weaver-github';
+import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
 import { fetchEvidence, getGitHubToken } from './github';
 import { openInSystemBrowser, openPage } from './openPage';
+import { makeTaskFile } from './makeTaskFile';
 import { markVerified } from './markVerified';
+import { updateFolder } from './updateFolder';
 import { startProcessFile } from './startProcessFile';
 import { log } from './log';
 import { currentLocale, message as text } from './locale';
@@ -144,6 +147,50 @@ export class OverviewView {
   private showFinished = false;
   /** Clones on this computer that no list names and the Project has no card of, shown as lanes with a note (DEC-018 item 11). */
   private cloneOnly = new Set<string>();
+
+  /** Where the task file of each card without one in the open folder is, asked of GitHub (DEC-024). Keyed by the Issue address. */
+  private taskFiles = new Map<string, 'on-github' | 'absent'>();
+
+  /** The folder of the task files of a repository, from the files the open folder already has of it. */
+  private taskDirectory(repository: string): string {
+    const wanted = repository.toLowerCase();
+    const paths = (this.loaded?.artifacts ?? []).flatMap((a) => (a.kind === 'task' && a.repository?.toLowerCase() === wanted ? [a.path] : []));
+    return taskDirectoryOf(paths);
+  }
+
+  /**
+   * Asks GitHub, a few at a time, whether the task file of each card that has none in the open folder is on
+   * the default branch (DEC-024 item 1). A card whose answer is not known keeps the plain line.
+   */
+  private async checkTaskFiles(token: string, request: number): Promise<void> {
+    const links = requirementsByIssue(this.loaded?.artifacts ?? []);
+    const missing = (this.read?.cards ?? []).filter((card) => card.taskId && card.url && !links.has(normalizeIssueUrl(card.url)));
+    const answers = await mapLimit(missing, PULL_LIMIT, async (card) => ({
+      key: normalizeIssueUrl(card.url),
+      state: await taskFileState(token, card.repository, card.taskId as string, this.taskDirectory(card.repository)),
+    }));
+    if (request !== this.request) return;
+    const next = new Map<string, 'on-github' | 'absent'>();
+    for (const answer of answers) if (answer.state !== 'unknown') next.set(answer.key, answer.state);
+    this.taskFiles = next;
+    this.render();
+  }
+
+  /** Brings the open folder of a card's repository up to date, then reads the files and the board again (DEC-024 item 3). */
+  private async updateFolderOf(url: string): Promise<void> {
+    const found = this.find(url);
+    if (found && (await updateFolder(found.card.repository))) await this.refreshAll();
+  }
+
+  /** Makes the task file of a card that has none on GitHub, as a pull request (DEC-024 item 4). */
+  private async makeTaskFileOf(url: string): Promise<void> {
+    const found = this.find(url);
+    const { card } = found ?? {};
+    if (!card?.taskId) return;
+    const opened = await makeTaskFile({ taskId: card.taskId, title: card.title, number: card.number, url: card.url, repository: card.repository, assignees: card.assignees }, this.loaded?.artifacts ?? []);
+    if (opened) this.taskFiles.delete(normalizeIssueUrl(card.url));
+    if (opened) this.render();
+  }
 
   /** Marks a finished card Verified, from the card, after showing the plan and asking (DEC-023). */
   private async markCardVerified(url: string): Promise<void> {
@@ -286,6 +333,8 @@ export class OverviewView {
     }
     else if (message.type === 'foldLane' && message.id) this.flip(this.collapsed, COLLAPSED_KEY, message.id);
     else if (message.type === 'startProcess' && message.id) await this.startProcess(message.id);
+    else if (message.type === 'updateFolder' && message.url) await this.updateFolderOf(message.url);
+    else if (message.type === 'makeTaskFile' && message.url) await this.makeTaskFileOf(message.url);
     else if (message.type === 'markVerified' && message.url) await this.markCardVerified(message.url);
     else if (message.type === 'showAll') {
       this.hidden.clear();
@@ -520,6 +569,7 @@ export class OverviewView {
     this.token = token;
     this.render();
     if (result.ok) void this.readProcesses(token, request, repositories);
+    if (result.ok) void this.checkTaskFiles(token, request);
     void this.readRoster(token);
   }
 
@@ -631,9 +681,11 @@ export class OverviewView {
       if (this.reading.has(card.repository)) return { ...card, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] };
       const requirement = links.get(normalizeIssueUrl(card.url));
       const task = requirement?.taskPath ? tasks.get(requirement.taskPath) : undefined;
+      const taskFile = requirement ? undefined : this.taskFiles.get(normalizeIssueUrl(card.url));
       return {
         ...card,
         requirement,
+        ...(taskFile ? { taskFile } : {}),
         focus: focused.has(normalizeIssueUrl(card.url)),
         stale: staleNotices(
           {

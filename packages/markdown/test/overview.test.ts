@@ -195,4 +195,29 @@ describe('foldFinished', () => {
     base.columns.Review[0].placement.gaps = [];
     expect(foldFinished(base).folded).toBe(2);
   });
+
+  it('does not fold a card that has an open pull request, even when its Issue is closed and Verified (REQ-019)', () => {
+    // The Issue of a task is often closed by one pull request while another one, such as the one that adds its task file, is still open.
+    const base = lane();
+    (base.columns.Verified[0] as { pulls?: { state: string }[] }).pulls = [{ state: 'merged' }, { state: 'open' }];
+    const { lane: shown, folded } = foldFinished(base);
+    expect(folded).toBe(0);
+    expect(shown.columns.Verified).toHaveLength(1);
+  });
+
+  it('folds the card again when none of its pull requests is open', () => {
+    const base = lane();
+    (base.columns.Verified[0] as { pulls?: { state: string }[] }).pulls = [{ state: 'merged' }, { state: 'closed' }];
+    expect(foldFinished(base).folded).toBe(1);
+    const none = lane();
+    (none.columns.Verified[0] as { pulls?: { state: string }[] }).pulls = [];
+    expect(foldFinished(none).folded).toBe(1);
+  });
+
+  it('does not make an open card finished because its pull request is merged', () => {
+    const base = lane();
+    (base.columns.Backlog[0] as { pulls?: { state: string }[] }).pulls = [{ state: 'merged' }];
+    expect(foldFinished(base).folded).toBe(1);
+    expect(foldFinished(base).lane.columns.Backlog).toHaveLength(1);
+  });
 });

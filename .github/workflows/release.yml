@@ -1,6 +1,8 @@
 name: Release
 
-# Pushing a tag such as v0.0.3 builds the VSIX and the weaver tool and attaches both to a GitHub Release.
+# Pushing a tag such as v0.1.19 builds the VSIX and the weaver tool and attaches both to a GitHub Release.
+# The release is an official one, unless the version has a suffix such as -rc.1, which makes it a pre-release.
+# Its notes are the file docs/releases/<version>.md when it exists, and are generated from the commits when it does not.
 on:
   push:
     tags: ['v*']
@@ -36,7 +38,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/${version}.md"
+          options=()
+          if [[ "$version" == *-* ]]; then options+=(--prerelease); else options+=(--latest); fi
+          if [ -f "$notes" ]; then options+=(--notes-file "$notes"); else options+=(--generate-notes); fi
           gh release create "$GITHUB_REF_NAME" dist/weaver-*.vsix dist/weaver.js \
-            --title "Weaver ${GITHUB_REF_NAME#v}" \
-            --generate-notes \
-            --prerelease
+            --title "ebrAIn.lab Weaver ${version}" \
+            "${options[@]}"

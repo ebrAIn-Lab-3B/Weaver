@@ -39,15 +39,17 @@ The repository is licensed under MIT (`LICENSE`), and the VSIX includes it.
 Pushing a tag builds the VSIX and the `weaver` command-line tool in CI and attaches both to a GitHub Release (`.github/workflows/release.yml`). `weaver.js` is one file that runs with Node 20 or later (`node weaver.js --help`); the workflow runs it once before it is attached. The tool is not part of the VSIX. Releases are marked as pre-releases while the version is `0.0.x`.
 
 1. Bump the version in `apps/vscode-extension/package.json` (and the lock file): `npm version <version> -w @ebrain-lab/weaver-vscode-extension --no-git-tag-version`.
-2. Merge the bump to `main`.
-3. Tag and push. The tag must be `v` plus the extension version, or the workflow fails before building:
+2. Write the notes of the release in `docs/releases/<version>.md`, with the links to the guides that point to the tag (`blob/v<version>/...`). A test fails when the file for the extension's version is missing, or when a link of it points to a file that is not in the repository.
+3. Merge the bump and the notes to `main`.
+4. Tag and push. The tag must be `v` plus the extension version, or the workflow fails before building:
 
    ```bash
-   git tag v0.0.3
-   git push origin v0.0.3
+   git tag v0.1.19
+   git push origin v0.1.19
    ```
 
-4. Open the repository's Releases page, download `weaver-<version>.vsix`, and install it as described above.
+5. The workflow makes the release. It is an official release, with the notes file as its text, and it carries the VSIX and `weaver.js`. A version with a suffix, such as `0.1.20-rc.1`, makes a pre-release instead. Without a notes file the notes are generated from the commits.
+6. Open the repository's Releases page, download `weaver-<version>.vsix`, and install it as described above.
 
 The same workflow runs the checks and tests first, so a broken build never reaches a release.
 

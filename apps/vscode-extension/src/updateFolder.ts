@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { checkFolderUpdate, type MessageKey, repositoryOfRemote } from '@ebrain-lab/weaver-markdown';
+import { fetchDefaultBranch } from '@ebrain-lab/weaver-github';
+import { getGitHubToken } from './github';
 import { log } from './log';
 import { message } from './locale';
 
@@ -50,18 +52,22 @@ export async function updateFolder(repository: string): Promise<boolean> {
     return false;
   }
 
+  // The task file is on the default branch, so the folder has to be on it: a feature branch that is up to date with its own remote says nothing about it.
+  const token = await getGitHubToken(false, ['repo', 'project']);
+  const defaultBranch = token ? await fetchDefaultBranch(token, repository) : undefined;
   const stateOf = () => {
     const head = repo.state.HEAD;
     return {
       ...(head?.name ? { branch: head.name } : {}),
       ...(head?.upstream ? { upstream: `${head.upstream.remote}/${head.upstream.name}` } : {}),
+      ...(defaultBranch ? { defaultBranch } : {}),
       ahead: head?.ahead ?? 0,
       behind: head?.behind ?? 0,
       changed: repo.state.workingTreeChanges.length + repo.state.indexChanges.length + repo.state.mergeChanges.length,
     };
   };
   const refuse = (reason: string): false => {
-    void vscode.window.showInformationMessage(message(`ui.update-folder.${reason}` as MessageKey, { repository }));
+    void vscode.window.showInformationMessage(message(`ui.update-folder.${reason}` as MessageKey, { repository, branch: repo.state.HEAD?.name ?? '', default: defaultBranch ?? '' }));
     return false;
   };
 

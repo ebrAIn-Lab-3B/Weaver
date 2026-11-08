@@ -15,6 +15,7 @@ import {
   filePullRequestOpen,
   listRepositoryFolder,
   openFilesChangePullRequest,
+  openPullForTask,
 } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { currentLocale, message } from './locale';
@@ -82,7 +83,8 @@ export async function makeTaskFile(card: TaskFileCard, known: readonly Artifact[
   }
 
   const branch = `docs/${taskId.toLowerCase()}-task-file-from-the-card`;
-  if (await filePullRequestOpen(token, repository, branch)) return info(message('ui.make-task-file.already-open', { task: taskId }));
+  const existing = (await openPullForTask(token, repository, taskId)) ?? ((await filePullRequestOpen(token, repository, branch)) ? 0 : undefined);
+  if (existing !== undefined) return info(message('ui.make-task-file.already-open', { task: taskId }));
 
   const detail = message('ui.make-task-file.detail', { repository, taskPath: draft.taskPath, taskText: draft.taskText, requirementPath: draft.requirementPath, line: draft.line });
   const open = message('ui.make-task-file.button');

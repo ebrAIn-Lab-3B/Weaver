@@ -42,14 +42,18 @@ Input for the decision that the prototype ends. Checked on 2026-11-08: GitHub an
 
 Whatever way is chosen, Weaver reads the state of the pull request through the API, so the Overview is up to date when the person returns.
 
+## Prototype result
+
+On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.show` both opened GitHub's own page in an editor tab, in the built-in browser, with a sign-in on the page. The way is chosen in [DEC-020](../decisions/DEC-020-github-pages-open-in-the-built-in-browser.md), proposed for the maintainer to accept.
+
 ## Open decisions
 
 - Whether Weaver also offers a merge or close from its own dialog, in addition to showing GitHub's page. The maintainer prefers GitHub's own page; the dialog is a later option if the page cannot be shown.
-- How often Weaver reads the state while a page is open, and whether it stops when the page closes.
+- How often Weaver reads the state while a page is open: a first guess is in [DEC-020](../decisions/DEC-020-github-pages-open-in-the-built-in-browser.md) item 6 (every 60 seconds for ten minutes, stopping at merged or closed).
 
 ## Tasks
 
-Tasks are listed here once the open decisions are recorded.
+Tasks are listed here once DEC-020 is accepted.
 
 Origin: the maintainer, 2026-11-08, while trying the starting process file in the editor: a review that has to leave VS Code feels like a break in the work.
 

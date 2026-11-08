@@ -37,6 +37,8 @@ export interface OverviewCard {
   state?: 'open' | 'closed';
   /** The pull requests that refer to the Issue, open first, at most three (DEC-022). */
   pulls?: CardPull[];
+  /** Where the task file of a card without one in the open folder is, asked of GitHub (DEC-024): on GitHub (the folder is behind) or nowhere. */
+  taskFile?: 'on-github' | 'absent';
 }
 
 export type OverviewState =
@@ -97,7 +99,11 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       : '';
     // A card whose title names a task but that has no task file in the folder says why it opens its Issue (DEC-023 item 3).
     const noTaskFile = card.taskId && !card.requirement && !card.fromFiles
-      ? `<div class="muted small no-task-file">${e(tt('ui.overview.no-task-file', { task: card.taskId }))}</div>`
+      ? card.taskFile === 'on-github'
+        ? `<div class="muted small no-task-file">${e(tt('ui.overview.task-file-behind', { task: card.taskId }))} <button class="mark-verified" data-update-folder="${e(card.url)}" title="${e(tt('ui.overview.update-folder-title'))}">${e(tt('ui.overview.update-folder'))}</button></div>`
+        : card.taskFile === 'absent'
+          ? `<div class="muted small no-task-file">${e(tt('ui.overview.task-file-absent', { task: card.taskId }))} <button class="mark-verified" data-make-task-file="${e(card.url)}" title="${e(tt('ui.overview.make-task-file-title', { task: card.taskId }))}">${e(tt('ui.overview.make-task-file'))}</button></div>`
+          : `<div class="muted small no-task-file">${e(tt('ui.overview.no-task-file', { task: card.taskId }))}</div>`
       : '';
     // A finished card with the gap "closed without status:verified" can be marked Verified from the card, unless a pull request of it is still open (DEC-023 item 1).
     const canMarkVerified = !card.fromFiles && card.url !== '' && card.placement.gaps.some((gap) => gap.code === 'gap.closed-without-verified') && !(card.pulls ?? []).some((p) => p.state === 'open');
@@ -281,7 +287,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     });
   }
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified],[data-update-folder],[data-make-task-file]');
     if (!target) return;
     event.preventDefault();
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
@@ -292,6 +298,8 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     if (target.dataset.toggle) vscode.postMessage({ type: 'toggleLane', id: target.dataset.toggle });
     if (target.dataset.fold) vscode.postMessage({ type: 'foldLane', id: target.dataset.fold });
     if (target.dataset.startProcess) vscode.postMessage({ type: 'startProcess', id: target.dataset.startProcess });
+    if (target.dataset.updateFolder) vscode.postMessage({ type: 'updateFolder', url: target.dataset.updateFolder });
+    if (target.dataset.makeTaskFile) vscode.postMessage({ type: 'makeTaskFile', url: target.dataset.makeTaskFile });
     if (target.dataset.markVerified) vscode.postMessage({ type: 'markVerified', url: target.dataset.markVerified });
     if (target.dataset.moveLane) vscode.postMessage({ type: 'moveLane', id: target.dataset.moveLane, delta: Number(target.dataset.delta) });
   });

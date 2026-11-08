@@ -104,3 +104,38 @@ describe('the button "Mark verified" on a card (REQ-020, DEC-023 item 1)', () =>
     expect(html([withGap()])).toContain('<button class="mark-verified"');
   });
 });
+
+describe('where the missing task file is, and what the card offers (DEC-024 items 1 and 2)', () => {
+  it('says the folder is behind and offers to update it when the file is on GitHub', () => {
+    const page = html([card({ taskFile: 'on-github' })]);
+    expect(page).toContain('TASK-098 is on GitHub, and this folder is behind.');
+    expect(page).toMatch(/data-update-folder="https:\/\/github.com\/o\/r\/issues\/270"[^>]*>Update the folder<\/button>/);
+    expect(page).not.toContain('data-make-task-file="');
+  });
+
+  it('says there is no task file anywhere and offers to make it when GitHub does not have it', () => {
+    const page = html([card({ taskFile: 'absent' })]);
+    expect(page).toContain('There is no task file for TASK-098 on GitHub.');
+    expect(page).toMatch(/data-make-task-file="https:\/\/github.com\/o\/r\/issues\/270"[^>]*>Make the task file<\/button>/);
+    expect(page).not.toContain('data-update-folder="');
+  });
+
+  it('keeps the plain line, with no button, while GitHub has not answered', () => {
+    const page = html([card()]);
+    expect(page).toContain('No task file for TASK-098 in this folder.');
+    expect(page).not.toContain('data-update-folder="');
+    expect(page).not.toContain('data-make-task-file="');
+  });
+
+  it('offers nothing on a card that is joined to its requirement', () => {
+    const page = html([card({ requirement, taskFile: 'absent' })]);
+    expect(page).not.toContain('data-make-task-file="');
+  });
+
+  it('says it in Korean, and the page sends both messages when a button is clicked', () => {
+    const page = html([card({ taskFile: 'absent' })], 'ko');
+    expect(page).toContain('GitHub에도 TASK-098 작업 파일이 없습니다.');
+    expect(page).toContain("type: 'makeTaskFile'");
+    expect(page).toContain("type: 'updateFolder'");
+  });
+});

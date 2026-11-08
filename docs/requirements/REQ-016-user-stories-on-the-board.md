@@ -4,7 +4,7 @@ type: requirement
 title: User stories are written and followed on the board, not only in a document
 status: draft
 owner: ebrAIn.lab
-story_ids: [US-051]
+story_ids: [US-051, US-054]
 repository: ebrAIn-Lab-3B/Weaver
 github_project: ebrAIn.lab Kanban
 ---
@@ -37,7 +37,7 @@ A story is an artifact like a requirement and a task. A person walks from a stor
 
 Tasks are listed here once the open decisions are recorded.
 
-Origin: the maintainer, 2026-11-07: writing the story map is an important part of the work and is not on the board. Depends on [REQ-013](./REQ-013-keep-discussions-with-requirements-and-tasks.md).
+Origin: the maintainer, 2026-11-07: writing the story map is an important part of the work and is not on the board. On 2026-11-08 the agentic-browser project showed a second need ([US-054](../product/user-story-map.md)): it has a product definition, a Story Chain draft, and samples, but no requirement files, so a card there names no story. The decision of this requirement should cover a project in that state. Depends on [REQ-013](./REQ-013-keep-discussions-with-requirements-and-tasks.md).
 
 ## Evidence policy
 

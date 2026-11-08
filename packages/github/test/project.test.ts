@@ -131,6 +131,43 @@ describe('readProject', () => {
     expect(cards[1] && 'pullCount' in cards[1]).toBe(false);
   });
 
+  it('reads the pull requests themselves, open first, a pull request of both lists once, and nothing that is not a pull request (DEC-022)', async () => {
+    const pull = (number: number, state: string) => ({ number, url: `https://github.com/me/Weaver/pull/${number}`, title: `PR ${number}`, state });
+    const { fetchImpl } = fake({
+      body: page(
+        [
+          issue('me/Weaver', 1, {
+            closedByPullRequestsReferences: { totalCount: 2, nodes: [pull(5, 'MERGED'), pull(8, 'OPEN')] },
+            timelineItems: {
+              totalCount: 3,
+              nodes: [{ source: pull(8, 'OPEN') }, { source: pull(9, 'CLOSED') }, { source: { number: 3, url: 'https://github.com/me/Weaver/issues/3', title: 'an Issue', state: 'OPEN' } }, { source: {} }, null],
+            },
+          }),
+          issue('me/Weaver', 2, { closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } }),
+          issue('me/Weaver', 3),
+        ],
+        null,
+      ),
+    });
+    const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
+    const cards = result.ok ? result.read.cards : [];
+    expect(cards[0].pulls?.map((p) => `${p.number}:${p.state}`)).toEqual(['8:open', '9:closed', '5:merged']);
+    expect(cards[0].pulls?.[0]).toMatchObject({ url: 'https://github.com/me/Weaver/pull/8', title: 'PR 8' });
+    // No pull request, or an answer without the lists: no `pulls` at all, not an empty list.
+    expect('pulls' in cards[1]).toBe(false);
+    expect('pulls' in cards[2]).toBe(false);
+  });
+
+  it('asks for the pull requests in the same query, and adds no request', async () => {
+    const { fetchImpl, asked } = fake({ body: page([issue('me/Weaver', 1)], null) });
+    await readProject('t', project, ['me/Weaver'], fetchImpl);
+    expect(asked).toHaveLength(1);
+    const query = (asked[0] as unknown as { query: string }).query;
+    expect(query).toContain('closedByPullRequestsReferences(last:3');
+    expect(query).toContain('nodes{number url title state}');
+    expect(query).toContain('CrossReferencedEvent');
+  });
+
   it('omits board status and task id when absent', async () => {
     const { fetchImpl } = fake({ body: page([{ ...issue('me/Weaver', 1), fieldValueByName: null }], null) });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);

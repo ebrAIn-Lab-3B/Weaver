@@ -91,7 +91,7 @@ How it works:
 5. The folder that holds `.weaver` is where the clones go (**Weaver: Clone Registered Repositories**). There is nothing to set. The `weaver.fabricRoot` setting, if you have one, still wins.
 6. The Overview says which file decided when it is not your personal file, and `weaver list` prints it as `config` (and, with `--text`, as a note on standard error). A file in a parent folder that changes which Project you read is never silent.
 
-What does not belong in a root file: how a repository tracks its work (`columns`, `evidence`, `stale`, `task`). That is written in the repository's own `.weaver/process.yaml`. Those sections are reported in a root file and are not applied.
+What does not belong in a root file: how a repository tracks its work (`columns`, `evidence`, `stale`, `task`). That is written in the repository's own `.weaver/process.yaml`. Those sections are reported in a root file and are not applied. A root file may instead name the operating guideline your organization follows, so a repository with no process file can be offered a starting one: see [Work under an operating guideline](operating-guidelines.md).
 
 The file is for you and this computer. Do not commit it. If the folder that holds it is a Git repository, add `.weaver/` to its ignore list.
 

@@ -95,7 +95,7 @@ What does not belong in a root file: how a repository tracks its work (`columns`
 
 The file is for you and this computer. Do not commit it. If the folder that holds it is a Git repository, add `.weaver/` to its ignore list.
 
-Writing the file is by hand for now: copy the example, change the Project and the repositories, and press **Refresh** in the Overview. A command that writes it is not available yet.
+To write the file, run `weaver init --root <folder>` in a terminal, or **Weaver: Set Up** in the editor and choose *A root file in a folder of projects…* (the editor also offers the root file that already applies). Both ask the same questions as for your personal file, show the file first, write it only after you say yes, and keep the old one as `config.yaml.bak`. You can still write it by hand: copy the example, change the Project and the repositories, and press **Refresh** in the Overview.
 
 #### Writing an agent in the roster: `reach`
 

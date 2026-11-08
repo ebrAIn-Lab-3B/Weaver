@@ -3,9 +3,40 @@ import { Contributor, formatNotice, parseProjectRef, serializeConfig, type UserC
 import { listProjects, readProject, summarizeProject } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { currentLocale, message } from './locale';
-import { readUserConfig, userConfigPath, writeUserConfig } from './userConfig';
+import * as path from 'node:path';
+import { readRootConfig, ROOT_CONFIG_FILE, ROOT_CONFIG_FOLDER, workspaceStartFolder } from './rootConfig';
+import { readConfigFile, userConfigPath, writeConfigFile } from './userConfig';
 
 type Project = { owner: string; number: number };
+
+/**
+ * The file the setup writes. The root file that applies here comes first when there is one, because
+ * that is the file that decides now; the personal file is always offered; a folder can be chosen
+ * for a new root file. Returns undefined when the person cancels.
+ */
+async function pickTargetFile(): Promise<string | undefined> {
+  const personal = userConfigPath();
+  const found = await readRootConfig();
+  type Item = vscode.QuickPickItem & { file?: string };
+  const items: Item[] = [{ label: message('ui.setup.target-personal'), description: personal, file: personal }];
+  if (found.kind !== 'none') items.unshift({ label: message('ui.setup.target-root-found'), description: found.path, file: found.path });
+  items.push({ label: message('ui.setup.target-root-pick'), alwaysShow: true });
+  const picked = await vscode.window.showQuickPick(items, { placeHolder: message('ui.setup.target-placeholder'), ignoreFocusOut: true });
+  if (!picked) return undefined;
+  if (picked.file) return picked.file;
+
+  // A new root file: the folder above the workspace folder is the usual place, since the workspace is one clone among several.
+  const start = workspaceStartFolder();
+  const chosen = await vscode.window.showOpenDialog({
+    canSelectFiles: false,
+    canSelectFolders: true,
+    canSelectMany: false,
+    openLabel: message('ui.setup.target-root-open'),
+    title: message('ui.setup.target-root-title'),
+    ...(start ? { defaultUri: vscode.Uri.file(path.dirname(start)) } : {}),
+  });
+  return chosen?.[0] ? path.join(chosen[0].fsPath, ROOT_CONFIG_FOLDER, ROOT_CONFIG_FILE) : undefined;
+}
 
 const same = (a: Project, b: Project): boolean => a.owner.toLowerCase() === b.owner.toLowerCase() && a.number === b.number;
 
@@ -27,7 +58,10 @@ export async function setUp(): Promise<boolean> {
     void vscode.window.showWarningMessage(message('ui.setup.sign-in-failed'));
     return false;
   }
-  const existing = await readUserConfig();
+  // 0. Which file: the personal one, the root file that applies here, or a root file in another folder (DEC-018 item 10).
+  const file = await pickTargetFile();
+  if (!file) return false;
+  const existing = await readConfigFile(file);
   const current: UserConfig | undefined = existing.kind === 'ok' ? existing.config : undefined;
 
   // 1. The Project.
@@ -104,7 +138,6 @@ export async function setUp(): Promise<boolean> {
   // 4. Show it, and write it only after a yes.
   const config: UserConfig = { project, ...(repositories ? { repositories } : {}), ...(contributors.length ? { roster: { contributors } } : {}) };
   const text = serializeConfig(config);
-  const file = userConfigPath();
   const replacing = existing.kind === 'ok' ? existing.text : undefined;
   const detail = `${text}${replacing?.trim() ? `\n${message('ui.setup.replace-note', { backup: `${file}.bak` })}` : ''}`;
   const writeLabel = message('ui.setup.write-button');
@@ -112,7 +145,7 @@ export async function setUp(): Promise<boolean> {
   if (choice !== writeLabel) return false;
 
   try {
-    await writeUserConfig(text, replacing);
+    await writeConfigFile(file, text, replacing);
   } catch (error) {
     return fail((error as Error).message);
   }

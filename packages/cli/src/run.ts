@@ -57,7 +57,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     return args.command || args.flags.has('help') ? EXIT.ok : EXIT.usage;
   }
   if (args.command !== 'list' && args.command !== 'show' && args.command !== 'project' && args.command !== 'task' && args.command !== 'card' && args.command !== 'evidence' && args.command !== 'reconcile' && args.command !== 'init' && args.command !== 'process') return fail(EXIT.usage, 'cli.unknown-command', { command: args.command });
-  if (args.command === 'init') return runInit(deps, locale, wantsText);
+  if (args.command === 'init') return runInit(deps, locale, wantsText, args.options.root === undefined ? undefined : path.resolve(deps.cwd, args.options.root));
   if (args.command === 'show' && args.positional.length === 0) {
     return fail(EXIT.usage, 'cli.missing-argument', { command: 'show', argument: 'a card' });
   }

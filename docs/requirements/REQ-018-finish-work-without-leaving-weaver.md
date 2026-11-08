@@ -57,6 +57,7 @@ On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.sho
 - `TASK-091` Follow the state of a pull request or Issue that Weaver opened a page for — [GitHub Issue #243](https://github.com/ebrAIn-Lab-3B/Weaver/issues/243)
 - `TASK-092` Write the guide for finishing work in the built-in browser — [GitHub Issue #245](https://github.com/ebrAIn-Lab-3B/Weaver/issues/245)
 - `TASK-093` Decide how a GitHub page is shown inside Weaver — [GitHub Issue #248](https://github.com/ebrAIn-Lab-3B/Weaver/issues/248)
+- `TASK-098` Open the first link of a window in the built-in browser — [GitHub Issue #270](https://github.com/ebrAIn-Lab-3B/Weaver/issues/270)
 
 Origin: the maintainer, 2026-11-08, while trying the starting process file in the editor: a review that has to leave VS Code feels like a break in the work.
 

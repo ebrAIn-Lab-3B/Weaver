@@ -1,15 +1,22 @@
 import * as vscode from 'vscode';
 import { choosePageOpener, SIMPLE_BROWSER_COMMAND, type PageOpener } from '@ebrain-lab/weaver-markdown';
+import { log } from './log';
 
-/** What this VS Code can do, asked once: the commands do not change while the window is open. */
-let opener: Promise<PageOpener> | undefined;
+/**
+ * What this VS Code can do. Only a yes is kept: once the built-in browser is there it stays there, but a
+ * no is asked again at the next link, so an answer given before the browser was ready is never kept.
+ */
+let builtIn = false;
 
-function openerOfThisVsCode(): Promise<PageOpener> {
-  opener ??= Promise.resolve(vscode.commands.getCommands(true)).then(
-    (commands) => choosePageOpener(commands),
-    () => 'system' as const,
-  );
-  return opener;
+async function openerOfThisVsCode(): Promise<PageOpener> {
+  if (!builtIn) {
+    try {
+      builtIn = choosePageOpener(await vscode.commands.getCommands(true)) === 'built-in';
+    } catch {
+      // Without the list there is no way to tell, so the system browser is used this time.
+    }
+  }
+  return builtIn ? 'built-in' : 'system';
 }
 
 /** Opens a page in the system browser. This is the one explicit way to leave VS Code (DEC-020 item 3). */
@@ -24,14 +31,19 @@ export async function openInSystemBrowser(url: string): Promise<void> {
  * is opened in the system browser instead, so a link never does nothing.
  */
 export async function openPage(url: string): Promise<void> {
-  if ((await openerOfThisVsCode()) === 'built-in') {
+  const opener = await openerOfThisVsCode();
+  if (opener === 'built-in') {
     try {
       await vscode.commands.executeCommand(SIMPLE_BROWSER_COMMAND, url);
+      log(`open page in the built-in browser: ${url}`);
       follower?.watch(url);
       return;
-    } catch {
-      // Fall through to the system browser.
+    } catch (error) {
+      // Fall through to the system browser, and say why in the log.
+      log(`the built-in browser could not show ${url}: ${error instanceof Error ? error.message : String(error)}`);
     }
+  } else {
+    log(`open page in the system browser (this VS Code has no built-in browser): ${url}`);
   }
   await openInSystemBrowser(url);
   follower?.watch(url);

@@ -32,7 +32,7 @@ A new user installs a released Weaver build from a GitHub Release or a registry,
 - `TASK-021` Attach the VSIX to a GitHub Release from CI — [GitHub Issue #44](https://github.com/ebrAIn-Lab-3B/Weaver/issues/44)
 - `TASK-022` Publish to a registry — [GitHub Issue #45](https://github.com/ebrAIn-Lab-3B/Weaver/issues/45)
 - `TASK-094` Refresh the README Start here and current status for the people who use Weaver — [GitHub Issue #252](https://github.com/ebrAIn-Lab-3B/Weaver/issues/252)
-- `TASK-096` Build and attach the release files when a tag is pushed — [GitHub Issue #257](https://github.com/ebrAIn-Lab-3B/Weaver/issues/257)
+- `TASK-096` Make the release workflow publish an official release with prepared notes — [GitHub Issue #257](https://github.com/ebrAIn-Lab-3B/Weaver/issues/257)
 
 Installing the VSIX in a normal window is still open under `TASK-012`.
 

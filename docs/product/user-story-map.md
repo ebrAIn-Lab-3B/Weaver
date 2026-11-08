@@ -115,6 +115,7 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-052` — As a team member, I drag a card to another column and confirm the move, so the board works as I expect a Kanban to work. (Belongs to `REQ-017`.)
 - `US-053` — As a person who works in VS Code (and later the Weaver application), I open and finish a pull request or an Issue on GitHub's own page inside Weaver, so I do not leave my work to go to a browser and come back. (Belongs to `REQ-018`.)
 - `US-054` — As a team that works with a Story Chain and a product definition but has no requirement files yet, I put an Issue on the board and can still see which story it serves, so that the board is useful before the requirements are written. (Belongs to `REQ-016`. Friction found on 2026-11-08 while writing the dogfooding guide for agentic-browser: `weaver task create` needs a `REQ-number` file, so the work was put on the board as a plain Issue with no link to a story.)
+- `US-055` — As a person who looks at a card, I see the pull requests of its work on the card, and one press opens one in VS Code, so I do not have to know a hidden menu to review and merge. (Belongs to `REQ-019`. Friction found on 2026-11-08 while trying the pull request follow of `REQ-018`: the way from a card to its pull request was a right-click menu that nothing on the card pointed to.)
 
 ### PALab project adoption
 

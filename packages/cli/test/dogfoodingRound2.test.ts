@@ -73,4 +73,27 @@ describe('the guide to the second round of using Weaver', () => {
       expect(result.config?.guideline).toMatchObject({ repository: 'ebrAIn-Lab-3B/agentic-base', path: '.weaver/process.yaml', ref: 'weaver-process-file' });
     }
   });
+
+  it('has a table of where the documents are, and every path of this repository in it exists', async () => {
+    for (const file of [GUIDE, GUIDE_KO]) {
+      const text = await read(file);
+      const section = /^## (?:Where to read the documents|문서는 어디서 보나)\n([\s\S]*?)\n## /m.exec(text)?.[1];
+      expect(section, `${file} has the section`).toBeDefined();
+      // The paths of this repository: those under docs/. The rows about other repositories name files that are not here.
+      const rows = (section as string).split('\n').filter((line) => line.startsWith('|') && !line.includes('agentic-browser') && !line.includes('agentic-base'));
+      const paths = rows.flatMap((row) => [...row.matchAll(/`(docs\/[^`]+)`/g)].map((m) => m[1]));
+      expect(paths.length, `${file} names some paths`).toBeGreaterThan(4);
+      for (const found of paths) {
+        await expect(fs.access(path.join(ROOT, found)), `${file} names ${found}`).resolves.toBeUndefined();
+      }
+    }
+  });
+
+  it('does not wait for the review of the guideline: the branch is the normal way', async () => {
+    for (const file of [GUIDE, GUIDE_KO]) {
+      const text = await read(file);
+      expect(text).toContain('ref: weaver-process-file');
+      expect(text).toContain('pull/2');
+    }
+  });
 });

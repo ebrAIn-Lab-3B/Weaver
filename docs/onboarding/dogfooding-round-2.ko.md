@@ -8,7 +8,7 @@
 
 - **agentic-base**는 새 프로젝트를 만들 때 통째로 복사해 쓰는 바탕입니다. **agentic-browser**는 그렇게 만든 프로젝트입니다. 복사할 때 Weaver 설정 파일(`.weaver/process.yaml`)이 아직 없었기 때문에, agentic-browser에는 이 파일이 없습니다. 이 안내서는 그 빈자리를 채웁니다.
 - **process 파일**(`.weaver/process.yaml`)은 저장소가 일을 어떻게 관리하는지 적어 둔 파일입니다. 카드를 어느 열에 둘지, 일이 끝났다는 증거로 무엇을 볼지가 들어 있습니다.
-- agentic-base가 이 파일을 `main`에 올렸는지 먼저 확인하세요. 지금은 [agentic-base의 풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)에 있고 팀 검토를 기다리는 중입니다. 병합되기 전에는 아래 2번의 `ref` 줄이 필요합니다.
+- agentic-base의 이 파일은 아직 `main`에 없습니다. [풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)에 있고, 팀이 검토하는 중입니다. 검토에는 몇 주가 걸릴 수 있습니다. 그래서 이 안내서는 병합을 기다리지 않고, 그 PR의 브랜치(`weaver-process-file`)에서 파일을 읽는 방법을 기본으로 씁니다. 아래 2번의 `ref` 줄이 그 방법입니다. PR이 병합되면 그 줄만 지우면 됩니다.
 - 풀 리퀘스트(PR)는 고친 내용을 합쳐 달라는 요청입니다. Issue는 GitHub의 일감 항목입니다.
 
 ## 준비물
@@ -45,7 +45,7 @@ guideline:
 - `project`는 카드를 보여 줄 GitHub Project입니다.
 - `repositories`는 보여 줄 저장소입니다. agentic-browser에는 아직 Issue가 하나도 없어서, 이 줄에 적어야 전체 보기에 줄(레인)이 생깁니다. 이미 `repositories`가 있다면 목록을 지우지 말고 agentic-browser 한 줄만 더하세요. 목록에 없는 저장소는 전체 보기에서 사라집니다.
 - `guideline`은 따를 지침이 어느 저장소의 어느 파일인지 가리킵니다. `path`를 적지 않으면 `.weaver/process.yaml`을 읽습니다.
-- `ref: weaver-process-file`은 agentic-base의 PR #2가 병합되기 전에만 씁니다. 병합된 뒤에는 이 줄을 지웁니다. 그러면 `main`에서 읽습니다.
+- `ref: weaver-process-file`은 agentic-base의 PR #2에 있는 브랜치를 읽으라는 뜻입니다. PR이 병합되고 나면 이 줄을 지웁니다. 그러면 `main`에서 읽습니다. 브랜치가 지워졌는데도 이 줄이 남아 있으면 파일을 찾지 못합니다.
 
 명령 팔레트의 **Weaver: 설정**으로 처음 설정했다면, 그때 만든 파일은 `~/.weaver/config.yaml`입니다. 그 파일에 같은 `guideline` 줄을 적어도 됩니다. 폴더 안의 파일이 개인 파일보다 먼저 쓰입니다.
 
@@ -139,7 +139,7 @@ agentic-base의 제안(검토 중)은 이렇습니다. 일은 `fix_plan.md`에 �
 3. 전체 보기를 새로 고칩니다. agentic-browser 줄의 **백로그**에 새 카드가 보입니다.
 4. `fix_plan.md`의 `contract-final-2` 줄 끝에 `(#1)`을 적어 둡니다. 번호가 있는 줄이 보드에 있는 일입니다.
 
-`weaver task create`를 쓰지 않는 이유가 있습니다. 이 명령은 `REQ-번호` 요구사항 파일이 있는 저장소에서 씁니다. agentic-browser에는 그 파일이 아직 없으므로 Issue를 직접 만듭니다.
+`weaver task create`를 쓰지 않는 이유가 있습니다. 이 명령은 `REQ-번호` 요구사항 파일이 있는 저장소에서 씁니다. agentic-browser에는 제품 정의(`docs/PRODUCT.md`)와 스토리 체인 초안, 샘플만 있고 요구사항 파일은 아직 없습니다. 그래서 Issue를 직접 만듭니다. 이 간극은 알려진 불편입니다. 요구사항 파일이 없어도 카드가 어느 이야기에 속하는지 보이게 하는 방법은 아직 없습니다.
 
 ## 7. 일을 시작하고 끝내기
 
@@ -172,6 +172,23 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 
 아직 고치지 못한 불편입니다. 겪으면 알려 주세요.
 
+## 문서는 어디서 보나
+
+아래 표는 이 안내서가 가리키는 문서가 어디에 있는지 알려 줍니다. 모두 Weaver 저장소의 `docs` 폴더에 있습니다. 보는 방법은 두 가지입니다. GitHub 저장소 화면에서 폴더를 따라 들어가거나, 저장소를 VS Code로 열고 왼쪽 탐색기에서 파일을 엽니다.
+
+| 보고 싶은 것 | 위치 |
+| --- | --- |
+| 이 안내서(한글, 영어) | `docs/onboarding/dogfooding-round-2.ko.md`, `dogfooding-round-2.md` |
+| 다른 안내서(설치, 설정, process 파일, 운영 지침, 에이전트 계약) | `docs/onboarding/` |
+| 요구사항(`REQ-번호`) | `docs/requirements/`. 전체 보기에서 카드를 누르면 요구사항 화면이 열립니다. |
+| 결정(`DEC-번호`) | `docs/decisions/` |
+| 작업(`TASK-번호`) | `docs/tasks/` |
+| 사용자 이야기(`US-번호`) | `docs/product/user-story-map.md` |
+| agentic-browser의 제품 정의, 스토리 체인 초안, 작업 목록 | agentic-browser 저장소의 `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
+| agentic-base의 Weaver 제안 | [풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)의 **Files changed** 탭 |
+
+**아직 병합하지 않은 문서는 `main`에 없습니다.** 그 문서는 풀 리퀘스트의 브랜치에 있습니다. 풀 리퀘스트 화면의 **Files changed** 탭에서 보거나, 그 브랜치를 내려받아 엽니다. 병합하면 `main`에서 바로 보입니다.
+
 ## 불편한 점 알리기
 
 [피드백 양식](https://github.com/ebrAIn-Lab-3B/Weaver/issues/new?template=dogfooding-feedback.yml)을 엽니다. 네 가지를 묻습니다. 무엇을 하려 했는지, 어떻게 되기를 바랐는지, 실제로 어떻게 되었는지, 일하는 데 얼마나 걸림돌이었는지입니다. 화면 사진이 있으면 도움이 됩니다. 짧아도 괜찮습니다.
@@ -182,7 +199,7 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 | --- | --- |
 | 전체 보기에 agentic-browser 줄이 없음 | 2번 파일의 위치와 `repositories` 줄을 확인하고, **새로 고침**을 누릅니다. |
 | 줄은 있는데 지침 줄이 안 나옴 | 2번의 `guideline` 줄을 확인합니다. `repository`는 `소유자/이름` 모양이어야 합니다. |
-| "지침 파일이 그곳에 없어서 기본값을 대신 제안한다"고 나옴 | agentic-base의 `main`에 파일이 아직 없는 것입니다. 2번의 `ref: weaver-process-file` 줄을 넣었는지 확인합니다. |
+| "지침 파일이 그곳에 없어서 기본값을 대신 제안한다"고 나옴 | agentic-base의 `main`에 파일이 아직 없는 것입니다. 2번의 `ref: weaver-process-file` 줄을 넣었는지 확인합니다. 줄이 있는데도 나온다면 PR #2의 브랜치가 지워졌거나 이름이 바뀌었는지 봅니다. |
 | "이미 process 파일이 있다"며 시작이 거절됨 | agentic-browser에 이미 파일이 있는 것입니다. 지침은 있는 파일을 바꾸지 않습니다. 고치려면 그 파일을 PR로 고칩니다. |
 | 시작 파일 PR이 "이미 열려 있다"며 거절됨 | 열려 있는 PR(`docs/weaver-process-file`)을 합치거나 닫은 뒤 다시 합니다. |
 | "project" 권한이 없다고 나옴 | **GitHub에 로그인**을 다시 눌러 `project` 권한을 허락합니다. |

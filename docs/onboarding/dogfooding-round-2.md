@@ -8,7 +8,7 @@ If a step does not work or gets in your way, stop there and report it as [descri
 
 - **agentic-base** is a base that is copied whole when a new project is made. **agentic-browser** is a project made that way. When it was copied, the Weaver file (`.weaver/process.yaml`) did not exist yet, so agentic-browser has none. This guide fills that gap.
 - A **process file** (`.weaver/process.yaml`) is where a repository says how it manages its work: which column a card goes in, and what counts as evidence that the work is done.
-- Check whether agentic-base has put that file on `main`. Today it is in [pull request #2 of agentic-base](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2), waiting for the team's review. Until it is merged, step 2 needs the `ref` line.
+- That file of agentic-base is not on `main` yet. It is in [pull request #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2), under the team's review, and the review can take weeks. So this guide does not wait for the merge: its normal way is to read the file from the branch of that PR (`weaver-process-file`). The `ref` line of step 2 is that way. When the PR is merged, delete that one line.
 - A pull request (PR) is a request to merge a change. An Issue is a work item on GitHub.
 
 ## What you need
@@ -45,7 +45,7 @@ What the lines mean:
 - `project` is the GitHub Project whose cards are shown.
 - `repositories` is the list of repositories to show. agentic-browser has no Issue yet, so it must be listed here to get a lane in the Overview. If you already have a `repositories` list, do not delete it; add the one agentic-browser line. A repository that is not listed disappears from the Overview.
 - `guideline` points to the repository and file of the guideline to follow. Without a `path`, it reads `.weaver/process.yaml`.
-- `ref: weaver-process-file` is needed only until PR #2 of agentic-base is merged. After that, delete this line, and the file is read from `main`.
+- `ref: weaver-process-file` says to read the branch of PR #2 of agentic-base. When the PR is merged, delete this line, and the file is read from `main`. If the branch is deleted and the line is still there, the file is not found.
 
 If you made your setup with **Weaver: Set Up**, that file is `~/.weaver/config.yaml`. You may put the same `guideline` line there. The file in the folder is used before your personal file.
 
@@ -139,7 +139,7 @@ The proposal in agentic-base (under review) is this: keep the work in `fix_plan.
 3. Refresh the Overview. A new card is in **Backlog** in the lane of agentic-browser.
 4. At the end of the `contract-final-2` line in `fix_plan.md`, write `(#1)`. A line with a number is work that is on the board.
 
-There is a reason not to use `weaver task create` here. That command is for a repository that has `REQ-number` requirement files. agentic-browser has none yet, so the Issue is made by hand.
+There is a reason not to use `weaver task create` here. That command is for a repository that has `REQ-number` requirement files. agentic-browser has a product definition (`docs/PRODUCT.md`), a Story Chain draft, and samples, but no requirement files yet, so the Issue is made by hand. This gap is a known inconvenience: with no requirement files, there is not yet a way to see which story a card belongs to.
 
 ## 7. Start the work and finish it
 
@@ -172,6 +172,23 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 
 This is not fixed yet. Tell us if you meet it.
 
+## Where to read the documents
+
+The table below says where the documents this guide points to are. All of them are in the `docs` folder of the Weaver repository. There are two ways to read them: follow the folders on the GitHub repository page, or open the repository in VS Code and open the file from the Explorer on the left.
+
+| What you want to read | Where |
+| --- | --- |
+| This guide (Korean, English) | `docs/onboarding/dogfooding-round-2.ko.md`, `dogfooding-round-2.md` |
+| The other guides (install, setup, process file, operating guideline, agent contract) | `docs/onboarding/` |
+| Requirements (`REQ-number`) | `docs/requirements/`. In the Overview, pressing a card opens the requirement view. |
+| Decisions (`DEC-number`) | `docs/decisions/` |
+| Tasks (`TASK-number`) | `docs/tasks/` |
+| User stories (`US-number`) | `docs/product/user-story-map.md` |
+| The product definition, the Story Chain draft, and the work list of agentic-browser | In the agentic-browser repository: `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
+| The Weaver proposal of agentic-base | The **Files changed** tab of [pull request #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2) |
+
+**A document that is not merged yet is not on `main`.** It is on the branch of its pull request. Read it in the **Files changed** tab of the pull request, or fetch that branch and open it. Once the PR is merged, it is on `main`.
+
 ## Report friction
 
 Open [the feedback form](https://github.com/ebrAIn-Lab-3B/Weaver/issues/new?template=dogfooding-feedback.yml). It asks four things: what you were trying to do, what you expected, what happened, and how much it got in the way. A screenshot helps. Short is fine.
@@ -182,7 +199,7 @@ Open [the feedback form](https://github.com/ebrAIn-Lab-3B/Weaver/issues/new?temp
 | --- | --- |
 | There is no lane for agentic-browser | Check the location of the file and the `repositories` line of step 2, then press **Refresh**. |
 | The lane is there but the guideline line is not | Check the `guideline` line of step 2. `repository` must look like `owner/name`. |
-| It says the guideline file was not found and offers the defaults instead | agentic-base has no file on `main` yet. Check that you put the `ref: weaver-process-file` line of step 2. |
+| It says the guideline file was not found and offers the defaults instead | agentic-base has no file on `main` yet. Check that you put the `ref: weaver-process-file` line of step 2. If the line is there, check whether the branch of PR #2 was deleted or renamed. |
 | Starting is refused with "already has a process file" | agentic-browser already has one. A guideline never changes an existing file. To change it, change that file by a PR. |
 | The starting-file PR is refused as "already open" | Merge or close the open PR (`docs/weaver-process-file`) and try again. |
 | It says the "project" scope is missing | Press **Sign in to GitHub** again and allow the `project` scope. |

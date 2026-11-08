@@ -27,10 +27,19 @@ export async function openPage(url: string): Promise<void> {
   if ((await openerOfThisVsCode()) === 'built-in') {
     try {
       await vscode.commands.executeCommand(SIMPLE_BROWSER_COMMAND, url);
+      follower?.watch(url);
       return;
     } catch {
       // Fall through to the system browser.
     }
   }
   await openInSystemBrowser(url);
+  follower?.watch(url);
+}
+
+/** Follows the pull requests and Issues whose pages are opened (DEC-020 item 6). Set once, when the extension starts. */
+let follower: { watch(url: string): void } | undefined;
+
+export function followOpenedPages(watcher: { watch(url: string): void } | undefined): void {
+  follower = watcher;
 }

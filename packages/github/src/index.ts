@@ -12,4 +12,5 @@ export * from './guidelineFile';
 export * from './filePullRequest';
 export * from './processStart';
 export * from './pageState';
+export * from './repositoryFolder';
 export * from './size';

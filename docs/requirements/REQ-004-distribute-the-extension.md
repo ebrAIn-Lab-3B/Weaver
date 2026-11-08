@@ -31,6 +31,7 @@ A new user installs a released Weaver build from a GitHub Release or a registry,
 - `TASK-020` Choose and add a license — [GitHub Issue #43](https://github.com/ebrAIn-Lab-3B/Weaver/issues/43)
 - `TASK-021` Attach the VSIX to a GitHub Release from CI — [GitHub Issue #44](https://github.com/ebrAIn-Lab-3B/Weaver/issues/44)
 - `TASK-022` Publish to a registry — [GitHub Issue #45](https://github.com/ebrAIn-Lab-3B/Weaver/issues/45)
+- `TASK-094` Refresh the README Start here and current status for the people who use Weaver — [GitHub Issue #252](https://github.com/ebrAIn-Lab-3B/Weaver/issues/252)
 
 Installing the VSIX in a normal window is still open under `TASK-012`.
 

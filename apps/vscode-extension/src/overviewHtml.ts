@@ -99,6 +99,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       <h2><button class="fold" data-fold="${e(lane.repository)}" aria-expanded="${!folded}" title="${e(tt(folded ? 'ui.overview.unfold' : 'ui.overview.fold', { title: lane.title }))}">${folded ? '\u25b8' : '\u25be'}</button>${e(lane.title)} <span class="muted small">${e(lane.repository)}</span>
         <span class="lane-move">${index > 0 ? `<button class="mv" data-move-lane="${e(lane.repository)}" data-delta="-1" title="${e(tt('ui.overview.move-up', { title: lane.title }))}">\u25b2</button>` : ''}${index < count - 1 ? `<button class="mv" data-move-lane="${e(lane.repository)}" data-delta="1" title="${e(tt('ui.overview.move-down', { title: lane.title }))}">\u25bc</button>` : ''}</span>
         <span class="badge">${e(tt('ui.overview.cards', { count: lane.total }))}</span>${lane.blocked ? `<span class="badge blocked">${e(tt('ui.overview.blocked', { count: lane.blocked }))}</span>` : ''}</h2>
+      ${folded || !lane.canStart ? '' : `<p class="small"><button data-start-process="${e(lane.repository)}">${e(tt('ui.overview.start-process'))}</button></p>`}
       ${folded ? '' : lane.guideline ? `<p class="muted small guideline">${e(tt('ui.overview.guideline', { label: lane.guideline.label, where: tt(`ui.overview.guideline-where.${lane.guideline.source}` as MessageKey) }))}${lane.guideline.startable ? ` ${e(tt('ui.overview.guideline-start'))}` : ''}</p>` : ''}
       ${folded ? '' : reading ? `<p class="muted small">${e(tt('ui.overview.reading-process'))}</p>` : lane.total === 0 ? `<p class="muted small">${e(tt(lane.note === 'clone' ? 'ui.overview.clone-no-cards' : 'ui.overview.no-cards'))}</p>` : `<div class="cols">${KANBAN_COLUMNS.map((column) => `<div class="col">${column === 'Verified' && finished ? `<button class="finished-fold" data-cmd="toggleFinished" aria-expanded="${showFinished}" title="${e(tt(showFinished ? 'ui.overview.hide-finished' : 'ui.overview.show-finished', { count: finished }))}">${showFinished ? '▾' : '▸'} ${e(tt(showFinished ? 'ui.overview.finished-shown' : 'ui.overview.finished-folded', { count: finished }))}</button>` : ''}${lane.columns[column].map(cardHtml).join('')}</div>`).join('')}</div>`}
     </section>`;
@@ -254,7 +255,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     });
   }
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process]');
     if (!target) return;
     event.preventDefault();
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
@@ -264,6 +265,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     if (target.dataset.req) vscode.postMessage({ type: 'openRequirement', id: target.dataset.req });
     if (target.dataset.toggle) vscode.postMessage({ type: 'toggleLane', id: target.dataset.toggle });
     if (target.dataset.fold) vscode.postMessage({ type: 'foldLane', id: target.dataset.fold });
+    if (target.dataset.startProcess) vscode.postMessage({ type: 'startProcess', id: target.dataset.startProcess });
     if (target.dataset.moveLane) vscode.postMessage({ type: 'moveLane', id: target.dataset.moveLane, delta: Number(target.dataset.delta) });
   });
   document.addEventListener('contextmenu', (event) => {

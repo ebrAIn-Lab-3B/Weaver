@@ -4,6 +4,7 @@ import { errorNotice, openFilePullRequest, prepareProcessStart, processStartPull
 import { getGitHubToken } from './github';
 import { openGuidelineCopies } from './guidelineStore';
 import { currentLocale, message } from './locale';
+import { openPage } from './openPage';
 
 /**
  * Offers a starting process file to a repository that has none, from the Overview (DEC-019 item 6).
@@ -44,7 +45,7 @@ export async function startProcessFile(
     const pull = await openFilePullRequest(token, repository, processStartPullRequest(prepared.text, attribution));
     const view = message('ui.process-start.view');
     const next = await vscode.window.showInformationMessage(message('ui.process-start.done', { repository, number: pull.number }), view);
-    if (next === view) await vscode.env.openExternal(vscode.Uri.parse(pull.url));
+    if (next === view) await openPage(pull.url);
     return true;
   } catch (error) {
     void vscode.window.showErrorMessage(message('ui.process-start.failed', { detail: formatNotice(errorNotice(error), locale) }));

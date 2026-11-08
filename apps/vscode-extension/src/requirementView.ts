@@ -23,6 +23,7 @@ import {
 import { applyMove, fetchBoardItems, fetchEvidence, fetchIssue, getGitHubToken } from './github';
 import { coverageOf } from './coverage';
 import { currentLocale, message } from './locale';
+import { openPage } from './openPage';
 import { processStore } from './processStore';
 import { rosterOf } from './rosterStore';
 import { readUserConfig } from './userConfig';
@@ -85,7 +86,7 @@ export class RequirementView {
       } else if (message.type === 'openPreview' && entry.uri) {
         await vscode.commands.executeCommand('markdown.showPreviewToSide', entry.uri);
       } else if (message.type === 'openUrl' && message.url && isOpenableUrl(message.url)) {
-        await vscode.env.openExternal(vscode.Uri.parse(message.url));
+        await openPage(message.url);
       } else if (message.type === 'loadStatus') {
         await this.loadStatus(entry, true);
       } else if (message.type === 'moveTask' && message.taskId && message.column) {

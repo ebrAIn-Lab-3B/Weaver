@@ -160,6 +160,7 @@ export const en = {
   'ui.overview.menu.task-file': 'Task file {task}',
   'ui.overview.menu.requirement-source': 'Requirement source {id}',
   'ui.overview.menu.issue': 'Issue #{number} on GitHub',
+  'ui.overview.menu.issue-system': 'Issue #{number} in the system browser',
   'ui.overview.menu.pull-request': 'Pull request',
   'ui.overview.menu.repository-folder': 'Repository folder {repository}',
   'ui.overview.menu.unavailable': 'not available',

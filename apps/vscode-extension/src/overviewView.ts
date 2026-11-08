@@ -35,6 +35,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
 import { fetchEvidence, getGitHubToken } from './github';
+import { openInSystemBrowser, openPage } from './openPage';
 import { startProcessFile } from './startProcessFile';
 import { log } from './log';
 import { currentLocale, message as text } from './locale';
@@ -294,7 +295,7 @@ export class OverviewView {
     }
     else if (message.type === 'cardMenu' && message.url) await this.cardMenu(message.url);
     else if (message.type === 'openUrl' && message.url && isOpenableUrl(message.url)) {
-      await vscode.env.openExternal(vscode.Uri.parse(message.url));
+      await openPage(message.url);
     } else if (message.type === 'openRequirement' && message.id) {
       const requirement = this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === message.id);
       const uri = requirement && this.loaded?.uris.get(requirement.path);
@@ -324,7 +325,7 @@ export class OverviewView {
       const link = requirementsByIssue(this.loaded?.artifacts ?? []).get(normalizeIssueUrl(url));
       const requirement = link && this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === link.id);
       if (link && requirement?.kind === 'requirement' && this.loaded) this.requirements.show(this.loaded, requirement, link.taskId);
-      else if (isOpenableUrl(url)) await vscode.env.openExternal(vscode.Uri.parse(url));
+      else if (isOpenableUrl(url)) await openPage(url);
       return;
     }
     const { card, link } = found;
@@ -332,7 +333,7 @@ export class OverviewView {
     if (link && requirement?.kind === 'requirement' && this.loaded) {
       this.requirements.show(this.loaded, requirement, link.taskId);
     } else if (isOpenableUrl(card.url)) {
-      await vscode.env.openExternal(vscode.Uri.parse(card.url));
+      await openPage(card.url);
     }
   }
 
@@ -382,7 +383,12 @@ export class OverviewView {
       {
         label: `$(link-external) ${text('ui.overview.menu.issue', { number: card.number })}`,
         detail: card.url,
-        run: () => (isOpenableUrl(card.url) ? vscode.env.openExternal(vscode.Uri.parse(card.url)) : undefined),
+        run: () => (isOpenableUrl(card.url) ? openPage(card.url) : undefined),
+      },
+      {
+        label: `$(globe) ${text('ui.overview.menu.issue-system', { number: card.number })}`,
+        detail: card.url,
+        run: () => (isOpenableUrl(card.url) ? openInSystemBrowser(card.url) : undefined),
       },
       { label: `$(git-pull-request) ${text('ui.overview.menu.pull-request')}`, run: () => this.openPullRequest(card) },
       folder
@@ -423,7 +429,7 @@ export class OverviewView {
               { placeHolder: text('ui.overview.pick-pull-request') },
             )
           )?.pull;
-    if (pull) await vscode.env.openExternal(vscode.Uri.parse(pull.url));
+    if (pull) await openPage(pull.url);
   }
 
   private async load(interactive: boolean): Promise<void> {

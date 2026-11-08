@@ -25,6 +25,7 @@ export * from './config';
 export * from './rootConfig';
 export * from './guideline';
 export * from './guidelineCopies';
+export * from './pageOpener';
 export * from './processStart';
 export * from './repositoryList';
 export * from './process';

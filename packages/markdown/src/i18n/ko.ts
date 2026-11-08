@@ -159,6 +159,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.menu.task-file': '태스크 파일 {task}',
   'ui.overview.menu.requirement-source': '요구사항 원문 {id}',
   'ui.overview.menu.issue': 'GitHub의 Issue #{number}',
+  'ui.overview.menu.issue-system': '시스템 브라우저에서 Issue #{number} 열기',
   'ui.overview.menu.pull-request': '풀 리퀘스트',
   'ui.overview.menu.repository-folder': '저장소 폴더 {repository}',
   'ui.overview.menu.unavailable': '열 수 없음',

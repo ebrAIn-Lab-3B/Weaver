@@ -53,6 +53,8 @@ On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.sho
 
 ## Tasks
 
+- `TASK-090` Open a GitHub page in the built-in browser, or in the system browser when there is none — [GitHub Issue #241](https://github.com/ebrAIn-Lab-3B/Weaver/issues/241)
+
 Tasks are listed here once DEC-020 is accepted.
 
 Origin: the maintainer, 2026-11-08, while trying the starting process file in the editor: a review that has to leave VS Code feels like a break in the work.

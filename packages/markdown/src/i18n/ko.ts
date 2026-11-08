@@ -162,6 +162,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.update-folder.no-git': 'VS Code의 Git 확장을 쓸 수 없어 Weaver가 폴더를 갱신할 수 없습니다. 직접 git pull을 실행하세요.',
   'ui.update-folder.no-folder': '{repository}의 복제본으로 열려 있는 폴더가 없습니다. 폴더를 열거나, 그 폴더에서 git pull을 실행하세요.',
   'ui.update-folder.detached': '{repository} 폴더에 체크아웃된 브랜치가 없습니다. 브랜치를 체크아웃한 뒤 다시 시도하세요.',
+  'ui.update-folder.not-default': '{repository} 폴더는 {branch} 브랜치에 있지만, 작업 파일은 {default}에 있습니다. {default}로 옮긴 뒤(내 변경이 열려 있지 않을 때) 폴더를 최신으로 받으세요.',
   'ui.update-folder.no-upstream': '{repository}의 이 브랜치는 GitHub의 브랜치를 따라가지 않습니다. 직접 git pull을 실행하세요.',
   'ui.update-folder.changed': '{repository} 폴더에 커밋하지 않은 변경이 있습니다. 먼저 커밋하거나 보관(stash)하세요. Weaver는 건드리지 않습니다.',
   'ui.update-folder.ahead': '{repository}의 이 브랜치에 GitHub에 없는 커밋이 있어, 갱신하면 병합이 필요합니다. Weaver는 병합하지 않으니 직접 git pull을 실행하세요.',

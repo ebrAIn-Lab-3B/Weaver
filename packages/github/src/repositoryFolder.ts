@@ -42,3 +42,37 @@ export async function taskFileState(token: string, repository: string, taskId: s
   if (result.status === 'missing') return 'absent';
   return 'unknown';
 }
+
+/** The default branch of a repository on GitHub; nothing when GitHub could not be asked. */
+export async function fetchDefaultBranch(token: string, repository: string, fetchFn: FetchFn = fetch): Promise<string | undefined> {
+  try {
+    const response = await fetchFn(`${API}/repos/${repository}`, {
+      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as { default_branch?: unknown };
+    return typeof body.default_branch === 'string' ? body.default_branch : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The number of an open pull request that already adds the task file of a task: its branch or its title
+ * names the task (`docs/task-106-...`, `docs: add TASK-106 ...`). Nothing when there is none or GitHub could not be asked.
+ */
+export async function openPullForTask(token: string, repository: string, taskId: string, fetchFn: FetchFn = fetch): Promise<number | undefined> {
+  try {
+    const response = await fetchFn(`${API}/repos/${repository}/pulls?state=open&per_page=100`, {
+      headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (!response.ok) return undefined;
+    const pulls = (await response.json()) as { number: number; title?: string; head?: { ref?: string } }[];
+    if (!Array.isArray(pulls)) return undefined;
+    const id = taskId.toLowerCase();
+    const found = pulls.find((p) => ((p.title ?? '').toLowerCase().includes(`add ${id} `) || (p.head?.ref ?? '').toLowerCase().startsWith(`docs/${id}-`)));
+    return found?.number;
+  } catch {
+    return undefined;
+  }
+}

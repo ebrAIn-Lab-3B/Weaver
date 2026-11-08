@@ -10,10 +10,12 @@ export interface FolderGitState {
   behind: number;
   /** Files with a change that is not committed, staged or not, or in the middle of a merge. */
   changed: number;
+  /** The default branch of the repository on GitHub, when known. The task file is on it, so the folder must be on it too. */
+  defaultBranch?: string;
 }
 
 /** Why the folder is not updated (DEC-024 item 3). */
-export type FolderUpdateRefusal = 'detached' | 'no-upstream' | 'changed' | 'ahead' | 'up-to-date';
+export type FolderUpdateRefusal = 'detached' | 'not-default' | 'no-upstream' | 'changed' | 'ahead' | 'up-to-date';
 
 export type FolderUpdateCheck = { ok: true; behind: number; branch: string; upstream: string } | { ok: false; reason: FolderUpdateRefusal };
 
@@ -25,6 +27,7 @@ export type FolderUpdateCheck = { ok: true; behind: number; branch: string; upst
  */
 export function checkFolderUpdate(state: FolderGitState): FolderUpdateCheck {
   if (!state.branch) return { ok: false, reason: 'detached' };
+  if (state.defaultBranch && state.branch !== state.defaultBranch) return { ok: false, reason: 'not-default' };
   if (!state.upstream) return { ok: false, reason: 'no-upstream' };
   if (state.changed > 0) return { ok: false, reason: 'changed' };
   if (state.ahead > 0) return { ok: false, reason: 'ahead' };

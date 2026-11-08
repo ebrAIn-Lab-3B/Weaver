@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listRepositoryFolder, openFilesChangePullRequest, taskFileState, type FetchFn } from '../src';
+import { fetchDefaultBranch, listRepositoryFolder, openFilesChangePullRequest, openPullForTask, taskFileState, type FetchFn } from '../src';
 
 type Call = { method: string; url: string; body?: unknown };
 
@@ -110,5 +110,29 @@ describe('openFilesChangePullRequest', () => {
       [`GET ${REPO}`, { body: { default_branch: 'main' } }],
     ]);
     await expect(openFilesChangePullRequest('t', 'o/r', change, fetchFn)).rejects.toMatchObject({ notice: { args: { status: 500 } } });
+  });
+});
+
+describe('fetchDefaultBranch and openPullForTask (DEC-024 amendment)', () => {
+  it('reads the default branch, and nothing when GitHub cannot answer', async () => {
+    expect(await fetchDefaultBranch('t', 'o/r', github([[`GET ${REPO}`, { body: { default_branch: 'trunk' } }]]).fetchFn)).toBe('trunk');
+    expect(await fetchDefaultBranch('t', 'o/r', github([[`GET ${REPO}`, 'offline']]).fetchFn)).toBeUndefined();
+    expect(await fetchDefaultBranch('t', 'o/r', github([]).fetchFn)).toBeUndefined();
+  });
+
+  const pulls = [
+    { number: 5, title: 'feat: something else', head: { ref: 'feat/x' } },
+    { number: 7, title: 'docs: add TASK-106 A card says where', head: { ref: 'docs/task-106-task-file-from-the-card' } },
+  ];
+
+  it('finds an open pull request that adds the task file, by its title or its branch', async () => {
+    const { fetchFn } = github([['/pulls?state=open', { body: pulls }]]);
+    expect(await openPullForTask('t', 'o/r', 'TASK-106', fetchFn)).toBe(7);
+    expect(await openPullForTask('t', 'o/r', 'TASK-10', fetchFn)).toBeUndefined();
+    expect(await openPullForTask('t', 'o/r', 'TASK-200', fetchFn)).toBeUndefined();
+  });
+
+  it('says nothing found when GitHub cannot be asked', async () => {
+    expect(await openPullForTask('t', 'o/r', 'TASK-106', github([['/pulls', 'offline']]).fetchFn)).toBeUndefined();
   });
 });

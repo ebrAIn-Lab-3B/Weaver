@@ -116,6 +116,11 @@ describe('checkFolderUpdate (DEC-024 item 3)', () => {
     expect(checkFolderUpdate({ ...clean, behind: 0 })).toEqual({ ok: false, reason: 'up-to-date' });
   });
 
+  it('refuses a branch that is not the default branch, since the task file is on the default branch', () => {
+    expect(checkFolderUpdate({ ...clean, branch: 'feat/x', upstream: 'origin/feat/x', behind: 0, defaultBranch: 'main' })).toEqual({ ok: false, reason: 'not-default' });
+    expect(checkFolderUpdate({ ...clean, defaultBranch: 'main' }).ok).toBe(true);
+  });
+
   it('never touches a change of the person, even when the folder is also behind', () => {
     expect(checkFolderUpdate({ ...clean, changed: 1, behind: 9 }).ok).toBe(false);
   });

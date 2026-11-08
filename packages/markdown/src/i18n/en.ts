@@ -163,6 +163,7 @@ export const en = {
   'ui.update-folder.no-git': 'The Git extension of VS Code is not available, so Weaver cannot update the folder. Run git pull yourself.',
   'ui.update-folder.no-folder': 'No open folder is a clone of {repository}. Open the folder, or run git pull in it.',
   'ui.update-folder.detached': 'The folder of {repository} has no branch checked out. Check out a branch, then try again.',
+  'ui.update-folder.not-default': 'The folder of {repository} is on the branch {branch}, but the task file is on {default}. Switch to {default} (with no change of yours open), then update the folder.',
   'ui.update-folder.no-upstream': 'The branch of {repository} does not follow a branch on GitHub. Run git pull yourself.',
   'ui.update-folder.changed': 'The folder of {repository} has changes that are not committed. Commit or stash them first; Weaver does not touch them.',
   'ui.update-folder.ahead': 'The branch of {repository} has commits that GitHub does not have, so updating would merge. Weaver does not merge; run git pull yourself.',

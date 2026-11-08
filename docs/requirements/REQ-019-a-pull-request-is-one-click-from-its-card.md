@@ -36,6 +36,7 @@ Proposed in [DEC-022](../decisions/DEC-022-a-card-carries-its-pull-requests.md):
 ## Tasks
 
 - `TASK-097` Decide how a card carries the pull requests of its work — [GitHub Issue #269](https://github.com/ebrAIn-Lab-3B/Weaver/issues/269)
+- `TASK-099` Show the pull requests of a card on the card — [GitHub Issue #272](https://github.com/ebrAIn-Lab-3B/Weaver/issues/272)
 - `TASK-100` List the pull requests of a task in the requirement view — [GitHub Issue #274](https://github.com/ebrAIn-Lab-3B/Weaver/issues/274)
 
 Origin: the maintainer, 2026-11-08, while trying [REQ-018](./REQ-018-finish-work-without-leaving-weaver.md): the right-click menu is hard to discover and awkward, a card should say it plainly, and going from a requirement to the pull request of its task and merging there should work too. The maintainer asked for it to be done now, for the dogfooding.

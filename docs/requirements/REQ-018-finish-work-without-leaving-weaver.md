@@ -53,6 +53,7 @@ On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.sho
 
 ## Tasks
 
+- `TASK-091` Follow the state of a pull request or Issue that Weaver opened a page for — [GitHub Issue #243](https://github.com/ebrAIn-Lab-3B/Weaver/issues/243)
 - `TASK-092` Write the guide for finishing work in the built-in browser — [GitHub Issue #245](https://github.com/ebrAIn-Lab-3B/Weaver/issues/245)
 
 Tasks are listed here once DEC-020 is accepted.

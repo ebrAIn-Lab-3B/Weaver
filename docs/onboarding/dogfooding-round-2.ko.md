@@ -4,11 +4,16 @@
 
 따라 하다가 막히거나 불편하면 거기서 멈추고 [끝의 방법](#불편한-점-알리기)대로 알려 주세요. 막힌 곳이 바로 우리가 고쳐야 할 곳입니다.
 
+이 안내서에는 두 가지 표시가 있습니다.
+
+- **(agentic-base 특화)**: 프로젝트가 agentic-base를 따르기 때문에 필요한 내용입니다. agentic-base를 따르지 않는 프로젝트는 건너뛰어도 됩니다. 라벨 만들기와 `fix_plan.md`가 여기에 해당합니다.
+- **한 사람만 합니다**: 팀에서 한 사람이 하면 나머지는 하지 않는 단계입니다. 세 사람이 함께 따라 한다면 이 단계는 한 사람만 합니다. 이미 누가 했는지 알아보는 방법과, 했다면 어느 단계로 건너뛸지를 단계마다 적어 두었습니다.
+
 ## 시작하기 전에 알아 둘 것
 
-- **agentic-base**는 새 프로젝트를 만들 때 통째로 복사해 쓰는 바탕입니다. **agentic-browser**는 그렇게 만든 프로젝트입니다. 복사할 때 Weaver 설정 파일(`.weaver/process.yaml`)이 아직 없었기 때문에, agentic-browser에는 이 파일이 없습니다. 이 안내서는 그 빈자리를 채웁니다.
+- **(agentic-base 특화)** **agentic-base**는 새 프로젝트를 만들 때 통째로 복사해 쓰는 바탕입니다. **agentic-browser**는 그렇게 만든 프로젝트입니다. 복사할 때 Weaver 설정 파일(`.weaver/process.yaml`)이 아직 없었기 때문에, agentic-browser에는 이 파일이 없습니다. 이 안내서는 그 빈자리를 채웁니다.
 - **process 파일**(`.weaver/process.yaml`)은 저장소가 일을 어떻게 관리하는지 적어 둔 파일입니다. 카드를 어느 열에 둘지, 일이 끝났다는 증거로 무엇을 볼지가 들어 있습니다.
-- agentic-base의 이 파일은 아직 `main`에 없습니다. [풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)에 있고, 팀이 검토하는 중입니다. 검토에는 몇 주가 걸릴 수 있습니다. 그래서 이 안내서는 병합을 기다리지 않고, 그 PR의 브랜치(`weaver-process-file`)에서 파일을 읽는 방법을 기본으로 씁니다. 아래 2번의 `ref` 줄이 그 방법입니다. PR이 병합되면 그 줄만 지우면 됩니다.
+- **(agentic-base 특화)** agentic-base의 이 파일은 아직 `main`에 없습니다. [풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)에 있고, 팀이 검토하는 중입니다. 검토에는 몇 주가 걸릴 수 있습니다. 그래서 이 안내서는 병합을 기다리지 않고, 그 PR의 브랜치(`weaver-process-file`)에서 파일을 읽는 방법을 기본으로 씁니다. 아래 2번의 `ref` 줄이 그 방법입니다. PR이 병합되면 그 줄만 지우면 됩니다.
 - 풀 리퀘스트(PR)는 고친 내용을 합쳐 달라는 요청입니다. Issue는 GitHub의 일감 항목입니다.
 
 ## 준비물
@@ -17,14 +22,43 @@
 - agentic-browser와 Project(`ebrAIn-Lab-3B` 조직의 1번)를 읽고 쓸 수 있는 GitHub 계정
 - Node.js, 그리고 로그인해 둔 GitHub 명령줄 도구(`gh`)
 
+## 누가 어느 단계를 하나
+
+| 단계 | 누가 | 이미 되어 있다면 |
+| --- | --- | --- |
+| 1. 설치 | 모두 | |
+| 2. 설정 파일 | 모두(각자 컴퓨터에) | |
+| 3. 전체 보기에서 찾기 | 모두 | |
+| 4. 시작 파일 만들기 | **한 사람만** | 5번으로 |
+| 5. 상태 라벨 만들기 (agentic-base 특화) | **한 사람만** | 6번으로 |
+| 6. 일감 올리기 | **일감마다 한 사람만** | 7번으로 |
+| 7. 일을 시작하고 끝내기 | 그 일을 맡은 사람 | |
+| 8. 마무리 점검 | 모두 | |
+
 ## 1. 설치
 
 1. [최신 릴리즈](https://github.com/ebrAIn-Lab-3B/Weaver/releases)에서 `weaver-<버전>.vsix`와 `weaver.js`를 내려받습니다.
 2. VS Code의 확장 화면에서 `…`를 누르고 **VSIX에서 설치…** 를 골라 파일을 지정합니다(영어 화면에서는 *Install from VSIX…*).
-3. 예전에 `palab.weaver`라는 확장을 설치했다면 먼저 지웁니다. 이름이 바뀌어서 두 개가 함께 보일 수 있습니다. 새 확장은 `ebrain-lab.weaver`입니다.
-4. VS Code를 다시 불러옵니다(명령 팔레트에서 *Developer: Reload Window*). 왼쪽 막대에 **Weaver** 아이콘이 보이면 됩니다.
+3. VS Code를 다시 불러옵니다(명령 팔레트에서 *Developer: Reload Window*). 왼쪽 막대에 **Weaver** 아이콘이 보이면 됩니다.
 
-터미널 도구는 따로 설치하지 않습니다. 내려받은 `weaver.js`를 `node weaver.js <명령>`으로 실행합니다. 아래 예는 `weaver.js`가 있는 폴더에서 실행한다고 보고 씁니다.
+### 터미널 도구 준비하기
+
+터미널 도구는 설치하지 않습니다. 파일 하나(`weaver.js`)를 Node.js로 바로 실행합니다.
+
+1. 내려받은 `weaver.js`를 프로젝트를 모아 둔 폴더(예: `ebr_prj`)에 놓습니다. 이 도구는 실행한 폴더에서 설정 파일(`.weaver/config.yaml`)을 찾기 때문입니다.
+2. VS Code 아래쪽에 터미널을 엽니다(메뉴 *Terminal*의 *New Terminal*). 그리고 그 폴더로 이동합니다. 예를 들면 이렇습니다.
+
+   ```powershell
+   cd C:\Users\내이름\ebr_prj
+   ```
+
+3. 아래를 실행해서 명령 목록이 나오면 준비가 끝난 것입니다.
+
+   ```bash
+   node weaver.js --help
+   ```
+
+이 안내서의 터미널 명령은 모두 이 터미널에서 `node weaver.js <명령>`으로 실행합니다. `weaver.js`를 다른 곳에 두었다면 명령 끝에 `--root C:\Users\내이름\ebr_prj`처럼 프로젝트 폴더를 붙입니다.
 
 ## 2. 프로젝트 폴더에 설정 파일 두기
 
@@ -44,8 +78,8 @@ guideline:
 각 줄의 뜻은 이렇습니다.
 - `project`는 카드를 보여 줄 GitHub Project입니다.
 - `repositories`는 보여 줄 저장소입니다. agentic-browser에는 아직 Issue가 하나도 없어서, 이 줄에 적어야 전체 보기에 줄(레인)이 생깁니다. 이미 `repositories`가 있다면 목록을 지우지 말고 agentic-browser 한 줄만 더하세요. 목록에 없는 저장소는 전체 보기에서 사라집니다.
-- `guideline`은 따를 지침이 어느 저장소의 어느 파일인지 가리킵니다. `path`를 적지 않으면 `.weaver/process.yaml`을 읽습니다.
-- `ref: weaver-process-file`은 agentic-base의 PR #2에 있는 브랜치를 읽으라는 뜻입니다. PR이 병합되고 나면 이 줄을 지웁니다. 그러면 `main`에서 읽습니다. 브랜치가 지워졌는데도 이 줄이 남아 있으면 파일을 찾지 못합니다.
+- **(agentic-base 특화)** `guideline`은 따를 지침이 어느 저장소의 어느 파일인지 가리킵니다. `path`를 적지 않으면 `.weaver/process.yaml`을 읽습니다.
+- **(agentic-base 특화)** `ref: weaver-process-file`은 agentic-base의 PR #2에 있는 브랜치를 읽으라는 뜻입니다. PR이 병합되고 나면 이 줄을 지웁니다. 그러면 `main`에서 읽습니다. 브랜치가 지워졌는데도 이 줄이 남아 있으면 파일을 찾지 못합니다.
 
 명령 팔레트의 **Weaver: 설정**으로 처음 설정했다면, 그때 만든 파일은 `~/.weaver/config.yaml`입니다. 그 파일에 같은 `guideline` 줄을 적어도 됩니다. 폴더 안의 파일이 개인 파일보다 먼저 쓰입니다.
 
@@ -71,7 +105,13 @@ guideline:
 
 줄이 보이지 않으면 2번의 파일 위치와 `repositories` 줄을 다시 확인하세요.
 
-## 4. 시작 파일 만들기
+## 4. 시작 파일 만들기 (한 사람만)
+
+**한 사람만 합니다.** 먼저 누가 이미 했는지 확인합니다.
+
+- 전체 보기의 agentic-browser 줄에 **process 파일 시작하기** 버튼이 없거나, `node weaver.js process --text`의 agentic-browser 줄이 `read`이면, 누군가 이미 만들어서 합친 것입니다. **5번으로 건너뜁니다.**
+- 버튼은 있는데 눌렀을 때 "이미 열려 있다"는 거절이 나오면, 누군가 PR을 열고 아직 합치지 않은 것입니다. 그 PR(브랜치 이름 `docs/weaver-process-file`)을 열어 보고 합치거나 합치기를 기다립니다. 합쳐지면 **5번으로 갑니다.**
+- 둘 다 아니면 아래를 합니다.
 
 1. agentic-browser 줄의 **process 파일 시작하기**를 누릅니다.
 2. 확인 창에 만들 파일의 내용이 전부 나옵니다. 첫 줄이 이렇게 시작합니다.
@@ -80,7 +120,7 @@ guideline:
    # Started from the guideline ebrAIn-Lab-3B/agentic-base .weaver/process.yaml@weaver-process-file.
    ```
 
-   그 아래는 agentic-base의 파일 그대로입니다. 읽어 보세요. 열을 상태 라벨 여섯 개(`status:backlog` 같은 것)로 정하고, 일이 끝났다는 증거로 합쳐진 PR을 요구하는 내용입니다.
+   그 아래는 agentic-base의 파일 그대로입니다. 읽어 보세요. **(agentic-base 특화)** 이 파일은 열을 상태 라벨 여섯 개(`status:backlog` 같은 것)로 정하고, 일이 끝났다는 증거로 합쳐진 PR을 요구하는 내용입니다.
 3. 괜찮으면 **풀 리퀘스트 열기**를 누릅니다. 취소하면 아무것도 올라가지 않습니다.
 4. 알림이 뜨면 **보기**를 누릅니다. agentic-browser의 PR 화면이 지금 보던 탭 바로 옆에 새 탭으로 열립니다. 브랜치 이름은 `docs/weaver-process-file`입니다.
 5. 이 탭에서 PR을 읽고 합칩니다. 이 PR을 합치기 전에는 기본 브랜치를 건드리지 않습니다.
@@ -94,9 +134,19 @@ node weaver.js process start --repository ebrAIn-Lab-3B/agentic-browser
 node weaver.js process start --repository ebrAIn-Lab-3B/agentic-browser --approve <계획에 나온 번호>
 ```
 
-## 5. 상태 라벨 여섯 개 만들기
+## 5. 상태 라벨 여섯 개 만들기 (agentic-base 특화, 한 사람만)
 
-방금 만든 process 파일은 카드의 열을 Issue의 라벨로 정합니다. agentic-browser에는 이 라벨이 아직 없으므로 한 번 만들어 줍니다. 안 만들면 다음 단계에서 Issue를 만들 때 라벨을 붙이지 못합니다.
+agentic-base의 process 파일은 카드의 열을 Issue의 라벨로 정합니다. 다른 지침을 쓰는 프로젝트는 이 단계가 필요 없을 수 있습니다.
+
+**한 사람만 합니다.** 먼저 라벨이 이미 있는지 확인합니다.
+
+```bash
+gh label list --repo ebrAIn-Lab-3B/agentic-browser --search status:
+```
+
+`status:backlog`부터 `status:verified`까지 여섯 개가 모두 나오면 누군가 이미 만든 것입니다. **6번으로 건너뜁니다.** 하나라도 빠졌으면 아래를 합니다.
+
+아래 명령으로 여섯 개를 만듭니다. 라벨이 없으면 다음 단계에서 Issue를 만들 때 라벨을 붙이지 못합니다.
 
 PowerShell:
 
@@ -116,16 +166,18 @@ done
 
 이미 있는 라벨이면 "already exists"라고 나오는데, 그대로 두어도 됩니다.
 
-## 6. 일감 한 건을 보드에 올리기
+## 6. 일감 한 건을 보드에 올리기 (일감마다 한 사람만)
 
-agentic-browser의 다음 일은 `fix_plan.md`에 있습니다. 그중 사람이 정해야 하는 일 하나를 골라 Issue로 만듭니다. 예로 `contract-final-2`(Story Chain의 Experience를 확정하는 일)를 씁니다.
+**한 사람만 합니다.** 같은 일을 두 사람이 Issue로 만들지 않도록, 먼저 이미 올라와 있는지 확인합니다. 전체 보기의 백로그에 그 일의 카드가 있거나, **(agentic-base 특화)** `fix_plan.md`의 그 줄 끝에 `(#번호)`가 이미 있으면, 누군가 올린 것입니다. **7번으로 건너뛰고** 그 Issue 번호를 그대로 씁니다.
 
-agentic-base의 제안(검토 중)은 이렇습니다. 일은 `fix_plan.md`에 두고, 사람의 승인이 필요하거나 다른 사람과 함께 봐야 하는 일만 Issue로 만듭니다. 그리고 `fix_plan.md`의 그 줄 끝에 Issue 번호를 적습니다.
+**(agentic-base 특화)** agentic-browser의 다음 일은 `fix_plan.md`에 있습니다. 그중 사람이 정해야 하는 일 하나를 골라 Issue로 만듭니다. 예로 `contract-final-2`(Story Chain의 Experience를 확정하는 일)를 씁니다.
+
+**(agentic-base 특화)** agentic-base의 제안(검토 중)은 이렇습니다. 일은 `fix_plan.md`에 두고, 사람의 승인이 필요하거나 다른 사람과 함께 봐야 하는 일만 Issue로 만듭니다. 그리고 `fix_plan.md`의 그 줄 끝에 Issue 번호를 적습니다.
 
 1. Issue를 만듭니다.
 
    ```bash
-   gh issue create --repo ebrAIn-Lab-3B/agentic-browser --label status:backlog --title "Experience 확정 (contract-final-2)" --body "fix_plan.md의 contract-final-2. docs/contracts/story-chain/experiences/ 에 1건 이상 확정한다."
+   gh issue create --repo ebrAIn-Lab-3B/agentic-browser --label status:backlog --title "Experience 확정 (contract-final-2)" --body "contract-final-2. docs/contracts/story-chain/experiences/ 에 1건 이상 확정한다."
    ```
 
    만든 Issue의 주소가 나옵니다. 첫 Issue라면 번호는 1번입니다.
@@ -137,7 +189,7 @@ agentic-base의 제안(검토 중)은 이렇습니다. 일은 `fix_plan.md`에 �
 
    계획이 나옵니다. 괜찮으면 나온 번호를 `--approve <번호>`로 넣어 다시 실행합니다.
 3. 전체 보기를 새로 고칩니다. agentic-browser 줄의 **백로그**에 새 카드가 보입니다.
-4. `fix_plan.md`의 `contract-final-2` 줄 끝에 `(#1)`을 적어 둡니다. 번호가 있는 줄이 보드에 있는 일입니다.
+4. **(agentic-base 특화)** `fix_plan.md`의 `contract-final-2` 줄 끝에 `(#1)`을 적어 둡니다. 번호가 있는 줄이 보드에 있는 일입니다.
 
 `weaver task create`를 쓰지 않는 이유가 있습니다. 이 명령은 `REQ-번호` 요구사항 파일이 있는 저장소에서 씁니다. agentic-browser에는 제품 정의(`docs/PRODUCT.md`)와 스토리 체인 초안, 샘플만 있고 요구사항 파일은 아직 없습니다. 그래서 Issue를 직접 만듭니다. 이 간극은 알려진 불편입니다. 요구사항 파일이 없어도 카드가 어느 이야기에 속하는지 보이게 하는 방법은 아직 없습니다.
 
@@ -184,7 +236,7 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 | 결정(`DEC-번호`) | `docs/decisions/` |
 | 작업(`TASK-번호`) | `docs/tasks/` |
 | 사용자 이야기(`US-번호`) | `docs/product/user-story-map.md` |
-| agentic-browser의 제품 정의, 스토리 체인 초안, 작업 목록 | agentic-browser 저장소의 `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
+| (agentic-base 특화) agentic-browser의 제품 정의, 스토리 체인 초안, 작업 목록 | agentic-browser 저장소의 `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
 | agentic-base의 Weaver 제안 | [풀 리퀘스트 #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2)의 **Files changed** 탭 |
 
 **아직 병합하지 않은 문서는 `main`에 없습니다.** 그 문서는 풀 리퀘스트의 브랜치에 있습니다. 풀 리퀘스트 화면의 **Files changed** 탭에서 보거나, 그 브랜치를 내려받아 엽니다. 병합하면 `main`에서 바로 보입니다.
@@ -203,11 +255,10 @@ gh issue edit 1 --repo ebrAIn-Lab-3B/agentic-browser --add-label status:verified
 | "이미 process 파일이 있다"며 시작이 거절됨 | agentic-browser에 이미 파일이 있는 것입니다. 지침은 있는 파일을 바꾸지 않습니다. 고치려면 그 파일을 PR로 고칩니다. |
 | 시작 파일 PR이 "이미 열려 있다"며 거절됨 | 열려 있는 PR(`docs/weaver-process-file`)을 합치거나 닫은 뒤 다시 합니다. |
 | "project" 권한이 없다고 나옴 | **GitHub에 로그인**을 다시 눌러 `project` 권한을 허락합니다. |
-| 확장이 두 개 보임(`palab.weaver`와 `ebrain-lab.weaver`) | 예전 것(`palab.weaver`)을 지우고 VS Code를 다시 불러옵니다. |
 | `gh issue create`가 라벨 때문에 실패함 | 5번에서 라벨을 만들었는지 확인합니다. |
 | PR이 VS Code 안이 아니라 외부 브라우저로 열림 | 이 VS Code에 내장 브라우저가 없는 경우입니다. 시스템 브라우저로 열리는 것이 정상 동작입니다. |
 | 카드에서 **풀 리퀘스트**를 골랐는데 "이 Issue를 가리키는 풀 리퀘스트가 없습니다"라고 나옴 | PR 본문에 `Closes #번호` 또는 `Refs #번호`가 있는지 봅니다. |
 
 ## Weaver가 하지 않는 일
 
-Weaver는 무엇을 바꿀지 보여 주고 승인을 받기 전에는 카드, 라벨, 파일을 바꾸지 않습니다. 읽기만 하는 동안에는 아무것도 바뀌지 않습니다. 이 안내서에서 사람이 직접 하는 일은 라벨 만들기, Issue 만들기, `fix_plan.md` 고치기입니다.
+Weaver는 무엇을 바꿀지 보여 주고 승인을 받기 전에는 카드, 라벨, 파일을 바꾸지 않습니다. 읽기만 하는 동안에는 아무것도 바뀌지 않습니다. 이 안내서에서 사람이 직접 하는 일은 라벨 만들기(agentic-base 특화), Issue 만들기, `fix_plan.md` 고치기(agentic-base 특화)입니다.

@@ -54,11 +54,45 @@ describe('the guide to the second round of using Weaver', () => {
     expect(await read('docs/onboarding/dogfooding-round-1.md')).toContain('dogfooding-round-2.md');
   });
 
-  it('names the extension by its new id and tells the reader to remove the old one', async () => {
+  it('does not talk about an extension of an earlier name: nobody else has it (DEC-021)', async () => {
+    for (const file of [GUIDE, GUIDE_KO]) expect(await read(file)).not.toContain('palab.weaver');
+  });
+
+  it('marks what is specific to agentic-base, in both languages', async () => {
+    const english = await read(GUIDE);
+    const korean = await read(GUIDE_KO);
+    const count = (text: string, mark: string) => text.split(mark).length - 1;
+    expect(count(english, '(agentic-base specific)')).toBeGreaterThan(5);
+    expect(count(korean, '(agentic-base 특화)')).toBe(count(english, '(agentic-base specific)'));
+    // Every line that tells the reader to edit fix_plan.md carries the mark, or sits under a heading that does.
+    for (const [text, mark] of [[english, '(agentic-base specific)'], [korean, '(agentic-base 특화)']] as const) {
+      let flagged = false;
+      for (const lineText of text.split('\n')) {
+        if (lineText.startsWith('## ')) flagged = lineText.includes(mark);
+        if (lineText.includes('fix_plan.md') && !lineText.startsWith('#')) {
+          expect(flagged || lineText.includes(mark), `a line about fix_plan.md without the mark: ${lineText.slice(0, 80)}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('marks the steps that one person does for the team, and says where to jump if it is done', async () => {
+    const english = await read(GUIDE);
+    const korean = await read(GUIDE_KO);
+    for (const [text, marker, jumps] of [
+      [english, '**One person does this.**', ['Skip to step 5', 'Skip to step 6', 'Skip to step 7']],
+      [korean, '**한 사람만 합니다.**', ['5번으로 건너뜁니다', '6번으로 건너뜁니다', '7번으로 건너뛰고']],
+    ] as const) {
+      expect(text.split(marker).length - 1, `${marker} appears at steps 4, 5, and 6`).toBe(3);
+      for (const jump of jumps) expect(text, `says "${jump}"`).toContain(jump);
+    }
+  });
+
+  it('explains how to run the terminal tool, and that is how it was run', async () => {
     for (const file of [GUIDE, GUIDE_KO]) {
       const text = await read(file);
-      expect(text).toContain('ebrain-lab.weaver');
-      expect(text).toContain('palab.weaver');
+      expect(text).toContain('node weaver.js --help');
+      expect(text).toContain('--root');
     }
   });
 

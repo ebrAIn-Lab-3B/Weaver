@@ -4,11 +4,16 @@ This guide sets up the agentic-browser project, which follows the way of working
 
 If a step does not work or gets in your way, stop there and report it as [described at the end](#report-friction). The place where you got stuck is exactly the place we need to fix.
 
+This guide has two marks.
+
+- **(agentic-base specific)**: something that is needed because the project follows agentic-base. A project that does not follow agentic-base can skip it. Creating the labels and `fix_plan.md` are of this kind.
+- **One person does this**: a step that one person on the team does and the others skip. If three people follow the guide together, only one of them does this step. For each such step, the guide says how to see whether someone has already done it, and which step to jump to if so.
+
 ## What to know first
 
-- **agentic-base** is a base that is copied whole when a new project is made. **agentic-browser** is a project made that way. When it was copied, the Weaver file (`.weaver/process.yaml`) did not exist yet, so agentic-browser has none. This guide fills that gap.
+- **(agentic-base specific)** **agentic-base** is a base that is copied whole when a new project is made. **agentic-browser** is a project made that way. When it was copied, the Weaver file (`.weaver/process.yaml`) did not exist yet, so agentic-browser has none. This guide fills that gap.
 - A **process file** (`.weaver/process.yaml`) is where a repository says how it manages its work: which column a card goes in, and what counts as evidence that the work is done.
-- That file of agentic-base is not on `main` yet. It is in [pull request #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2), under the team's review, and the review can take weeks. So this guide does not wait for the merge: its normal way is to read the file from the branch of that PR (`weaver-process-file`). The `ref` line of step 2 is that way. When the PR is merged, delete that one line.
+- **(agentic-base specific)** That file of agentic-base is not on `main` yet. It is in [pull request #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2), under the team's review, and the review can take weeks. So this guide does not wait for the merge: its normal way is to read the file from the branch of that PR (`weaver-process-file`). The `ref` line of step 2 is that way. When the PR is merged, delete that one line.
 - A pull request (PR) is a request to merge a change. An Issue is a work item on GitHub.
 
 ## What you need
@@ -17,14 +22,43 @@ If a step does not work or gets in your way, stop there and report it as [descri
 - A GitHub account that can read and write agentic-browser and the Project (number 1 of the `ebrAIn-Lab-3B` organization)
 - Node.js, and the GitHub command-line tool (`gh`) signed in
 
+## Who does which step
+
+| Step | Who | If it is already done |
+| --- | --- | --- |
+| 1. Install | Everyone | |
+| 2. The setup file | Everyone (on your own computer) | |
+| 3. Find it in the Overview | Everyone | |
+| 4. Start the process file | **One person** | Go to step 5 |
+| 5. Create the status labels (agentic-base specific) | **One person** | Go to step 6 |
+| 6. Put a piece of work on the board | **One person for each piece of work** | Go to step 7 |
+| 7. Start the work and finish it | The person who takes that work | |
+| 8. A last check | Everyone | |
+
 ## 1. Install
 
 1. From the [latest Release](https://github.com/ebrAIn-Lab-3B/Weaver/releases), download `weaver-<version>.vsix` and `weaver.js`.
 2. In VS Code, open the Extensions view, press `…`, choose **Install from VSIX…**, and pick the file.
-3. If you installed the extension `palab.weaver` earlier, remove it first. The name changed, so both can show. The new one is `ebrain-lab.weaver`.
-4. Reload VS Code (command palette, *Developer: Reload Window*). A **Weaver** icon should be in the bar on the left.
+3. Reload VS Code (command palette, *Developer: Reload Window*). A **Weaver** icon should be in the bar on the left.
 
-The terminal tool is not installed. Run the `weaver.js` you downloaded as `node weaver.js <command>`. The examples below assume you run them in the folder that has `weaver.js`.
+### Get the terminal tool ready
+
+The terminal tool is not installed. You run one file (`weaver.js`) directly with Node.js.
+
+1. Put the `weaver.js` you downloaded in the folder that holds your projects (for example `ebr_prj`). The tool looks for the setup file (`.weaver/config.yaml`) in the folder where you run it.
+2. Open a terminal at the bottom of VS Code (menu *Terminal*, *New Terminal*) and go to that folder. For example:
+
+   ```powershell
+   cd C:\Users\yourname\ebr_prj
+   ```
+
+3. Run the line below. If a list of commands appears, you are ready.
+
+   ```bash
+   node weaver.js --help
+   ```
+
+Every terminal command in this guide is run in this terminal as `node weaver.js <command>`. If you put `weaver.js` somewhere else, add the project folder at the end of the command, as in `--root C:\Users\yourname\ebr_prj`.
 
 ## 2. Put a setup file in the folder of your projects
 
@@ -44,8 +78,8 @@ guideline:
 What the lines mean:
 - `project` is the GitHub Project whose cards are shown.
 - `repositories` is the list of repositories to show. agentic-browser has no Issue yet, so it must be listed here to get a lane in the Overview. If you already have a `repositories` list, do not delete it; add the one agentic-browser line. A repository that is not listed disappears from the Overview.
-- `guideline` points to the repository and file of the guideline to follow. Without a `path`, it reads `.weaver/process.yaml`.
-- `ref: weaver-process-file` says to read the branch of PR #2 of agentic-base. When the PR is merged, delete this line, and the file is read from `main`. If the branch is deleted and the line is still there, the file is not found.
+- **(agentic-base specific)** `guideline` points to the repository and file of the guideline to follow. Without a `path`, it reads `.weaver/process.yaml`.
+- **(agentic-base specific)** `ref: weaver-process-file` says to read the branch of PR #2 of agentic-base. When the PR is merged, delete this line, and the file is read from `main`. If the branch is deleted and the line is still there, the file is not found.
 
 If you made your setup with **Weaver: Set Up**, that file is `~/.weaver/config.yaml`. You may put the same `guideline` line there. The file in the folder is used before your personal file.
 
@@ -71,7 +105,13 @@ If you made your setup with **Weaver: Set Up**, that file is `~/.weaver/config.y
 
 If there is no lane, check the location of the file in step 2 and the `repositories` line.
 
-## 4. Start the process file
+## 4. Start the process file (one person)
+
+**One person does this.** First check whether someone has already done it.
+
+- If the lane of agentic-browser in the Overview has no **Start a process file** button, or the agentic-browser line of `node weaver.js process --text` says `read`, someone has already made it and merged it. **Skip to step 5.**
+- If the button is there but pressing it is refused as "already open", someone has opened the PR and has not merged it yet. Open that PR (the branch name is `docs/weaver-process-file`) and merge it, or wait for it to be merged. When it is merged, **go to step 5.**
+- If neither, do the following.
 
 1. Press **Start a process file** in the lane of agentic-browser.
 2. A dialog shows the whole file that would be made. Its first line is:
@@ -80,7 +120,7 @@ If there is no lane, check the location of the file in step 2 and the `repositor
    # Started from the guideline ebrAIn-Lab-3B/agentic-base .weaver/process.yaml@weaver-process-file.
    ```
 
-   The rest is the file of agentic-base as it is. Read it. It sets the columns by six status labels (such as `status:backlog`) and asks for a merged PR as evidence that work is done.
+   The rest is the file of agentic-base as it is. Read it. **(agentic-base specific)** This file sets the columns by six status labels (such as `status:backlog`) and asks for a merged PR as evidence that work is done.
 3. If it is right, press **Open the pull request**. If you cancel, nothing is put anywhere.
 4. When the notice appears, press **View it**. The PR page of agentic-browser opens in a new tab right next to the one you were looking at. The branch is `docs/weaver-process-file`.
 5. In that tab, read the PR and merge it. Nothing is written to the default branch before this PR is merged.
@@ -94,9 +134,19 @@ node weaver.js process start --repository ebrAIn-Lab-3B/agentic-browser
 node weaver.js process start --repository ebrAIn-Lab-3B/agentic-browser --approve <number from the plan>
 ```
 
-## 5. Create the six status labels
+## 5. Create the six status labels (agentic-base specific, one person)
 
-The process file you just made decides a card's column by the labels of its Issue. agentic-browser has none of these labels yet, so create them once. Without them you cannot add the label to an Issue in the next step.
+The process file of agentic-base decides a card's column by the labels of its Issue. A project that follows another guideline may not need this step.
+
+**One person does this.** First check whether the labels already exist:
+
+```bash
+gh label list --repo ebrAIn-Lab-3B/agentic-browser --search status:
+```
+
+If all six, from `status:backlog` to `status:verified`, are listed, someone has already created them. **Skip to step 6.** If even one is missing, do the following.
+
+The commands below create the six. Without the labels you cannot add the label to an Issue in the next step.
 
 PowerShell:
 
@@ -116,16 +166,18 @@ done
 
 If a label already exists, you see "already exists". That is fine.
 
-## 6. Put one piece of work on the board
+## 6. Put one piece of work on the board (one person for each piece of work)
 
-The next work of agentic-browser is in `fix_plan.md`. Pick one that needs a person to decide and make an Issue of it. The example is `contract-final-2` (settling the Experience of the Story Chain).
+**One person does this.** So that two people do not make an Issue of the same work, first check whether it is already on the board. If the Backlog of the Overview has a card for that work, or **(agentic-base specific)** the line in `fix_plan.md` already ends with `(#number)`, someone has put it there. **Skip to step 7** and use that Issue number.
 
-The proposal in agentic-base (under review) is this: keep the work in `fix_plan.md`, make an Issue only for work that needs a person's approval or that others should see, and write the Issue number at the end of that line of `fix_plan.md`.
+**(agentic-base specific)** The next work of agentic-browser is in `fix_plan.md`. Pick one that needs a person to decide and make an Issue of it. The example is `contract-final-2` (settling the Experience of the Story Chain).
+
+**(agentic-base specific)** The proposal in agentic-base (under review) is this: keep the work in `fix_plan.md`, make an Issue only for work that needs a person's approval or that others should see, and write the Issue number at the end of that line of `fix_plan.md`.
 
 1. Make the Issue.
 
    ```bash
-   gh issue create --repo ebrAIn-Lab-3B/agentic-browser --label status:backlog --title "Settle the Experience (contract-final-2)" --body "contract-final-2 of fix_plan.md. Settle one or more files in docs/contracts/story-chain/experiences/."
+   gh issue create --repo ebrAIn-Lab-3B/agentic-browser --label status:backlog --title "Settle the Experience (contract-final-2)" --body "contract-final-2. Settle one or more files in docs/contracts/story-chain/experiences/."
    ```
 
    It prints the address of the new Issue. If it is the first Issue, the number is 1.
@@ -137,7 +189,7 @@ The proposal in agentic-base (under review) is this: keep the work in `fix_plan.
 
    A plan appears. If it is right, run the command again with the number it printed in `--approve <number>`.
 3. Refresh the Overview. A new card is in **Backlog** in the lane of agentic-browser.
-4. At the end of the `contract-final-2` line in `fix_plan.md`, write `(#1)`. A line with a number is work that is on the board.
+4. **(agentic-base specific)** At the end of the `contract-final-2` line in `fix_plan.md`, write `(#1)`. A line with a number is work that is on the board.
 
 There is a reason not to use `weaver task create` here. That command is for a repository that has `REQ-number` requirement files. agentic-browser has a product definition (`docs/PRODUCT.md`), a Story Chain draft, and samples, but no requirement files yet, so the Issue is made by hand. This gap is a known inconvenience: with no requirement files, there is not yet a way to see which story a card belongs to.
 
@@ -184,7 +236,7 @@ The table below says where the documents this guide points to are. All of them a
 | Decisions (`DEC-number`) | `docs/decisions/` |
 | Tasks (`TASK-number`) | `docs/tasks/` |
 | User stories (`US-number`) | `docs/product/user-story-map.md` |
-| The product definition, the Story Chain draft, and the work list of agentic-browser | In the agentic-browser repository: `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
+| (agentic-base specific) The product definition, the Story Chain draft, and the work list of agentic-browser | In the agentic-browser repository: `docs/PRODUCT.md`, `docs/proposals/payletter-story-chain.md`, `fix_plan.md` |
 | The Weaver proposal of agentic-base | The **Files changed** tab of [pull request #2](https://github.com/ebrAIn-Lab-3B/agentic-base/pull/2) |
 
 **A document that is not merged yet is not on `main`.** It is on the branch of its pull request. Read it in the **Files changed** tab of the pull request, or fetch that branch and open it. Once the PR is merged, it is on `main`.
@@ -203,11 +255,10 @@ Open [the feedback form](https://github.com/ebrAIn-Lab-3B/Weaver/issues/new?temp
 | Starting is refused with "already has a process file" | agentic-browser already has one. A guideline never changes an existing file. To change it, change that file by a PR. |
 | The starting-file PR is refused as "already open" | Merge or close the open PR (`docs/weaver-process-file`) and try again. |
 | It says the "project" scope is missing | Press **Sign in to GitHub** again and allow the `project` scope. |
-| Two extensions show (`palab.weaver` and `ebrain-lab.weaver`) | Remove the old one (`palab.weaver`) and reload VS Code. |
 | `gh issue create` fails because of the label | Check that you created the labels in step 5. |
 | A PR opens in the system browser instead of VS Code | This VS Code has no built-in browser. Opening in the system browser is the normal behavior then. |
 | You chose **Pull request** on a card and it says "No pull request refers to this Issue." | Check that the PR body has `Closes #number` or `Refs #number`. |
 
 ## What Weaver does not do
 
-Weaver does not change a card, a label, or a file before it shows what it will change and you approve. While it only reads, nothing changes. In this guide, the things a person does by hand are creating the labels, creating the Issue, and editing `fix_plan.md`.
+Weaver does not change a card, a label, or a file before it shows what it will change and you approve. While it only reads, nothing changes. In this guide, the things a person does by hand are creating the labels (agentic-base specific), creating the Issue, and editing `fix_plan.md` (agentic-base specific).

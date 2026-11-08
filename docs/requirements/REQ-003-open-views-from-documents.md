@@ -2,7 +2,7 @@
 id: REQ-003
 type: requirement
 title: Weaver views open from the documents themselves
-status: draft
+status: verified
 owner: ebrAIn.lab
 story_ids: [US-015, US-020]
 repository: ebrAIn-Lab-3B/Weaver

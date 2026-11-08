@@ -2,7 +2,7 @@
 id: REQ-007
 type: requirement
 title: A steward agent keeps the Kanban, the Issues, and the repository files in step
-status: draft
+status: verified
 owner: ebrAIn.lab
 story_ids: [US-027, US-028, US-031]
 repository: ebrAIn-Lab-3B/Weaver

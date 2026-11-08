@@ -2,7 +2,7 @@
 id: REQ-011
 type: requirement
 title: A shared roster and process profile are read from a reference
-status: draft
+status: verified
 owner: ebrAIn.lab
 story_ids: [US-044, US-047]
 repository: ebrAIn-Lab-3B/Weaver

@@ -2,7 +2,7 @@
 id: REQ-015
 type: requirement
 title: Weaver works under several operating guidelines at once
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-050]
 repository: ebrAIn-Lab-3B/Weaver

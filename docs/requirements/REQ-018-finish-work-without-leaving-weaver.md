@@ -2,7 +2,7 @@
 id: REQ-018
 type: requirement
 title: Work started in Weaver is finished without leaving Weaver
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-053]
 repository: ebrAIn-Lab-3B/Weaver

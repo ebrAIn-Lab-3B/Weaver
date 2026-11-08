@@ -2,7 +2,7 @@
 id: REQ-014
 type: requirement
 title: A folder that holds your projects carries its own Weaver configuration
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-049]
 repository: ebrAIn-Lab-3B/Weaver

@@ -2,7 +2,7 @@
 id: REQ-002
 type: requirement
 title: Humans and agents work on tasks through Weaver
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-016, US-017, US-018, US-019]
 repository: ebrAIn-Lab-3B/Weaver

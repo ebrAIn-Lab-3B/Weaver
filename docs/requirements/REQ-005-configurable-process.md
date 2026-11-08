@@ -2,7 +2,7 @@
 id: REQ-005
 type: requirement
 title: Teams describe their own development process and adopt it step by step
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-022, US-037, US-042]
 repository: ebrAIn-Lab-3B/Weaver

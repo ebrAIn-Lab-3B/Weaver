@@ -2,7 +2,7 @@
 id: REQ-006
 type: requirement
 title: One Overview Kanban shows all registered repositories and starts every exploration
-status: draft
+status: verified
 owner: ebrAIn.lab
 story_ids: [US-025, US-026, US-029, US-030, US-035, US-036, US-046]
 repository: ebrAIn-Lab-3B/Weaver

@@ -42,6 +42,7 @@ Accepted in [DEC-023](../decisions/DEC-023-mark-a-card-verified-and-say-why-it-h
 - `TASK-103` Mark a finished card Verified from the card — [GitHub Issue #281](https://github.com/ebrAIn-Lab-3B/Weaver/issues/281)
 - `TASK-105` Decide how a card without a task file gets one — [GitHub Issue #287](https://github.com/ebrAIn-Lab-3B/Weaver/issues/287)
 - `TASK-106` A card without a task file says where it is and offers to bring or make it — [GitHub Issue #289](https://github.com/ebrAIn-Lab-3B/Weaver/issues/289)
+- `TASK-107` Update the folder only on the default branch, and do not make a second task file pull request — [GitHub Issue #293](https://github.com/ebrAIn-Lab-3B/Weaver/issues/293)
 
 Origin: the maintainer, 2026-11-08, while trying the pull request follow of REQ-018 and the cards of REQ-019: a card opened its Issue instead of the requirement, and the card could not be marked Verified, which the maintainer had to ask for. Absorbs the label step that was done by hand for every closed task that day.
 

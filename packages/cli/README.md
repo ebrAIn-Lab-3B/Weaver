@@ -17,7 +17,7 @@ It reads the Project to work on from a `fabric.yaml` in the folder it runs in (o
 
 | Command | Prints |
 | --- | --- |
-| `weaver init` | Sets up `~/.weaver/config.yaml` in a terminal: the Project, the repositories to leave out, the roster. Shows the file and writes it only after a yes; keeps `config.yaml.bak` when it replaces one. Exits with 6 without a terminal |
+| `weaver init [--root <folder>]` | Sets up `~/.weaver/config.yaml`, or with `--root` the root file `<folder>/.weaver/config.yaml` ([DEC-018](../../docs/decisions/DEC-018-operating-root-configuration.md)), in a terminal: the Project, the repositories to leave out, the roster. Shows the file and writes it only after a yes; keeps `config.yaml.bak` when it replaces one. Exits with 6 without a terminal |
 | `weaver list [--repository o/n] [--column name]` | Every card of the Project, with its task, requirement, stale marks, and gaps |
 | `weaver show <card>` | One card with its task file, requirement, and the merged pull requests that close it or name its task. `<card>` is `owner/name#number`, an Issue address, or `TASK-###` |
 | `weaver process [--repository owner/name]` | How each repository of the Project tracks its work, read from its `.weaver/process.yaml` ([DEC-015](../../docs/decisions/DEC-015-process-configuration.md)): for the columns, the evidence rules, and the stale limit, whether the file set them or they are the defaults, the values in use, and what is wrong in the file. A repository with no file shows the defaults (`"file": "missing"`); one that cannot be read shows them with the reason. At most four repositories are asked at a time. Nothing else uses these values yet |

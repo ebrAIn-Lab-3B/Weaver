@@ -219,7 +219,7 @@ After the user approved that action, the same command with `--approve 0b184aa2fc
 
 ## Set up
 
-`weaver init` sets up your personal configuration `~/.weaver/config.yaml` in a terminal: it lists the Projects you can read, takes the repositories found on the one you choose (you leave out the ones you do not want), offers the people assigned to its cards for your roster, lets you add agents, shows the file, and writes it only after you say yes. Running it again starts from the file that is there and keeps a copy of the old one as `config.yaml.bak`. It asks questions, so an agent cannot run it: without a terminal it exits with code 6. Ask the user to run it, or write the file by hand ([the format](../product/artifact-schema-v0.1.md#user-configuration)).
+`weaver init` sets up your personal configuration `~/.weaver/config.yaml` in a terminal (with `--root <folder>`, the root file `<folder>/.weaver/config.yaml` instead): it lists the Projects you can read, takes the repositories found on the one you choose (you leave out the ones you do not want), offers the people assigned to its cards for your roster, lets you add agents, shows the file, and writes it only after you say yes. Running it again starts from the file that is there and keeps a copy of the old one as `config.yaml.bak`. It asks questions, so an agent cannot run it: without a terminal it exits with code 6. Ask the user to run it, or write the file by hand ([the format](../product/artifact-schema-v0.1.md#user-configuration)).
 
 ## Commands that write
 

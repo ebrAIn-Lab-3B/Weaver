@@ -139,6 +139,35 @@ describe('weaver init', () => {
     expect(shown).not.toContain('maria  2 cards');
   });
 
+  it('writes a root file in the folder given with --root, and not the personal file', async () => {
+    const t = terminal(['1', '3', '', '']);
+    expect(await run(['init', '--root', '/work'], t.deps)).toBe(EXIT.ok);
+
+    expect(t.written).toHaveLength(1);
+    expect(t.written[0].file.replace(/^[A-Za-z]:/, '')).toBe('/work/.weaver/config.yaml');
+    expect(config(t.written[0].text)).toEqual({ project: { owner: 'me', number: 7 }, repositories: [{ repository: 'me/a' }, { repository: 'me/b' }] });
+    expect(JSON.parse(t.out.join(''))).toMatchObject({ schema: 1, status: 'written' });
+    const shown = t.err.join('');
+    expect(shown).toContain('.weaver');
+    expect(shown).toContain('Run weaver inside');
+  });
+
+  it('starts from the root file that is there and keeps a copy of it', async () => {
+    const existing = 'project: {owner: me, number: 7}\nroster:\n  contributors:\n    - {id: maria, kind: human, github: maria}\n';
+    const t = terminal(['', '', '', ''], { existing });
+    expect(await run(['init', '--root', '/work'], t.deps)).toBe(EXIT.ok);
+
+    expect(t.written.map((w) => w.file.replace(/^[A-Za-z]:/, ''))).toEqual(['/work/.weaver/config.yaml.bak', '/work/.weaver/config.yaml']);
+    expect(t.written[0].text).toBe(existing);
+    expect(config(t.written[1].text)?.roster?.contributors).toEqual([{ id: 'maria', kind: 'human', github: 'maria' }]);
+  });
+
+  it('writes no root file when the person says no', async () => {
+    const t = terminal(['1', '', '', ''], { yes: false });
+    expect(await run(['init', '--root', '/work'], t.deps)).toBe(EXIT.declined);
+    expect(t.written).toEqual([]);
+  });
+
   it('does not add an agent twice', async () => {
     const t = terminal(['1', '', '', 'bot', 't', 'r', 'BOT', '']);
     expect(await run(['init'], t.deps)).toBe(EXIT.ok);

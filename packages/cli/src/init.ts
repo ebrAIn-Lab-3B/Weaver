@@ -7,6 +7,8 @@ import {
   MessageKey,
   parseConfig,
   parseProjectRef,
+  ROOT_CONFIG_FILE,
+  ROOT_CONFIG_FOLDER,
   serializeConfig,
   t,
   type UserConfig,
@@ -42,9 +44,10 @@ const same = (a: { owner: string; number: number }, b: { owner: string; number: 
 /**
  * The setup in a terminal (DEC-014): sign-in, the Project, the repositories to leave out, roster
  * candidates and agents, then the file. It asks, shows what it will write, and writes only after a yes.
- * Running it again starts from the configuration that is there.
+ * Running it again starts from the configuration that is there. With `rootFolder` it writes the root
+ * file `<rootFolder>/.weaver/config.yaml` instead of the personal file (DEC-018 item 10).
  */
-export async function runInit(deps: Deps, locale: Locale, wantsText: boolean): Promise<number> {
+export async function runInit(deps: Deps, locale: Locale, wantsText: boolean, rootFolder?: string): Promise<number> {
   const say = (key: MessageKey, args?: MessageArgs): string => t(key, locale, args);
   const note = (text: string): void => deps.err(`${text}\n`);
   const fail = (code: number, key: MessageKey, args?: MessageArgs): number => {
@@ -58,7 +61,7 @@ export async function runInit(deps: Deps, locale: Locale, wantsText: boolean): P
   const token = await deps.token();
   if (!token) return fail(EXIT.failed, 'cli.no-token');
 
-  const file = configPath(deps.env);
+  const file = rootFolder === undefined ? configPath(deps.env) : path.join(rootFolder, ROOT_CONFIG_FOLDER, ROOT_CONFIG_FILE);
   const existingText = await deps.readText(file);
   const existing: UserConfig | undefined = existingText?.trim() ? parseConfig(file, existingText).config : undefined;
 
@@ -144,7 +147,7 @@ export async function runInit(deps: Deps, locale: Locale, wantsText: boolean): P
   }
   if (existingText?.trim()) await deps.system.writeFile(backup, existingText);
   await deps.system.writeFile(file, text);
-  note(say('init.written', { path: path.normalize(file) }));
+  note(say(rootFolder === undefined ? 'init.written' : 'init.written-root', { path: path.normalize(file), folder: path.normalize(rootFolder ?? '') }));
   deps.out(`${JSON.stringify({ schema: SCHEMA, status: 'written', path: file })}\n`);
   return EXIT.ok;
 }

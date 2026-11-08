@@ -36,6 +36,7 @@ import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
 import { fetchEvidence, getGitHubToken } from './github';
 import { openInSystemBrowser, openPage } from './openPage';
+import { markVerified } from './markVerified';
 import { startProcessFile } from './startProcessFile';
 import { log } from './log';
 import { currentLocale, message as text } from './locale';
@@ -143,6 +144,15 @@ export class OverviewView {
   private showFinished = false;
   /** Clones on this computer that no list names and the Project has no card of, shown as lanes with a note (DEC-018 item 11). */
   private cloneOnly = new Set<string>();
+
+  /** Marks a finished card Verified, from the card, after showing the plan and asking (DEC-023). */
+  private async markCardVerified(url: string): Promise<void> {
+    const wanted = normalizeIssueUrl(url);
+    const card = (this.read?.cards ?? []).find((c) => normalizeIssueUrl(c.url) === wanted);
+    if (!card) return;
+    const moved = await markVerified({ url: card.url, label: card.taskId ?? `#${card.number}` }, this.read?.title);
+    if (moved) await this.refreshAll();
+  }
 
   /** Offers a starting process file for a lane's repository, from the cards the Overview already read (DEC-019 item 6). */
   private async startProcess(repository: string): Promise<void> {
@@ -276,6 +286,7 @@ export class OverviewView {
     }
     else if (message.type === 'foldLane' && message.id) this.flip(this.collapsed, COLLAPSED_KEY, message.id);
     else if (message.type === 'startProcess' && message.id) await this.startProcess(message.id);
+    else if (message.type === 'markVerified' && message.url) await this.markCardVerified(message.url);
     else if (message.type === 'showAll') {
       this.hidden.clear();
       void this.store.update(HIDDEN_KEY, []);

@@ -48,6 +48,8 @@ It does not change your cards unless you press a button that says what it will c
 
 Open [a feedback report](https://github.com/ebrAIn-Lab-3B/Weaver/issues/new?template=dogfooding-feedback.yml). It asks four things: what you were trying to do, what you expected, what happened, and how much it got in the way. A screenshot helps. Short is fine.
 
+When the first round works, go on to [the second round](dogfooding-round-2.md) ([한국어](dogfooding-round-2.ko.md)), which follows one piece of work from its start to its end.
+
 ## For the maintainer: from a report to a story and a task
 
 Friction is a product requirement, not a private workaround ([AGENTS.md](../../AGENTS.md)). Handle each report in this order:

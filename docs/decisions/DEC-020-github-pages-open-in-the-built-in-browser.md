@@ -1,6 +1,6 @@
 # DEC-020: A GitHub page opens in VS Code's built-in browser, with the system browser as the fallback
 
-- Status: proposed on 2026-11-08; it becomes accepted when the maintainer merges the pull request that adds it
+- Status: accepted on 2026-11-08 (pull request #240); item 5 amended on 2026-11-08 after the maintainer tried the result (see Context)
 - Date: 2026-11-08
 - Related: `REQ-018`, `US-053`, keeps [DEC-008](./DEC-008-agent-identity-and-write-confirmation.md)
 
@@ -17,7 +17,9 @@ A small prototype (`apps/vscode-extension/src/prototypeBrowser.ts` on the branch
 - VS Code has settings for the built-in browser: where a new tab goes (`workbench.browser.newTabPlacement`) and how long sign-ins are kept (`workbench.browser.dataStorage`).
 - An extension has no public command that opens an arbitrary address in the built-in browser. The built-in browser takes a page address only through an editor option that extensions cannot pass.
 
-Not observed: any VS Code before 1.145 (the extension supports 1.90 and later), and whether Simple Browser's call that takes a column places the tab beside another one (the prototype asks the maintainer to try it).
+Then `openPage` (TASK-090, pull request #247) was tried in VS Code by the maintainer on 1.145.2: a page opens in an editor tab right next to the current tab, and a page chosen later opens in a new tab next to it. The maintainer found that enough.
+
+Not observed: any VS Code before 1.145 (the extension supports 1.90 and later). Simple Browser's call that takes a column (`simpleBrowser.api.open`) was not needed, so it was not tried.
 
 ## Decision
 
@@ -25,7 +27,7 @@ Not observed: any VS Code before 1.145 (the extension supports 1.90 and later), 
 2. **When the built-in browser is not present, Weaver opens the page with `vscode.env.openExternal`**, which uses the system browser. On such a VS Code Simple Browser would frame the page and show nothing, which is worse than leaving.
 3. **"Open in the browser" stays one explicit action** that always uses the system browser ([REQ-018](../requirements/REQ-018-finish-work-without-leaving-weaver.md)).
 4. **Sign-in is on the page.** Weaver does not put its own token in the page and does not read the page. The person signs in once on the page; how long that is kept is VS Code's setting `workbench.browser.dataStorage`, which the guide names.
-5. **Where the tab goes** is VS Code's own choice (`workbench.browser.newTabPlacement`) unless the prototype shows that the column given to Simple Browser's open call (`simpleBrowser.api.open`, `viewColumn: Beside`) is honored by the built-in browser. If it is, Weaver opens the page beside the Overview; if it is not, the guide recommends the setting.
+5. **Where the tab goes** is VS Code's own choice: it opens next to the current tab in the same editor group, and a page opened later opens in a new tab next to it. Weaver does not pass a column. A person who wants the page in another column moves the tab, or sets `workbench.browser.newTabPlacement`; the guide names the setting.
 6. **Weaver follows what happens on the page through the API.** For a pull request or Issue that Weaver opened a page for, it reads the state (open, merged, closed, checks) and updates the Overview without a manual refresh. It reads only the items it opened, when the VS Code window regains focus and every 60 seconds for up to ten minutes after the page was opened, and stops when the item is merged or closed. These limits are a first guess; they are changed by a task when use shows a better one.
 7. **The application** shows the page in its own browser view with the same rules (sign-in on the page, no token in the page, the same state follow). Its decision is made when the application is built.
 8. **A merge, a review, or a comment on the page is the person's own act on GitHub.** Weaver's own writes keep their plan and confirmation ([DEC-008](./DEC-008-agent-identity-and-write-confirmation.md)).
@@ -49,6 +51,5 @@ Not observed: any VS Code before 1.145 (the extension supports 1.90 and later), 
 
 ## Not decided yet
 
-- Whether the column given to Simple Browser is honored (item 5), which the prototype shows.
 - How the application opens the page (item 7).
 - Showing a merge or close from Weaver's own dialog. It is left out here; the maintainer prefers GitHub's own page.

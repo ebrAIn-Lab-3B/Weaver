@@ -44,7 +44,7 @@ Whatever way is chosen, Weaver reads the state of the pull request through the A
 
 ## Prototype result
 
-On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.show` both opened GitHub's own page in an editor tab, in the built-in browser, with a sign-in on the page. The way is chosen in [DEC-020](../decisions/DEC-020-github-pages-open-in-the-built-in-browser.md), proposed for the maintainer to accept.
+On VS Code 1.145.2, 2026-11-08, `vscode.env.openExternal` and `simpleBrowser.show` both opened GitHub's own page in an editor tab, in the built-in browser, with a sign-in on the page. The maintainer then tried the result in VS Code: a page opens in a tab right next to the current one. The way is chosen in [DEC-020](../decisions/DEC-020-github-pages-open-in-the-built-in-browser.md), accepted on 2026-11-08.
 
 ## Open decisions
 

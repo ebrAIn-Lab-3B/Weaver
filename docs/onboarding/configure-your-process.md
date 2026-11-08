@@ -142,6 +142,7 @@ A repository with no process file can get a first one offered instead of written
 
 - If your root or personal configuration names an operating guideline (`guideline:`, [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)), the file is that guideline's process file as it is, under a first comment that says where it came from.
 - If not, or if the guideline cannot be read, the file is the defaults that match how the repository is tracked: the labels file when its Issues carry `status:*` labels, the board-status file when they do not. With no cards to look at, you get the labels file, which is what Weaver does without a file.
+- The guideline file is read from GitHub each time you start, and a copy is kept in `guidelines.json` next to your personal configuration (never in a repository). Offline, the copy is used and the dialog or the tool says when it was last confirmed. Delete the file to forget the copies.
 - It never changes a repository that already has a process file. After the file is merged it belongs to the repository; a later change to the guideline does not change it.
 
 The two default files are in [`examples/process-start`](../../examples/process-start).

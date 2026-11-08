@@ -229,6 +229,8 @@ export const ko: Record<MessageKey, Message> = {
   'cli.process-start.already-open': '{repository}에 {branch}에서 올린 풀 리퀘스트가 이미 열려 있습니다. 더 제안하지 않습니다.',
   'cli.process-start.guideline-unreadable': '지침 {repository} {path}을(를) 읽지 못해, 저장소의 관리 방식에 맞는 기본값을 대신 제안합니다.',
   'cli.process-start.guideline-invalid': '지침 {repository} {path}은(는) 올바른 process 파일이 아니어서, 저장소의 관리 방식에 맞는 기본값을 대신 제안합니다.',
+  'cli.process-start.guideline-copy': '지침 {repository} {path}을(를) 지금은 확인하지 못해, 이 컴퓨터에 보관한 복사본을 씁니다. GitHub가 마지막으로 확인한 날은 {when}입니다.',
+  'cli.process-start.guideline-missing': '지침 파일 {repository} {path}이(가) 그곳에 없어서, 저장소의 관리 방식에 맞는 기본값을 대신 제안합니다.',
   'cli.task-create.project-field': '새 카드의 Project 필드 "{field}"을(를) "{value}"(으)로 정합니다.',
   'cli.task-create.files-fields': '{repository}에 {path}을(를) 추가하고 {requirement} 아래에 {task}를 올리는 풀 리퀘스트를 엽니다. 파일에는 필드 {fields}와 제목 {sections}이(가) 들어갑니다. 기본 브랜치는 건드리지 않습니다.',
   'cli.task-create.contract-gaps': '{repository}의 과제 규약을 지키지 못해 아무것도 만들지 않았습니다: {gaps}.',

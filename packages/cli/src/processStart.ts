@@ -1,5 +1,5 @@
 import type { DeclaredGuideline, Locale, Notice } from '@palab/weaver-markdown';
-import { type FetchFn, PROCESS_FILE, PROCESS_START_BRANCH, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@palab/weaver-github';
+import { type FetchFn, type GuidelineCopyStore, PROCESS_FILE, PROCESS_START_BRANCH, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@palab/weaver-github';
 import { attribution, type PlannedAction } from './actions';
 
 export { PROCESS_START_BRANCH };
@@ -11,6 +11,9 @@ export interface ProcessStartInput {
   repository: string;
   guideline: DeclaredGuideline | undefined;
   cards: readonly { labels: readonly string[] }[];
+  /** The guideline copies kept on this computer (DEC-019 item 8). */
+  copies?: GuidelineCopyStore;
+  now?: Date;
   fetchFn?: FetchFn;
 }
 
@@ -24,7 +27,7 @@ export type ProcessStartPlan =
  * the approval id is made from that text. Nothing is written until the action is approved.
  */
 export async function planProcessStart(input: ProcessStartInput): Promise<ProcessStartPlan> {
-  const prepared = await prepareProcessStart({ token: input.token, repository: input.repository, guideline: input.guideline, cards: input.cards, fetchFn: input.fetchFn });
+  const prepared = await prepareProcessStart({ token: input.token, repository: input.repository, guideline: input.guideline, cards: input.cards, copies: input.copies, now: input.now, fetchFn: input.fetchFn });
   if (!prepared.ok) return prepared;
   const { text } = prepared;
   const action: PlannedAction = {

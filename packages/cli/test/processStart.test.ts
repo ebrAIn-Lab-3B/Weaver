@@ -138,3 +138,43 @@ describe('weaver process start', () => {
     expect(await run(['process', 'start', '--repository', 'me/Other'], other.deps)).toBe(EXIT.usage);
   });
 });
+
+describe('the guideline copy kept by the tool', () => {
+  const copyFile = (s: ReturnType<typeof withApi>) => s.written.find((w) => w.file.endsWith('guidelines.json'));
+
+  it('is saved next to the personal configuration after the guideline is read', async () => {
+    const s = withApi({ guideline: GUIDELINE_TEXT }, WITH_GUIDELINE);
+    await planned(s);
+    const saved = copyFile(s);
+    expect(saved).toBeDefined();
+    expect(saved?.file).toContain('.weaver');
+    const copies = JSON.parse(saved?.text ?? '{}');
+    expect(copies['org/base|.weaver/process.yaml|main'].text).toBe(GUIDELINE_TEXT);
+  });
+
+  it('is used, with a note, when the guideline cannot be asked later', async () => {
+    const first = withApi({ guideline: GUIDELINE_TEXT }, WITH_GUIDELINE);
+    await planned(first);
+    const kept = copyFile(first)?.text ?? '';
+
+    const s = withApi({ guidelineFails: true }, WITH_GUIDELINE);
+    const original = s.deps.system.readText;
+    s.deps.system.readText = async (file) => (file.endsWith('guidelines.json') ? kept : original(file));
+    const { result } = await planned(s);
+    expect(result.actions[0].summary).toContain('# Started from the guideline org/base');
+    expect(result.actions[0].summary).toContain(GUIDELINE_TEXT);
+    expect(s.err.join('')).toContain('copy kept on this computer');
+  });
+
+  it('is not rewritten when nothing about it changed', async () => {
+    const first = withApi({ guideline: GUIDELINE_TEXT }, WITH_GUIDELINE);
+    await planned(first);
+    const kept = copyFile(first)?.text ?? '';
+    const s = withApi({ guideline: GUIDELINE_TEXT }, WITH_GUIDELINE);
+    const original = s.deps.system.readText;
+    s.deps.system.readText = async (file) => (file.endsWith('guidelines.json') ? kept : original(file));
+    await planned(s);
+    // The same text answered at the same time, so there is nothing new to keep.
+    expect(copyFile(s)).toBeUndefined();
+  });
+});

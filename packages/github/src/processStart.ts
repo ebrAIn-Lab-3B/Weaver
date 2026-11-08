@@ -1,7 +1,8 @@
-import { type DeclaredGuideline, type GuidelineRef, type Notice, observeTracking, parseProcess, startingProcessText } from '@palab/weaver-markdown';
+import { copyDay, type DeclaredGuideline, type GuidelineRef, type Notice, observeTracking, parseProcess, startingProcessText } from '@palab/weaver-markdown';
 import type { FetchFn } from './issue';
 import { filePullRequestOpen, type NewFilePullRequest } from './filePullRequest';
-import { fetchProcessFile, fetchRepositoryFile, PROCESS_FILE } from './processFile';
+import { fetchProcessFile, PROCESS_FILE } from './processFile';
+import { type GuidelineCopyStore, memoryCopies, readGuideline } from './guidelineFile';
 
 /** The branch the starting file is offered on. */
 export const PROCESS_START_BRANCH = 'docs/weaver-process-file';
@@ -13,6 +14,9 @@ export interface PrepareProcessStart {
   guideline: DeclaredGuideline | undefined;
   /** The cards of the repository on the Project, to see how it is tracked. */
   cards: readonly { labels: readonly string[] }[];
+  /** The guideline copies kept on this computer. Without them nothing is kept and a guideline that cannot be asked is not used. */
+  copies?: GuidelineCopyStore;
+  now?: Date;
   fetchFn?: FetchFn;
 }
 
@@ -43,16 +47,20 @@ export async function prepareProcessStart(input: PrepareProcessStart): Promise<P
   let guideline: { ref: GuidelineRef; text: string } | undefined;
   if (input.guideline) {
     const { ref } = input.guideline;
-    const read = await fetchRepositoryFile(input.token, ref.repository, ref.path, { ref: ref.ref }, input.fetchFn);
-    if (read.status === 'read') {
+    const read = await readGuideline(input.token, ref, input.copies ?? memoryCopies(), input.now, input.fetchFn);
+    const where = { repository: ref.repository, path: ref.path };
+    if (read.status === 'read' || read.status === 'copy') {
       const parsed = parseProcess(`${ref.repository}/${ref.path}`, read.text);
       if (parsed.issues.some((issue) => issue.severity === 'error')) {
-        notes.push({ code: 'cli.process-start.guideline-invalid', args: { repository: ref.repository, path: ref.path } });
+        notes.push({ code: 'cli.process-start.guideline-invalid', args: where });
       } else {
         guideline = { ref, text: read.text };
+        if (read.status === 'copy') notes.push({ code: 'cli.process-start.guideline-copy', args: { ...where, when: copyDay(read) } });
       }
+    } else if (read.status === 'missing') {
+      notes.push({ code: 'cli.process-start.guideline-missing', args: where });
     } else {
-      notes.push({ code: 'cli.process-start.guideline-unreadable', args: { repository: ref.repository, path: ref.path } });
+      notes.push({ code: 'cli.process-start.guideline-unreadable', args: where });
     }
   }
 

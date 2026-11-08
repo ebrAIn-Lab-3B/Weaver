@@ -25,6 +25,7 @@ import { Deps, EXIT, SCHEMA } from './contract';
 import { planProjectAdd } from './projectAdd';
 import { runInit } from './init';
 import { processText, readProcesses, type ProcessReport } from './processCommand';
+import { openGuidelineCopies } from './guidelineCopies';
 import { planProcessStart } from './processStart';
 import { loadSetup } from './setup';
 import { planReconcile } from './reconcile';
@@ -121,6 +122,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     const wantedStart = args.options.repository?.toLowerCase();
     const target = repositories.find((name) => name.toLowerCase() === wantedStart);
     if (!target) return fail(EXIT.usage, 'cli.repository-unregistered', { repository: args.options.repository ?? '' });
+    const kept = await openGuidelineCopies(deps);
     const plan = await planProcessStart({
       token,
       login: await deps.login(),
@@ -128,8 +130,11 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       repository: target,
       guideline: setup.guideline,
       cards: read.read.cards.filter((card) => card.repository.toLowerCase() === target.toLowerCase()),
+      copies: kept.store,
+      now: deps.now(),
       fetchFn: deps.fetch as unknown as FetchFn | undefined,
     });
+    await kept.save();
     if (!plan.ok) return fail(EXIT.failed, plan.refusal.code, plan.refusal.args);
     for (const note of plan.notes) deps.err(`${formatNotice(note, locale)}\n`);
     return confirmAndRun([plan.action]);

@@ -10,8 +10,8 @@ import {
   type PageState,
   type ReadReason,
   type Watch,
-} from '@palab/weaver-markdown';
-import { fetchPageState } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { fetchPageState } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { log } from './log';
 import { message } from './locale';

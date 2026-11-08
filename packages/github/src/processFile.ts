@@ -1,4 +1,4 @@
-import type { Notice } from '@palab/weaver-markdown';
+import type { Notice } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn } from './issue';
 
 /** Where a repository keeps its process (DEC-015). */

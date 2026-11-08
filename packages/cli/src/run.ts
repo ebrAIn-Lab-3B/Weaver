@@ -15,8 +15,8 @@ import {
   Setup,
   taskIdsOfPull,
   t,
-} from '@palab/weaver-markdown';
-import { placeWithRules, readMergedPulls, readProject, type FetchFn } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';

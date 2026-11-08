@@ -1,4 +1,4 @@
-import type { Notice } from '@palab/weaver-markdown';
+import type { Notice } from '@ebrain-lab/weaver-markdown';
 import type { Fetch, ProjectRead } from './project';
 
 /** A Project a person can see, as the setup lists it. */

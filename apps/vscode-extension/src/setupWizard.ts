@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { Contributor, formatNotice, parseProjectRef, serializeConfig, type UserConfig } from '@palab/weaver-markdown';
-import { listProjects, readProject, summarizeProject } from '@palab/weaver-github';
+import { Contributor, formatNotice, parseProjectRef, serializeConfig, type UserConfig } from '@ebrain-lab/weaver-markdown';
+import { listProjects, readProject, summarizeProject } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { currentLocale, message } from './locale';
 import { readUserConfig, userConfigPath, writeUserConfig } from './userConfig';

@@ -7,13 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @palab/weaver-markdown && npm run build -w @palab/weaver-github && npm run build -w @palab/weaver-cli && npm run compile -w @palab/weaver-vscode-extension",
-    "check": "npm run build -w @palab/weaver-markdown && npm run build -w @palab/weaver-github && npm run build -w @palab/weaver-cli && npm run check -w @palab/weaver-vscode-extension",
-    "test": "npm run test -w @palab/weaver-markdown && npm run test -w @palab/weaver-github && npm run test -w @palab/weaver-cli",
+    "build": "npm run build -w @ebrain-lab/weaver-markdown && npm run build -w @ebrain-lab/weaver-github && npm run build -w @ebrain-lab/weaver-cli && npm run compile -w @ebrain-lab/weaver-vscode-extension",
+    "check": "npm run build -w @ebrain-lab/weaver-markdown && npm run build -w @ebrain-lab/weaver-github && npm run build -w @ebrain-lab/weaver-cli && npm run check -w @ebrain-lab/weaver-vscode-extension",
+    "test": "npm run test -w @ebrain-lab/weaver-markdown && npm run test -w @ebrain-lab/weaver-github && npm run test -w @ebrain-lab/weaver-cli",
     "dev": "npm run build && node scripts/dev.js examples/sample-workspace",
     "dev:docs": "npm run build && node scripts/dev.js docs",
-    "package": "npm run build && npm run package -w @palab/weaver-vscode-extension",
-    "package:cli": "npm run build && npm run bundle -w @palab/weaver-cli",
+    "package": "npm run build && npm run package -w @ebrain-lab/weaver-vscode-extension",
+    "package:cli": "npm run build && npm run bundle -w @ebrain-lab/weaver-cli",
     "dev:overview": "npm run build && node scripts/dev.js examples/overview.code-workspace"
   }
 }

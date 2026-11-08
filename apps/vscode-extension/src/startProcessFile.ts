@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { type DeclaredGuideline, formatNotice, t } from '@palab/weaver-markdown';
-import { errorNotice, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@palab/weaver-github';
+import { type DeclaredGuideline, formatNotice, t } from '@ebrain-lab/weaver-markdown';
+import { errorNotice, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { openGuidelineCopies } from './guidelineStore';
 import { currentLocale, message } from './locale';

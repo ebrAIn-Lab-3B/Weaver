@@ -1,4 +1,4 @@
-import type { Notice, RosterRef } from '@palab/weaver-markdown';
+import type { Notice, RosterRef } from '@ebrain-lab/weaver-markdown';
 import { fetchRepositoryFile } from './processFile';
 import type { FetchFn } from './issue';
 

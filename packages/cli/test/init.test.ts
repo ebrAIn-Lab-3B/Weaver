@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@palab/weaver-markdown';
-import type { Fetch } from '@palab/weaver-github';
+import { parseConfig } from '@ebrain-lab/weaver-markdown';
+import type { Fetch } from '@ebrain-lab/weaver-github';
 import { EXIT, parseProjectRef, parseSelection, run, type Deps } from '../src';
 import { setup } from './helpers';
 

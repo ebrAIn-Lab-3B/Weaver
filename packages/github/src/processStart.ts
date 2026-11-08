@@ -1,4 +1,4 @@
-import { copyDay, type DeclaredGuideline, type GuidelineRef, type Notice, observeTracking, parseProcess, startingProcessText } from '@palab/weaver-markdown';
+import { copyDay, type DeclaredGuideline, type GuidelineRef, type Notice, observeTracking, parseProcess, startingProcessText } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn } from './issue';
 import { filePullRequestOpen, type NewFilePullRequest } from './filePullRequest';
 import { fetchProcessFile, PROCESS_FILE } from './processFile';

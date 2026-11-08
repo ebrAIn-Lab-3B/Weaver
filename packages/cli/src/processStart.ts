@@ -1,5 +1,5 @@
-import type { DeclaredGuideline, Locale, Notice } from '@palab/weaver-markdown';
-import { type FetchFn, type GuidelineCopyStore, PROCESS_FILE, PROCESS_START_BRANCH, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@palab/weaver-github';
+import type { DeclaredGuideline, Locale, Notice } from '@ebrain-lab/weaver-markdown';
+import { type FetchFn, type GuidelineCopyStore, PROCESS_FILE, PROCESS_START_BRANCH, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@ebrain-lab/weaver-github';
 import { attribution, type PlannedAction } from './actions';
 
 export { PROCESS_START_BRANCH };

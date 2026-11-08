@@ -1,7 +1,7 @@
-import { defaultSources, formatNotice, guidelineNote, type DeclaredGuideline, Locale, parseProcess, ProcessConfig, ProcessSection, SectionSource, t, defaultProcess, validationKey } from '@palab/weaver-markdown';
-import { fetchProcessFile, mapLimit, PROCESS_READ_LIMIT, type FetchFn } from '@palab/weaver-github';
+import { defaultSources, formatNotice, guidelineNote, type DeclaredGuideline, Locale, parseProcess, ProcessConfig, ProcessSection, SectionSource, t, defaultProcess, validationKey } from '@ebrain-lab/weaver-markdown';
+import { fetchProcessFile, mapLimit, PROCESS_READ_LIMIT, type FetchFn } from '@ebrain-lab/weaver-github';
 
-export { mapLimit } from '@palab/weaver-github';
+export { mapLimit } from '@ebrain-lab/weaver-github';
 
 /** How one repository tracks its work, as the tool prints it. Part of the JSON contract. */
 export interface ProcessReport {

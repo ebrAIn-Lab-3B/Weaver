@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { choosePageOpener, SIMPLE_BROWSER_COMMAND, type PageOpener } from '@palab/weaver-markdown';
+import { choosePageOpener, SIMPLE_BROWSER_COMMAND, type PageOpener } from '@ebrain-lab/weaver-markdown';
 
 /** What this VS Code can do, asked once: the commands do not change while the window is open. */
 let opener: Promise<PageOpener> | undefined;

@@ -29,8 +29,8 @@ import {
   staleNotices,
   LaneGuideline,
   ValidationIssue,
-} from '@palab/weaver-markdown';
-import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject } from '@ebrain-lab/weaver-github';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';

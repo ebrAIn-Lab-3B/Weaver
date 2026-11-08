@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
-import { defaultProcess, parseProcess } from '@palab/weaver-markdown';
+import { defaultProcess, parseProcess } from '@ebrain-lab/weaver-markdown';
 
 const ROOT = path.resolve(__dirname, '../../..');
 

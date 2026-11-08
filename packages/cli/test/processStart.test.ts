@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Fetch } from '@palab/weaver-github';
+import type { Fetch } from '@ebrain-lab/weaver-github';
 import { EXIT, run } from '../src';
 import { setup } from './helpers';
 

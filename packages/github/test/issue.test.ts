@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planMove } from '@palab/weaver-markdown';
+import { planMove } from '@ebrain-lab/weaver-markdown';
 import { addIssueComment, applyMove, fetchEvidence, fetchIssue, fetchPull, hasIssueComment, setBoardStatus, setIssueAssignees, type FetchFn } from '../src';
 
 const ISSUE = 'https://github.com/me/Weaver/issues/5';

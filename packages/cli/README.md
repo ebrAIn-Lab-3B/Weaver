@@ -1,6 +1,6 @@
-# @palab/weaver-cli
+# @ebrain-lab/weaver-cli
 
-The `weaver` command-line tool. It gives any agent, or a person in a terminal, the Kanban operations of Weaver with JSON output ([REQ-007](../../docs/requirements/REQ-007-steward-agent-for-the-kanban.md), [DEC-012](../../docs/decisions/DEC-012-steward-first-version.md)). It has no editor dependency and shares its logic with the VS Code extension through `@palab/weaver-markdown` and `@palab/weaver-github`.
+The `weaver` command-line tool. It gives any agent, or a person in a terminal, the Kanban operations of Weaver with JSON output ([REQ-007](../../docs/requirements/REQ-007-steward-agent-for-the-kanban.md), [DEC-012](../../docs/decisions/DEC-012-steward-first-version.md)). It has no editor dependency and shares its logic with the VS Code extension through `@ebrain-lab/weaver-markdown` and `@ebrain-lab/weaver-github`.
 
 For an agent, the contract (every command, the JSON shapes, the exit codes, and what an agent must never do) is [docs/onboarding/agent-contract.md](../../docs/onboarding/agent-contract.md); a test keeps its examples equal to the tool's output.
 

@@ -2,8 +2,8 @@ import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { formatNotice, Locale, MessageKey, Notice, t } from '@palab/weaver-markdown';
-import { errorNotice, NoticeError } from '@palab/weaver-github';
+import { formatNotice, Locale, MessageKey, Notice, t } from '@ebrain-lab/weaver-markdown';
+import { errorNotice, NoticeError } from '@ebrain-lab/weaver-github';
 import { Deps, EXIT, SCHEMA } from './contract';
 
 /**

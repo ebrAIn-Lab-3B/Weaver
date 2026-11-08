@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, expect, it } from 'vitest';
-import { NoticeError } from '@palab/weaver-github';
+import { NoticeError } from '@ebrain-lab/weaver-github';
 import {
   actionId,
   attribution,

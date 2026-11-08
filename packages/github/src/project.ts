@@ -1,4 +1,4 @@
-import { placeIssue, type ColumnRules, type KanbanPlacement, type Notice } from '@palab/weaver-markdown';
+import { placeIssue, type ColumnRules, type KanbanPlacement, type Notice } from '@ebrain-lab/weaver-markdown';
 
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean;

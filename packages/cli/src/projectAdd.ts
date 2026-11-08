@@ -1,5 +1,5 @@
-import { normalizeIssueUrl } from '@palab/weaver-markdown';
-import { addIssueToProject, type Fetch } from '@palab/weaver-github';
+import { normalizeIssueUrl } from '@ebrain-lab/weaver-markdown';
+import { addIssueToProject, type Fetch } from '@ebrain-lab/weaver-github';
 import type { PlannedAction } from './actions';
 
 /** An Issue named as `owner/name#number` or by its address. */

@@ -67,6 +67,8 @@ export interface Lane<T> {
   note?: 'clone';
   /** The guideline that applies to the repository (DEC-019), when one does. Set by the host, which knows the process files. */
   guideline?: LaneGuideline;
+  /** The repository has no process file, so a starting one can be offered (DEC-019 item 6). Set by the host. */
+  canStart?: boolean;
 }
 
 /** What a lane says about its guideline: the label, where the reference was declared, and whether a starting file can be offered. */

@@ -24,6 +24,7 @@ export * from './assign';
 export * from './config';
 export * from './rootConfig';
 export * from './guideline';
+export * from './processStart';
 export * from './repositoryList';
 export * from './process';
 export * from './taskContract';

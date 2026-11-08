@@ -35,6 +35,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
 import { fetchEvidence, getGitHubToken } from './github';
+import { startProcessFile } from './startProcessFile';
 import { log } from './log';
 import { currentLocale, message as text } from './locale';
 import { OverviewCard, OverviewState, renderOverviewHtml } from './overviewHtml';
@@ -141,6 +142,15 @@ export class OverviewView {
   private showFinished = false;
   /** Clones on this computer that no list names and the Project has no card of, shown as lanes with a note (DEC-018 item 11). */
   private cloneOnly = new Set<string>();
+
+  /** Offers a starting process file for a lane's repository, from the cards the Overview already read (DEC-019 item 6). */
+  private async startProcess(repository: string): Promise<void> {
+    const wanted = repository.toLowerCase();
+    const cards = (this.read?.cards ?? []).filter((card) => card.repository.toLowerCase() === wanted);
+    const guideline = this.registry.kind === 'ok' ? this.registry.guideline : undefined;
+    const opened = await startProcessFile(repository, cards, guideline);
+    if (opened) await this.refreshAll();
+  }
 
   /** What a lane says about its guideline (DEC-019): nothing when none applies. Showing it never changes the lane's rules. */
   private guidelineOfLane(repository: string): { guideline?: LaneGuideline } {
@@ -264,6 +274,7 @@ export class OverviewView {
       this.render();
     }
     else if (message.type === 'foldLane' && message.id) this.flip(this.collapsed, COLLAPSED_KEY, message.id);
+    else if (message.type === 'startProcess' && message.id) await this.startProcess(message.id);
     else if (message.type === 'showAll') {
       this.hidden.clear();
       void this.store.update(HIDDEN_KEY, []);
@@ -623,7 +634,7 @@ export class OverviewView {
       };
     });
     const ordered = applyLaneOrder(buildLanes(this.registry.registry, cards), this.order).map((lane) =>
-      ({ ...lane, ...(this.cloneOnly.has(lane.repository.toLowerCase()) ? { note: 'clone' as const } : {}), ...this.guidelineOfLane(lane.repository) }),
+      ({ ...lane, ...(this.cloneOnly.has(lane.repository.toLowerCase()) ? { note: 'clone' as const } : {}), ...this.guidelineOfLane(lane.repository), ...(processStore.summary(lane.repository).file === 'missing' ? { canStart: true } : {}) }),
     );
     const folds = ordered.map((lane) => ({ repository: lane.repository, ...foldFinished(lane) }));
     return {

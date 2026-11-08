@@ -136,6 +136,16 @@ task:
 
 The names above are examples. Use your own. Nothing in Weaver assumes a field name, a role, or a board ([DEC-007](../decisions/DEC-007-central-project-is-configuration.md)), so a repository that leaves this section out behaves exactly as before. In the editor, a field you declare is no longer reported as an unknown field in a task file. `weaver reconcile` lists a task whose value is missing, is not allowed, or differs between the file and the board, and in a task file the file wins.
 
+## Starting from a guideline or from the defaults
+
+A repository with no process file can get a first one offered instead of written by hand. Run `weaver process start --repository your-org/your-repo`. It shows the exact file and writes it only after you approve, as a pull request, so your team reviews it like any other change.
+
+- If your root or personal configuration names an operating guideline (`guideline:`, [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)), the file is that guideline's process file as it is, under a first comment that says where it came from.
+- If not, or if the guideline cannot be read, the file is the defaults that match how the repository is tracked: the labels file when its Issues carry `status:*` labels, the board-status file when they do not. With no cards to look at, you get the labels file, which is what Weaver does without a file.
+- It never changes a repository that already has a process file. After the file is merged it belongs to the repository; a later change to the guideline does not change it.
+
+The two default files are in [`examples/process-start`](../../examples/process-start).
+
 ## Step 5. Commit it as a reviewed change
 
 Add `.weaver/process.yaml` in a pull request like any other change, and say in the description which of the sections you set and why. A team can start with one section and add the others later: a section you leave out stays at its default.

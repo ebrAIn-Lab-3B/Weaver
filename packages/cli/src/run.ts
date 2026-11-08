@@ -25,6 +25,7 @@ import { Deps, EXIT, SCHEMA } from './contract';
 import { planProjectAdd } from './projectAdd';
 import { runInit } from './init';
 import { processText, readProcesses, type ProcessReport } from './processCommand';
+import { planProcessStart } from './processStart';
 import { loadSetup } from './setup';
 import { planReconcile } from './reconcile';
 import { nextTaskNumber, planTaskCreate, usedTaskTexts } from './taskCreate';
@@ -58,6 +59,10 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   if (args.command === 'init') return runInit(deps, locale, wantsText);
   if (args.command === 'show' && args.positional.length === 0) {
     return fail(EXIT.usage, 'cli.missing-argument', { command: 'show', argument: 'a card' });
+  }
+
+  if (args.command === 'process' && args.positional[0] === 'start' && !args.options.repository) {
+    return fail(EXIT.usage, 'cli.missing-argument', { command: 'process start', argument: '--repository <owner/name>' });
   }
 
   if (args.command === 'project' && (args.positional[0] !== 'add' || args.positional.length < 2)) {
@@ -96,20 +101,6 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   // Without a list, the repositories are the ones that have cards on the Project.
   const repositories = effectiveRepositories(setup, read.read.cards.map((card) => card.repository)).map((r) => r.repository);
 
-  if (args.command === 'process') {
-    const wanted = args.options.repository?.toLowerCase();
-    const reports = await readProcesses(
-      token,
-      repositories.filter((name) => !wanted || name.toLowerCase() === wanted),
-      locale,
-      deps.fetch as unknown as FetchFn | undefined,
-      setup.guideline,
-    );
-    if (wantsText) deps.out(processText(reports));
-    else deps.out(`${JSON.stringify({ schema: SCHEMA, repositories: reports })}\n`);
-    return EXIT.ok;
-  }
-
   /** Shows the plan, takes the confirmations, runs what was approved, and prints the result. */
   const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean } = {}): Promise<number> => {
     const results = await executeActions(actions, {
@@ -125,6 +116,38 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     });
     return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun });
   };
+
+  if (args.command === 'process' && args.positional[0] === 'start') {
+    const wantedStart = args.options.repository?.toLowerCase();
+    const target = repositories.find((name) => name.toLowerCase() === wantedStart);
+    if (!target) return fail(EXIT.usage, 'cli.repository-unregistered', { repository: args.options.repository ?? '' });
+    const plan = await planProcessStart({
+      token,
+      login: await deps.login(),
+      locale,
+      repository: target,
+      guideline: setup.guideline,
+      cards: read.read.cards.filter((card) => card.repository.toLowerCase() === target.toLowerCase()),
+      fetchFn: deps.fetch as unknown as FetchFn | undefined,
+    });
+    if (!plan.ok) return fail(EXIT.failed, plan.refusal.code, plan.refusal.args);
+    for (const note of plan.notes) deps.err(`${formatNotice(note, locale)}\n`);
+    return confirmAndRun([plan.action]);
+  }
+
+  if (args.command === 'process') {
+    const wanted = args.options.repository?.toLowerCase();
+    const reports = await readProcesses(
+      token,
+      repositories.filter((name) => !wanted || name.toLowerCase() === wanted),
+      locale,
+      deps.fetch as unknown as FetchFn | undefined,
+      setup.guideline,
+    );
+    if (wantsText) deps.out(processText(reports));
+    else deps.out(`${JSON.stringify({ schema: SCHEMA, repositories: reports })}\n`);
+    return EXIT.ok;
+  }
 
   if (args.command === 'project') {
     const plan = planProjectAdd(args.positional.slice(1), {

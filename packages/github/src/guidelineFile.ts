@@ -1,4 +1,4 @@
-import { guidelineCopyKey, type GuidelineCopy, type GuidelineRef, type Notice } from '@palab/weaver-markdown';
+import { guidelineCopyKey, type GuidelineCopy, type GuidelineRef, type Notice } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn } from './issue';
 import { refreshRosterFile, RosterCacheEntry, RosterRefresh } from './rosterFile';
 

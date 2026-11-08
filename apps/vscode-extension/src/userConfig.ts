@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { parseConfig, ValidationIssue, type UserConfig } from '@palab/weaver-markdown';
+import { parseConfig, ValidationIssue, type UserConfig } from '@ebrain-lab/weaver-markdown';
 
 /** `~/.weaver/config.yaml`, or under `WEAVER_HOME`. Never inside a repository (DEC-014). The `weaver` tool uses the same file. */
 export function userConfigPath(): string {

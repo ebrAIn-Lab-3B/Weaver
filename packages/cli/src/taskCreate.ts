@@ -1,6 +1,6 @@
 import * as path from 'path';
-import { Artifact, Locale, RequirementArtifact, TaskFieldPlan, yamlValue } from '@palab/weaver-markdown';
-import { addIssueToProject, createIssue, NoticeError, setProjectField, type Fetch } from '@palab/weaver-github';
+import { Artifact, Locale, RequirementArtifact, TaskFieldPlan, yamlValue } from '@ebrain-lab/weaver-markdown';
+import { addIssueToProject, createIssue, NoticeError, setProjectField, type Fetch } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction } from './actions';
 import type { System } from './contract';
 import { openFilesPullRequest } from './filesPullRequest';

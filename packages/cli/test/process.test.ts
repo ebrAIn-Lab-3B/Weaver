@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProcess } from '@palab/weaver-markdown';
-import type { Fetch, FetchFn } from '@palab/weaver-github';
+import { defaultProcess } from '@ebrain-lab/weaver-markdown';
+import type { Fetch, FetchFn } from '@ebrain-lab/weaver-github';
 import { EXIT, mapLimit, PROCESS_READ_LIMIT, processText, readProcesses, run } from '../src';
 import { setup } from './helpers';
 

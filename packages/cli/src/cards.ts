@@ -8,8 +8,8 @@ import {
   RequirementLink,
   requirementsByIssue,
   staleNotices,
-} from '@palab/weaver-markdown';
-import type { ProjectCard } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import type { ProjectCard } from '@ebrain-lab/weaver-github';
 
 /** One card as the tool prints it. Part of the JSON contract; add fields, do not rename them. */
 export interface CliCard {

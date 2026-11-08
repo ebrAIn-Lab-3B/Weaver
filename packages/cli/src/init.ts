@@ -10,8 +10,8 @@ import {
   serializeConfig,
   t,
   type UserConfig,
-} from '@palab/weaver-markdown';
-import { listProjects, readProject, summarizeProject, type ProjectSummary } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { listProjects, readProject, summarizeProject, type ProjectSummary } from '@ebrain-lab/weaver-github';
 import { EXIT, SCHEMA, type Deps } from './contract';
 import { configPath } from './setup';
 

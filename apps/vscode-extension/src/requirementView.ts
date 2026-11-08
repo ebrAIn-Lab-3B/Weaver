@@ -19,7 +19,7 @@ import {
   planMove,
   recordAcceptance,
   RequirementArtifact,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 import { applyMove, fetchBoardItems, fetchEvidence, fetchIssue, getGitHubToken } from './github';
 import { coverageOf } from './coverage';
 import { currentLocale, message } from './locale';
@@ -27,7 +27,7 @@ import { openPage } from './openPage';
 import { processStore } from './processStore';
 import { rosterOf } from './rosterStore';
 import { readUserConfig } from './userConfig';
-import { errorNotice, setIssueAssignees } from '@palab/weaver-github';
+import { errorNotice, setIssueAssignees } from '@ebrain-lab/weaver-github';
 import { escapeHtml, isOpenableUrl, renderRequirementHtml, StatusState, TaskStatus } from './requirementHtml';
 import { Loaded } from './workspace';
 

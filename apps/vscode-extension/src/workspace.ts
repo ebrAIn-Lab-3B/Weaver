@@ -12,7 +12,7 @@ import {
   ValidationIssue,
   validationKey,
   WorkspaceResult,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 import { readUserConfig } from './userConfig';
 import { describeRef, rosterStore } from './rosterStore';
 

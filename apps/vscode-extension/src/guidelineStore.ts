@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { type GuidelineCopies, readGuidelineCopies, serializeGuidelineCopies } from '@palab/weaver-markdown';
-import { type GuidelineCopyStore, memoryCopies } from '@palab/weaver-github';
+import { type GuidelineCopies, readGuidelineCopies, serializeGuidelineCopies } from '@ebrain-lab/weaver-markdown';
+import { type GuidelineCopyStore, memoryCopies } from '@ebrain-lab/weaver-github';
 import { userConfigPath } from './userConfig';
 
 /** `guidelines.json` next to the personal configuration, never inside a repository (DEC-019 item 8). The tool keeps its copies in the same file. */

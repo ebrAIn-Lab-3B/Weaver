@@ -1,5 +1,5 @@
-import type { Fetch } from '@palab/weaver-github';
-import type { SourceFile } from '@palab/weaver-markdown';
+import type { Fetch } from '@ebrain-lab/weaver-github';
+import type { SourceFile } from '@ebrain-lab/weaver-markdown';
 import type { ActionLog } from './actions';
 
 /** The version of the JSON that every command prints. A change that breaks a reader raises it. */

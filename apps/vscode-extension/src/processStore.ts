@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
-import { ColumnRules, DeclaredGuideline, EvidenceRules, GuidelineNote, guidelineNote, GuidelineRef, ProcessFileState, TaskContract, parseProcess, ProcessConfig, ProcessSection, SectionSource, defaultProcess, defaultSources } from '@palab/weaver-markdown';
-import { ProcessCacheEntry, refreshProcessFiles } from '@palab/weaver-github';
+import { ColumnRules, DeclaredGuideline, EvidenceRules, GuidelineNote, guidelineNote, GuidelineRef, ProcessFileState, TaskContract, parseProcess, ProcessConfig, ProcessSection, SectionSource, defaultProcess, defaultSources } from '@ebrain-lab/weaver-markdown';
+import { ProcessCacheEntry, refreshProcessFiles } from '@ebrain-lab/weaver-github';
 
 const KEY = 'weaver.process.cache';
 

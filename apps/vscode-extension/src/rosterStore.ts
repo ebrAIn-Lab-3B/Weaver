@@ -1,7 +1,7 @@
 import type * as vscode from 'vscode';
-import { overlayRoster, parseSharedRoster, Roster, RosterOverlay, RosterRef, snapshotAge, SnapshotAge, ValidationIssue } from '@palab/weaver-markdown';
+import { overlayRoster, parseSharedRoster, Roster, RosterOverlay, RosterRef, snapshotAge, SnapshotAge, ValidationIssue } from '@ebrain-lab/weaver-markdown';
 import type { UserConfigResult } from './userConfig';
-import { refreshRosterFile, RosterCacheEntry, rosterCacheKey } from '@palab/weaver-github';
+import { refreshRosterFile, RosterCacheEntry, rosterCacheKey } from '@ebrain-lab/weaver-github';
 
 const KEY = 'weaver.roster.cache';
 

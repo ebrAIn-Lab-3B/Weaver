@@ -1,5 +1,5 @@
 {
-  "name": "@palab/weaver-cli",
+  "name": "@ebrain-lab/weaver-cli",
   "version": "0.0.1",
   "description": "The weaver command-line tool: the Kanban operations for agents, with JSON output. No editor dependency.",
   "license": "MIT",
@@ -15,8 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@palab/weaver-github": "0.0.1",
-    "@palab/weaver-markdown": "0.0.1"
+    "@ebrain-lab/weaver-github": "0.0.1",
+    "@ebrain-lab/weaver-markdown": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { formatNotice, MessageKey, repositoryListIsOld, setRepositories, snapshotAge, type RepositoryList } from '@palab/weaver-markdown';
-import { readProject } from '@palab/weaver-github';
+import { formatNotice, MessageKey, repositoryListIsOld, setRepositories, snapshotAge, type RepositoryList } from '@ebrain-lab/weaver-markdown';
+import { readProject } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { currentLocale, message } from './locale';
 import { readRegistry } from './overviewView';

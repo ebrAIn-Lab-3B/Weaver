@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Locale, MessageArgs, MessageKey, pickLocale, t } from '@palab/weaver-markdown';
+import { Locale, MessageArgs, MessageKey, pickLocale, t } from '@ebrain-lab/weaver-markdown';
 
 /** The language Weaver shows: the `weaver.language` setting, or VS Code's display language on `auto`. */
 export function currentLocale(): Locale {

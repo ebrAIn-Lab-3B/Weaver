@@ -13,8 +13,8 @@ import {
   TaskArtifact,
   planMove,
   Mismatch,
-} from '@palab/weaver-markdown';
-import { addIssueComment, hasIssueComment, setBoardStatus, type Fetch, type FetchFn, type ProjectCard } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { addIssueComment, hasIssueComment, setBoardStatus, type Fetch, type FetchFn, type ProjectCard } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction, ReportItem } from './actions';
 import { cardNotices } from './cards';
 import { moveAction } from './cardActions';

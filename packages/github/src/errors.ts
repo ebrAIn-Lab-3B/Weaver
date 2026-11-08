@@ -1,4 +1,4 @@
-import { formatNotice, type Notice } from '@palab/weaver-markdown';
+import { formatNotice, type Notice } from '@ebrain-lab/weaver-markdown';
 
 /**
  * An error whose text can be shown in any language: it carries a catalog notice. `message` is the

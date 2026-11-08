@@ -1,6 +1,6 @@
 import * as path from 'path';
-import { type GuidelineCopies, readGuidelineCopies, serializeGuidelineCopies } from '@palab/weaver-markdown';
-import { type GuidelineCopyStore, memoryCopies } from '@palab/weaver-github';
+import { type GuidelineCopies, readGuidelineCopies, serializeGuidelineCopies } from '@ebrain-lab/weaver-markdown';
+import { type GuidelineCopyStore, memoryCopies } from '@ebrain-lab/weaver-github';
 import type { Deps } from './contract';
 import { configPath } from './setup';
 

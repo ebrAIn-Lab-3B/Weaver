@@ -13,7 +13,7 @@ import {
   t,
   ValidationIssue,
   validationKey,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 import { escapeHtml } from './requirementHtml';
 
 /** A card of the Overview: a Project item, with the requirement it belongs to when the files say so. */

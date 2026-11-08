@@ -8,7 +8,7 @@ export {
   type EvidenceResult,
   type IssueResult,
   type MoveStep,
-} from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-github';
 
 /**
  * Uses VS Code's built-in GitHub sign-in. Reading needs `repo`; moving a card also needs `project`.

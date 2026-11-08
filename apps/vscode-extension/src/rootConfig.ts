@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { findRootConfig, ROOT_CONFIG_FILE, ROOT_CONFIG_FOLDER, type RootConfigFound } from '@palab/weaver-markdown';
+import { findRootConfig, ROOT_CONFIG_FILE, ROOT_CONFIG_FOLDER, type RootConfigFound } from '@ebrain-lab/weaver-markdown';
 import { userConfigPath } from './userConfig';
 
 /** The folder the editor starts looking from: the first workspace folder, when it is on this computer (DEC-018 item 2). */

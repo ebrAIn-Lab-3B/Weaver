@@ -10,7 +10,7 @@ import {
   PullEvidence,
   summarizeChecks,
   TaskEvidence,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 
 /** The global `fetch`, or a replacement for a test. */
 export type FetchFn = typeof fetch;

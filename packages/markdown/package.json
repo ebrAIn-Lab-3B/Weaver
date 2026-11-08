@@ -1,5 +1,5 @@
 {
-  "name": "@palab/weaver-markdown",
+  "name": "@ebrain-lab/weaver-markdown",
   "version": "0.0.1",
   "description": "Repository artifact format: frontmatter schema, parser, and validation for Weaver.",
   "license": "MIT",

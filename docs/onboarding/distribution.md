@@ -28,7 +28,7 @@ Start with the VSIX file while the user base is small. Publish to a registry onl
 
    A path such as `weaver-0.1.5.vsix` without `dist/` fails with `ENOENT`. In the VS Code UI, use Extensions view → `…` → `Install from VSIX…` instead.
 
-3. Check that the extension ID `palab.weaver` is listed, then run `Weaver: Open Requirement View` from the command palette.
+3. Check that the extension ID `ebrain-lab.weaver` is listed, then run `Weaver: Open Requirement View` from the command palette.
 
 Send the same file to anyone who should try it. They need VS Code 1.90 or later.
 
@@ -38,7 +38,7 @@ The repository is licensed under MIT (`LICENSE`), and the VSIX includes it.
 
 Pushing a tag builds the VSIX and the `weaver` command-line tool in CI and attaches both to a GitHub Release (`.github/workflows/release.yml`). `weaver.js` is one file that runs with Node 20 or later (`node weaver.js --help`); the workflow runs it once before it is attached. The tool is not part of the VSIX. Releases are marked as pre-releases while the version is `0.0.x`.
 
-1. Bump the version in `apps/vscode-extension/package.json` (and the lock file): `npm version <version> -w @palab/weaver-vscode-extension --no-git-tag-version`.
+1. Bump the version in `apps/vscode-extension/package.json` (and the lock file): `npm version <version> -w @ebrain-lab/weaver-vscode-extension --no-git-tag-version`.
 2. Merge the bump to `main`.
 3. Tag and push. The tag must be `v` plus the extension version, or the workflow fails before building:
 
@@ -56,7 +56,7 @@ The same workflow runs the checks and tests first, so a broken build never reach
 Needs, in order:
 
 1. The LICENSE file (done, MIT); the VSIX already includes it.
-2. A Marketplace publisher whose ID matches the `palab` part of `palab.weaver`, and a personal access token for it.
+2. A Marketplace publisher whose ID matches the `ebrain-lab` part of `ebrain-lab.weaver`, and a personal access token for it.
 3. A version bump in `apps/vscode-extension/package.json` for every release. A registry refuses a version it has already seen.
 
 Then publish with `@vscode/vsce` (already a dev dependency):

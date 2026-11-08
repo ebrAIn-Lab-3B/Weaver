@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Fetch } from '@palab/weaver-github';
+import type { Fetch } from '@ebrain-lab/weaver-github';
 import { addTaskToRequirement, actionId, EXIT, nextTaskNumber, parseArgs, parseColumn, parsePullRef, planProjectAdd, renderTaskFile, run, slugOf, taskListLine } from '../src';
 import { FILES, setup, withGitHub } from './helpers';
 

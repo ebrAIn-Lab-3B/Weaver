@@ -1,8 +1,8 @@
 // Builds an installable VSIX from the bundled extension.
 // Run through `npm run package` from the repository root.
 //
-// vsce rejects the scoped workspace name (@palab/weaver-vscode-extension), so the
-// VSIX is staged with the extension name "weaver" (extension ID palab.weaver).
+// vsce rejects the scoped workspace name (@ebrain-lab/weaver-vscode-extension), so the
+// VSIX is staged with the extension name "weaver" (extension ID ebrain-lab.weaver).
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');

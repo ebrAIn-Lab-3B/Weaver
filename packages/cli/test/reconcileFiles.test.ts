@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadWorkspace, placeIssue } from '@palab/weaver-markdown';
-import type { Fetch, FetchFn, ProjectCard } from '@palab/weaver-github';
+import { loadWorkspace, placeIssue } from '@ebrain-lab/weaver-markdown';
+import type { Fetch, FetchFn, ProjectCard } from '@ebrain-lab/weaver-github';
 import { linkTaskLine, planDraftTask, planLinkIssue, planReconcile, type FilesContext, type System } from '../src';
 
 const REQUIREMENT = '---\nid: REQ-001\ntype: requirement\ntitle: First\nstatus: draft\nrepository: me/Weaver\n---\n\n## Tasks\n\n- `TASK-011` Card eleven\n';

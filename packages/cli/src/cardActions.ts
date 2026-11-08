@@ -9,8 +9,8 @@ import {
   Locale,
   Notice,
   planMove,
-} from '@palab/weaver-markdown';
-import { addIssueComment, applyMove, fetchEvidence, fetchPull, NoticeError, errorNotice, type FetchFn } from '@palab/weaver-github';
+} from '@ebrain-lab/weaver-markdown';
+import { addIssueComment, applyMove, fetchEvidence, fetchPull, NoticeError, errorNotice, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction } from './actions';
 import type { CliCard } from './cards';
 

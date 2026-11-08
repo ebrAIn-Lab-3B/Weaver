@@ -11,7 +11,7 @@ import {
   type MessageArgs,
   type RosterEdit,
   type RosterTarget,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 import { message } from './locale';
 import { openConfigFile } from './chooseRepositories';
 import { readUserConfig, writeUserConfig } from './userConfig';

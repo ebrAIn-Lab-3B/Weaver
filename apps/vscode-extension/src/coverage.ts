@@ -6,7 +6,7 @@ import {
   MergedTask,
   placeIssue,
   RequirementArtifact,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 import type { StatusState } from './requirementHtml';
 
 /** Per-criterion coverage from what the view has read so far. Shared by the page and the acceptance dialog. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNotice } from '@palab/weaver-markdown';
+import { formatNotice } from '@ebrain-lab/weaver-markdown';
 import { readProject, type Fetch } from '../src';
 
 const issue = (repository: string, number: number, extra: Record<string, unknown> = {}) => ({

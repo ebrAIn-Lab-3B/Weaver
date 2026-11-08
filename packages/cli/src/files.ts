@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { SourceFile } from '@palab/weaver-markdown';
+import type { SourceFile } from '@ebrain-lab/weaver-markdown';
 
 /** Folders that hold no work of the repository: dependencies, build output, and the sample workspaces. */
 const SKIP = new Set(['node_modules', '.git', 'dist', 'out', 'examples']);

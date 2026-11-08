@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { documentKindOf, viewTargetOf } from '@palab/weaver-markdown';
+import { documentKindOf, viewTargetOf } from '@ebrain-lab/weaver-markdown';
 import { currentLocale, message } from './locale';
 import { REQUIREMENT_EDITOR, RequirementEditorProvider } from './requirementEditor';
 import { cloneRegistered, openFabricRoot, setFabricRoot } from './fabricRoot';

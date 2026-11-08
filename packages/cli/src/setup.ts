@@ -1,6 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
-import { findRootConfig, Locale, parseConfig, parseFabric, resolveSetup, Setup, t, ValidationIssue, validationKey, type FabricRegistry, type RootConfig, type UserConfig } from '@palab/weaver-markdown';
+import { findRootConfig, Locale, parseConfig, parseFabric, resolveSetup, Setup, t, ValidationIssue, validationKey, type FabricRegistry, type RootConfig, type UserConfig } from '@ebrain-lab/weaver-markdown';
 import type { Deps } from './contract';
 
 /** `~/.weaver/config.yaml`, or under `WEAVER_HOME`. Never inside a repository (DEC-014). */

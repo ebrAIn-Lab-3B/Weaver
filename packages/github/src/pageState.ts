@@ -1,4 +1,4 @@
-import type { PageChecksState, Notice, PageRef, PageState } from '@palab/weaver-markdown';
+import type { PageChecksState, Notice, PageRef, PageState } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn } from './issue';
 
 const API = 'https://api.github.com';

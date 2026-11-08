@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { makeRepositoryList, originOfGitConfig, readRepositoryList, type RepositoryList } from '@palab/weaver-markdown';
+import { makeRepositoryList, originOfGitConfig, readRepositoryList, type RepositoryList } from '@ebrain-lab/weaver-markdown';
 import { userConfigPath } from './userConfig';
 
 /** `repositories.json` next to the personal configuration, never inside a repository (DEC-018 item 12). */

@@ -4,7 +4,7 @@ This is the first implementation slice of Weaver.
 
 ## Current scope
 
-- Read every Markdown file in the workspace and validate Weaver artifacts with `@palab/weaver-markdown` (see [Artifact Schema v0.1](../../docs/product/artifact-schema-v0.1.md)).
+- Read every Markdown file in the workspace and validate Weaver artifacts with `@ebrain-lab/weaver-markdown` (see [Artifact Schema v0.1](../../docs/product/artifact-schema-v0.1.md)).
 - Show validation errors and warnings in the Problems panel, refreshed on startup and on save.
 - Show a read-only Requirement view: metadata, acceptance criteria, tasks with Issue links, validation gaps. It refreshes on save.
 - Read GitHub Issue state and labels for each task (button **Load issue status**, uses your VS Code GitHub sign-in, read-only) and show the Kanban column, owner, and gaps, plus a six-column board. Column rules are in [Product Requirements v0.1](../../docs/product/requirements-v0.1.md#status-mapping).

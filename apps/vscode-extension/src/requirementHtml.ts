@@ -27,7 +27,7 @@ import {
   uncoveredCriteria,
   ValidationIssue,
   validationKey,
-} from '@palab/weaver-markdown';
+} from '@ebrain-lab/weaver-markdown';
 
 import { coverageOf } from './coverage';
 import type { ProcessSummary } from './processStore';

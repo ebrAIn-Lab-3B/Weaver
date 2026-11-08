@@ -14,7 +14,7 @@ code --install-extension dist/weaver-0.1.5.vsix
 
 Run the install command from the repository root, and keep the `dist/` prefix. For other ways to share or publish the build, see [Distributing the extension](distribution.md).
 
-The extension ID is `palab.weaver`. To try it without installing, run `npm run dev` (sample workspace) or `npm run dev:docs` (this repository's product documents) from a checkout.
+The extension ID is `ebrain-lab.weaver`. To try it without installing, run `npm run dev` (sample workspace) or `npm run dev:docs` (this repository's product documents) from a checkout.
 
 ## 2. Describe a requirement
 

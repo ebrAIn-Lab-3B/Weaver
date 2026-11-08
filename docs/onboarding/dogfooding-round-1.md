@@ -16,7 +16,7 @@ Tick each line as you go. If a line does not work, stop there and report it (see
 
 - [ ] Download `weaver-<version>.vsix` from the [latest Release](https://github.com/ebrAIn-Lab-3B/Weaver/releases).
 - [ ] In VS Code: Extensions view, `…`, **Install from VSIX…**, and pick the file. (Or `code --install-extension <path to the file>`.)
-- [ ] The extension `palab.weaver` is listed, and a **Weaver** icon is in the Activity Bar (the bar on the left).
+- [ ] The extension `ebrain-lab.weaver` is listed, and a **Weaver** icon is in the Activity Bar (the bar on the left).
 
 **2. Set up**
 

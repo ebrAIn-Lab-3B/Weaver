@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProcess, parseProcess, placeIssue } from '@palab/weaver-markdown';
+import { defaultProcess, parseProcess, placeIssue } from '@ebrain-lab/weaver-markdown';
 import { placeWithRules, type ProjectCard } from '../src';
 
 const card = (repository: string, boardStatus?: string): ProjectCard => {

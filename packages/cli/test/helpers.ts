@@ -1,4 +1,4 @@
-import type { Fetch } from '@palab/weaver-github';
+import type { Fetch } from '@ebrain-lab/weaver-github';
 import type { Deps, LogEntry } from '../src';
 
 export const REGISTRY = 'project: {owner: me, number: 1}\nrepositories:\n  - me/Weaver\n';

@@ -1,4 +1,4 @@
-import type { MergedPull, Notice } from '@palab/weaver-markdown';
+import type { MergedPull, Notice } from '@ebrain-lab/weaver-markdown';
 import type { Fetch } from './project';
 
 export type PullsResult = { ok: true; pulls: MergedPull[] } | { ok: false; error: Notice };

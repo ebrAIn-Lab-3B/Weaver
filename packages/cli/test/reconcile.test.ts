@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@palab/weaver-markdown';
-import type { FetchFn, ProjectCard } from '@palab/weaver-github';
+import { loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@ebrain-lab/weaver-markdown';
+import type { FetchFn, ProjectCard } from '@ebrain-lab/weaver-github';
 import { actionId, executeActions, planReconcile, type ExecuteContext, type ReconcileInput } from '../src';
 
 const url = (n: number) => `https://github.com/me/Weaver/issues/${n}`;

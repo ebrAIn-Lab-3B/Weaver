@@ -230,6 +230,8 @@ export const en = {
   'cli.process-start.already-open': 'A pull request from {branch} is already open in {repository}. Nothing more is offered.',
   'cli.process-start.guideline-unreadable': 'The guideline {repository} {path} could not be read, so the defaults that match how the repository is tracked are offered instead.',
   'cli.process-start.guideline-invalid': 'The guideline {repository} {path} is not a valid process file, so the defaults that match how the repository is tracked are offered instead.',
+  'cli.process-start.guideline-copy': 'The guideline {repository} {path} could not be asked just now, so the copy kept on this computer is used. GitHub last confirmed it on {when}.',
+  'cli.process-start.guideline-missing': 'The guideline file {repository} {path} was not found there, so the defaults that match how the repository is tracked are offered instead.',
   'cli.task-create.project-field': 'Set the Project field "{field}" to "{value}" on the new card.',
   'cli.task-create.files-fields': 'Open a pull request in {repository} that adds {path} with the fields {fields} and the headings {sections}, and lists {task} under {requirement}. The default branch is not touched.',
   'cli.task-create.contract-gaps': 'The task contract of {repository} is not met, so nothing was created: {gaps}.',

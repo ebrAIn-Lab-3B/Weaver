@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { type DeclaredGuideline, formatNotice, t } from '@palab/weaver-markdown';
 import { errorNotice, openFilePullRequest, prepareProcessStart, processStartPullRequest } from '@palab/weaver-github';
 import { getGitHubToken } from './github';
+import { openGuidelineCopies } from './guidelineStore';
 import { currentLocale, message } from './locale';
 
 /**
@@ -18,7 +19,9 @@ export async function startProcessFile(
   const token = await getGitHubToken(true, ['repo', 'project']);
   if (!token) return false;
 
-  const prepared = await prepareProcessStart({ token, repository, guideline, cards });
+  const kept = await openGuidelineCopies();
+  const prepared = await prepareProcessStart({ token, repository, guideline, cards, copies: kept.store });
+  await kept.save();
   if (!prepared.ok) {
     void vscode.window.showInformationMessage(formatNotice(prepared.refusal, locale));
     return false;

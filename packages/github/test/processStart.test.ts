@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PROCESS_START_BRANCH, prepareProcessStart, processStartPullRequest, type FetchFn } from '../src';
+import { memoryCopies, PROCESS_START_BRANCH, prepareProcessStart, processStartPullRequest, readGuideline, type FetchFn } from '../src';
 
 const GUIDELINE_TEXT = 'version: 1\nstale:\n  idle-days: 30\n';
 const guideline = { ref: { repository: 'org/base', path: '.weaver/process.yaml' }, source: 'root' as const };
@@ -79,5 +79,57 @@ describe('processStartPullRequest', () => {
     expect(pull.body).toContain('Made by Weaver.');
     expect(pull.body).toContain('version: 1');
     expect(pull.commitMessage.endsWith('Made by Weaver.')).toBe(true);
+  });
+});
+
+describe('the kept guideline copy (DEC-019 item 8)', () => {
+  const key = 'org/base|.weaver/process.yaml|';
+
+  it('is kept when GitHub is asked, so the next run can use it', async () => {
+    const copies = memoryCopies();
+    const { fetchFn } = github({ 'org/base': GUIDELINE_TEXT });
+    await prepareProcessStart(input(fetchFn, { guideline, copies, now: new Date('2026-11-08T09:00:00Z') }));
+    expect(copies.get(key)).toEqual({ text: GUIDELINE_TEXT, readAt: '2026-11-08T09:00:00.000Z' });
+  });
+
+  it('is used, with a note that says how old it is, when GitHub cannot be asked', async () => {
+    const copies = memoryCopies({ [key]: { text: GUIDELINE_TEXT, readAt: '2026-11-05T09:00:00.000Z' } });
+    const { fetchFn } = github({ 'org/base': 'offline' });
+    const result = await prepareProcessStart(input(fetchFn, { guideline, copies }));
+    expect(result.ok && result.text.endsWith(GUIDELINE_TEXT)).toBe(true);
+    expect(result).toMatchObject({ ok: true, source: { code: 'cli.process-start.from-guideline' }, notes: [{ code: 'cli.process-start.guideline-copy', args: { when: '2026-11-05' } }] });
+    expect(copies.get(key)?.readAt).toBe('2026-11-05T09:00:00.000Z');
+  });
+
+  it('gives way to the defaults, with a note, when there is no copy and GitHub cannot be asked', async () => {
+    const { fetchFn } = github({ 'org/base': 'offline' });
+    expect(await prepareProcessStart(input(fetchFn, { guideline, copies: memoryCopies() }))).toMatchObject({
+      ok: true,
+      source: { code: 'cli.process-start.from-defaults' },
+      notes: [{ code: 'cli.process-start.guideline-unreadable' }],
+    });
+  });
+
+  it('says the file is not there when GitHub says so, and does not fall back to an old copy', async () => {
+    const copies = memoryCopies({ [key]: { text: GUIDELINE_TEXT, readAt: '2026-11-05T09:00:00.000Z' } });
+    const { fetchFn } = github({});
+    const result = await prepareProcessStart(input(fetchFn, { guideline, copies }));
+    expect(result).toMatchObject({ ok: true, source: { code: 'cli.process-start.from-defaults' }, notes: [{ code: 'cli.process-start.guideline-missing' }] });
+    expect(copies.get(key)?.missing).toBe(true);
+  });
+});
+
+describe('readGuideline', () => {
+  it('asks with the ETag of the kept copy and renews its age when nothing changed', async () => {
+    const calls: Record<string, string>[] = [];
+    const fetchFn = (async (_url: string, init?: { headers?: Record<string, string> }) => {
+      calls.push(init?.headers ?? {});
+      return { ok: false, status: 304, headers: { get: () => null }, text: async () => '' };
+    }) as unknown as FetchFn;
+    const copies = memoryCopies({ 'org/base|a.yaml|': { text: 'version: 1\n', etag: '"e1"', readAt: '2026-11-01T00:00:00.000Z' } });
+    const read = await readGuideline('t', { repository: 'org/base', path: 'a.yaml' }, copies, new Date('2026-11-08T00:00:00Z'), fetchFn);
+    expect(calls[0]['If-None-Match']).toBe('"e1"');
+    expect(read).toEqual({ status: 'read', text: 'version: 1\n', readAt: '2026-11-08T00:00:00.000Z' });
+    expect(copies.get('org/base|a.yaml|')?.etag).toBe('"e1"');
   });
 });

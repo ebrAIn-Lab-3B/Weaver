@@ -3,6 +3,8 @@ import { documentKindOf, viewTargetOf } from '@palab/weaver-markdown';
 import { currentLocale, message } from './locale';
 import { REQUIREMENT_EDITOR, RequirementEditorProvider } from './requirementEditor';
 import { cloneRegistered, openFabricRoot, setFabricRoot } from './fabricRoot';
+import { followOpenedPages } from './openPage';
+import { describeChange, PageWatcher } from './pageWatcher';
 import { hasWorkspaceRegistry, OverviewView, readRegistry } from './overviewView';
 import { setUp } from './setupWizard';
 import { chooseRepositories, openConfigFile, refreshRepositoryListCommand } from './chooseRepositories';
@@ -118,6 +120,12 @@ export function activate(context: vscode.ExtensionContext): void {
     if (await editContributors()) await overview.reload();
   });
   const refreshOverview = vscode.commands.registerCommand('weaver.refreshOverview', () => overview.reload());
+  // The pages Weaver opens are followed, so the Overview is up to date when the person comes back (DEC-020 item 6).
+  const pageWatcher = new PageWatcher((ref, state) => {
+    vscode.window.setStatusBarMessage(describeChange(ref, state), 10000);
+    void overview.reload();
+  });
+  followOpenedPages(pageWatcher);
 
   // From a requirement view, a requirement file, or a task file: show its cards on the Overview (TASK-041).
   const showOnOverview = vscode.commands.registerCommand(
@@ -207,7 +215,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  context.subscriptions.push(diagnostics, sidebarView, chooseRepos, refreshRepos, openConfig, editRoster, refreshOverview, setUpCommand, editor, openSource, openView, openOverview, showOnOverview, setRoot, cloneAll, openRoot, scanWorkspace, onSave, ...watchers, { dispose: () => pending && clearTimeout(pending) }, onActiveEditor, onLanguage);
+  context.subscriptions.push(pageWatcher, { dispose: () => followOpenedPages(undefined) }, diagnostics, sidebarView, chooseRepos, refreshRepos, openConfig, editRoster, refreshOverview, setUpCommand, editor, openSource, openView, openOverview, showOnOverview, setRoot, cloneAll, openRoot, scanWorkspace, onSave, ...watchers, { dispose: () => pending && clearTimeout(pending) }, onActiveEditor, onLanguage);
   void refresh().then(async (loaded) => {
     // Only a workspace with its own `fabric.yaml` opens the Overview by itself (REQ-006, DEC-014).
     if (await hasWorkspaceRegistry()) {

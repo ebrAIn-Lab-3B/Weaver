@@ -13,7 +13,7 @@ Five releases exist on GitHub, all marked as pre-releases, with the tags `v0.0.3
 ## Decision
 
 1. **The names.** The package scope is `@ebrain-lab`, the extension publisher is `ebrain-lab`, and the extension keeps the name `weaver`, so its id is `ebrain-lab.weaver`. The display name is "ebrAIn.lab Weaver". The manifests point to the repository `ebrAIn-Lab-3B/Weaver`. The `weaver` command, the settings (`weaver.*`), the command ids (`weaver.*`), the file formats, and the schema are not changed.
-2. **No migration.** The extension id changes, so a VS Code that has `palab.weaver` shows two extensions until the old one is removed. The maintainer says nobody else has it, so there is no migration step and the guide only says to remove the old one.
+2. **No migration.** The extension id changes, so a VS Code that has `palab.weaver` shows two extensions until the old one is removed. The maintainer says nobody else has it, so there is no migration step, and the guides do not mention the old id (amended on 2026-11-08: the maintainer first allowed one sentence about it, then asked for it to be removed).
 3. **The packages stay unpublished.** Nothing is published to npm (publishing to a registry is still deferred as `TASK-022`), so the scope change touches only the workspace.
 4. **The version is 0.1.19** for the extension and the command line tool. It is the first official release.
 5. **The old tags and releases are deleted**: `v0.0.3`, `v0.1.0`, `v0.1.3`, `v0.1.4`, `v0.1.5` and the five GitHub releases made from them, on the maintainer's instruction above. This is done once, at the release, and not earlier.

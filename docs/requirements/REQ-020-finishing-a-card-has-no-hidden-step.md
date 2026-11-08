@@ -35,6 +35,7 @@ Proposed in [DEC-023](../decisions/DEC-023-mark-a-card-verified-and-say-why-it-h
 ## Tasks
 
 - `TASK-101` Decide how a card is marked Verified and says why it has no task file — [GitHub Issue #277](https://github.com/ebrAIn-Lab-3B/Weaver/issues/277)
+- `TASK-102` Say on a card why it has no task file — [GitHub Issue #279](https://github.com/ebrAIn-Lab-3B/Weaver/issues/279)
 - `TASK-103` Mark a finished card Verified from the card — [GitHub Issue #281](https://github.com/ebrAIn-Lab-3B/Weaver/issues/281)
 
 Origin: the maintainer, 2026-11-08, while trying the pull request follow of REQ-018 and the cards of REQ-019: a card opened its Issue instead of the requirement, and the card could not be marked Verified, which the maintainer had to ask for. Absorbs the label step that was done by hand for every closed task that day.

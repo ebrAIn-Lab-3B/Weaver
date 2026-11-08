@@ -40,6 +40,7 @@ Recorded in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)
 - `TASK-086` Show which guideline applies to each repository — [GitHub Issue #225](https://github.com/ebrAIn-Lab-3B/Weaver/issues/225)
 - `TASK-087` Offer a starting process file for a repository that has none — [GitHub Issue #227](https://github.com/ebrAIn-Lab-3B/Weaver/issues/227)
 - `TASK-088` Write the guide and sample for operating guidelines — [GitHub Issue #229](https://github.com/ebrAIn-Lab-3B/Weaver/issues/229)
+- `TASK-089` Keep a copy of the guideline file on this computer — [GitHub Issue #236](https://github.com/ebrAIn-Lab-3B/Weaver/issues/236)
 
 Origin: the maintainer, 2026-11-07: ebrAIn.lab keeps its operating guideline in `agentic-base`, and Weaver should handle several guidelines. Absorbs proposal [#173](https://github.com/ebrAIn-Lab-3B/Weaver/issues/173).
 

@@ -95,6 +95,15 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
           })
           .join('')}</div>`
       : '';
+    // A card whose title names a task but that has no task file in the folder says why it opens its Issue (DEC-023 item 3).
+    const noTaskFile = card.taskId && !card.requirement && !card.fromFiles
+      ? `<div class="muted small no-task-file">${e(tt('ui.overview.no-task-file', { task: card.taskId }))}</div>`
+      : '';
+    // A finished card with the gap "closed without status:verified" can be marked Verified from the card, unless a pull request of it is still open (DEC-023 item 1).
+    const canMarkVerified = !card.fromFiles && card.url !== '' && card.placement.gaps.some((gap) => gap.code === 'gap.closed-without-verified') && !(card.pulls ?? []).some((p) => p.state === 'open');
+    const markVerified = canMarkVerified
+      ? `<div class="small"><button class="mark-verified" data-mark-verified="${e(card.url)}" title="${e(tt('ui.overview.mark-verified-title', { task: card.taskId ?? `#${card.number}` }))}">${e(tt('ui.overview.mark-verified'))}</button></div>`
+      : '';
     const assignees = card.assignees.length ? `<div class="muted small">@${e(card.assignees.join(', @'))}</div>` : '';
     const title = e(card.title.replace(TASK_PREFIX, ''));
     const titleHtml = card.requirement
@@ -102,7 +111,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
-        <div>${titleHtml}</div>${pulls}${gaps}${stale}${assignees}
+        <div>${titleHtml}</div>${pulls}${noTaskFile}${gaps}${markVerified}${stale}${assignees}
       </div>`;
   };
 
@@ -234,6 +243,8 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   li.warning strong { color: var(--vscode-editorWarning-foreground); }
   ul.plain { padding-left: 0; list-style: none; }
   .small { font-size: 0.85em; }
+  button.mark-verified { margin-top: 4px; font-size: 0.85em; padding: 2px 10px; cursor: pointer; border: 1px solid var(--vscode-button-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryBackground, transparent); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); border-radius: 3px; }
+  button.mark-verified:hover, button.mark-verified:focus-visible { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
   .pulls { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   a.pr { white-space: nowrap; font-size: 0.8em; padding: 1px 8px; border-radius: 10px; text-decoration: none; border: 1px solid var(--vscode-textLink-foreground); color: var(--vscode-textLink-foreground); }
   a.pr:hover, a.pr:focus-visible { background: var(--vscode-toolbar-hoverBackground); }
@@ -270,7 +281,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     });
   }
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified]');
     if (!target) return;
     event.preventDefault();
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
@@ -281,6 +292,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     if (target.dataset.toggle) vscode.postMessage({ type: 'toggleLane', id: target.dataset.toggle });
     if (target.dataset.fold) vscode.postMessage({ type: 'foldLane', id: target.dataset.fold });
     if (target.dataset.startProcess) vscode.postMessage({ type: 'startProcess', id: target.dataset.startProcess });
+    if (target.dataset.markVerified) vscode.postMessage({ type: 'markVerified', url: target.dataset.markVerified });
     if (target.dataset.moveLane) vscode.postMessage({ type: 'moveLane', id: target.dataset.moveLane, delta: Number(target.dataset.delta) });
   });
   document.addEventListener('contextmenu', (event) => {

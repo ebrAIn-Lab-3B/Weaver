@@ -107,7 +107,9 @@ export function buildLanes<T extends { repository: string; number: number; place
 }
 
 /** True for a card that is finished work: in the Verified column, or with a closed Issue. A card with a gap is never counted as finished, so it stays in view. */
-export function isFinished(card: { placement: KanbanPlacement; state?: 'open' | 'closed' }): boolean {
+export function isFinished(card: { placement: KanbanPlacement; state?: 'open' | 'closed'; pulls?: readonly { state: string }[] }): boolean {
+  // A pull request that is still open is work that is not over, even when the Issue it belongs to is closed (REQ-019).
+  if (card.pulls?.some((pull) => pull.state === 'open')) return false;
   return (card.placement.column === 'Verified' || card.state === 'closed') && card.placement.gaps.length === 0;
 }
 
@@ -115,7 +117,7 @@ export function isFinished(card: { placement: KanbanPlacement; state?: 'open' | 
  * The lane without its finished cards, and how many were taken out. The totals of the lane
  * stay as they were: a folded card is still counted, only not drawn.
  */
-export function foldFinished<T extends { placement: KanbanPlacement; state?: 'open' | 'closed' }>(lane: Lane<T>): { lane: Lane<T>; folded: number } {
+export function foldFinished<T extends { placement: KanbanPlacement; state?: 'open' | 'closed'; pulls?: readonly { state: string }[] }>(lane: Lane<T>): { lane: Lane<T>; folded: number } {
   let folded = 0;
   const columns = Object.fromEntries(
     KANBAN_COLUMNS.map((column) => {

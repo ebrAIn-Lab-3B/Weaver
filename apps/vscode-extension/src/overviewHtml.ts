@@ -14,6 +14,7 @@ import {
   ValidationIssue,
   validationKey,
 } from '@ebrain-lab/weaver-markdown';
+import type { CardPull } from '@ebrain-lab/weaver-markdown';
 import { escapeHtml } from './requirementHtml';
 
 /** A card of the Overview: a Project item, with the requirement it belongs to when the files say so. */
@@ -34,6 +35,8 @@ export interface OverviewCard {
   fromFiles?: boolean;
   /** Whether the Issue is open; a closed Issue is finished work. */
   state?: 'open' | 'closed';
+  /** The pull requests that refer to the Issue, open first, at most three (DEC-022). */
+  pulls?: CardPull[];
 }
 
 export type OverviewState =
@@ -84,6 +87,14 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     const stale = card.stale.length
       ? `<div class="stale">${card.stale.map((notice) => `<span class="stale-chip ${notice.code.slice('stale.'.length)}">${e(formatNotice(notice, locale))}</span>`).join('')}</div>`
       : '';
+    const pulls = (card.pulls ?? []).length
+      ? `<div class="pulls">${(card.pulls ?? [])
+          .map((p) => {
+            const state = tt(`ui.overview.pr-state.${p.state}` as MessageKey);
+            return `<a class="pr pr-${p.state}" href="#" data-url="${e(p.url)}" title="${e(tt('ui.overview.pr-title', { number: p.number, state, title: p.title }))}">${e(tt('ui.overview.pr', { number: p.number }))} · ${e(state)}</a>`;
+          })
+          .join('')}</div>`
+      : '';
     const assignees = card.assignees.length ? `<div class="muted small">@${e(card.assignees.join(', @'))}</div>` : '';
     const title = e(card.title.replace(TASK_PREFIX, ''));
     const titleHtml = card.requirement
@@ -91,7 +102,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
-        <div>${titleHtml}</div>${gaps}${stale}${assignees}
+        <div>${titleHtml}</div>${pulls}${gaps}${stale}${assignees}
       </div>`;
   };
 
@@ -223,6 +234,10 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   li.warning strong { color: var(--vscode-editorWarning-foreground); }
   ul.plain { padding-left: 0; list-style: none; }
   .small { font-size: 0.85em; }
+  .pulls { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  a.pr { white-space: nowrap; font-size: 0.8em; padding: 1px 8px; border-radius: 10px; text-decoration: none; border: 1px solid var(--vscode-textLink-foreground); color: var(--vscode-textLink-foreground); }
+  a.pr:hover, a.pr:focus-visible { background: var(--vscode-toolbar-hoverBackground); }
+  a.pr.pr-merged, a.pr.pr-closed { border-color: var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
   .actions { margin: 12px 0; display: flex; gap: 8px; }
   button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 0; padding: 4px 10px; border-radius: 2px; cursor: pointer; }
   button:hover { background: var(--vscode-button-secondaryHoverBackground); }

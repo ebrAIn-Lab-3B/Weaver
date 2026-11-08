@@ -243,7 +243,7 @@ export class OverviewView {
     if (this.registry.kind !== 'ok') return;
     for (const card of this.matching()) {
       // A highlighted card that is folded away cannot be seen: unfold the finished cards.
-      if (isFinished({ placement: card.placement, state: card.state })) {
+      if (isFinished({ placement: card.placement, state: card.state, pulls: card.pulls })) {
         this.showFinished = true;
       }
       const lane = this.registry.registry.repositories.find((r) => r.repository.toLowerCase() === card.repository.toLowerCase());

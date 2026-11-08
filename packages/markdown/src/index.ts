@@ -27,6 +27,7 @@ export * from './guideline';
 export * from './guidelineCopies';
 export * from './pageOpener';
 export * from './pageWatch';
+export * from './cardPulls';
 export * from './processStart';
 export * from './repositoryList';
 export * from './process';

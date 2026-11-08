@@ -28,6 +28,7 @@ A card shows the pull requests that refer to its Issue, each with its state, and
 - The entries of the card menu stay, as a shortcut and not the only way.
 - The requirement view lists the pull requests of each task without the person pressing a button to load them.
 - A keyboard user can reach the pull request of a card.
+- A card that has an open pull request is not folded away as finished work, even when its Issue is closed, so the open pull request stays in view; it is folded when no pull request of it is open. (Found on 2026-11-08: a card whose Issue was closed by one pull request was folded while another pull request of the same task was still open, and the maintainer could not find it.)
 
 ## Open decisions
 

@@ -16,7 +16,7 @@ The read of the Project already asks, for every Issue, how many pull requests cl
 2. **A card has `pulls`.** It is the pull requests of both lists, a pull request in both counted once, with the open ones first and then the most recently referred to; at most three. A card that no pull request refers to has none.
 3. **The Overview shows them under the title of the card**, each as `PR #number` with its state (open, merged, closed), as a link. Pressing it opens the page the way [DEC-020](./DEC-020-github-pages-open-in-the-built-in-browser.md) says, and Weaver follows it as DEC-020 item 6 says. An open one is shown plainly, a merged or closed one in a muted color.
 4. **The card menu keeps its entries.** It is a shortcut, and the card does not depend on it.
-5. **Cards of finished work** (Verified, or a closed Issue) are folded as today, so their pull requests are not drawn until the person shows them.
+5. **Cards of finished work** (Verified, or a closed Issue) are folded as today, so their pull requests are not drawn until the person shows them. **A card with an open pull request is not finished work** and is not folded (amended on 2026-11-08: the Issue of a task is often closed by one pull request while the pull request that adds its task file is still open, and folding the card hid that pull request).
 6. **The requirement view** lists the same pull requests under each task without a button. This is a separate task, because that view reads the evidence of a task by itself and loading it for every task has a cost that is not measured yet.
 7. **`weaver list` is not changed here.** An agent gets the list when it needs it, by a change of the JSON contract with its own version.
 

@@ -1,4 +1,4 @@
-import { placeIssue, type ColumnRules, type KanbanPlacement, type Notice } from '@ebrain-lab/weaver-markdown';
+import { mergeCardPulls, placeIssue, type CardPull, type ColumnRules, type KanbanPlacement, type Notice, type RawPull } from '@ebrain-lab/weaver-markdown';
 
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean;
@@ -24,6 +24,8 @@ export interface ProjectCard {
   updatedAt?: string;
   /** Pull requests that close or mention the Issue. */
   pullCount?: number;
+  /** The pull requests that refer to the Issue, open first, at most three (DEC-022). Left out when GitHub gave none. */
+  pulls?: CardPull[];
   /** `TASK-###` when the Issue title starts with `[TASK-###]`. */
   taskId?: string;
   placement: KanbanPlacement;
@@ -45,7 +47,7 @@ const MAX_PAGES = 50;
 const buildQuery = (fields: readonly string[]): string =>
   `query($o:String!,$n:Int!,$c:String){repositoryOwner(login:$o){... on ProjectV2Owner{projectV2(number:$n){title items(first:${PAGE},after:$c){pageInfo{hasNextPage endCursor} nodes{fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}} ${fields
     .map((name, i) => `f${i}:fieldValueByName(name:${JSON.stringify(name)}){... on ProjectV2ItemFieldSingleSelectValue{name} ... on ProjectV2ItemFieldTextValue{text}}`)
-    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(first:1,includeClosedPrs:true){totalCount} timelineItems(first:0,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount} repository{nameWithOwner} labels(first:20){nodes{name}} assignees(first:10){nodes{login}}}}}}}}}}`;
+    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(last:3,includeClosedPrs:true){totalCount nodes{number url title state}} timelineItems(last:3,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount nodes{... on CrossReferencedEvent{source{... on PullRequest{number url title state}}}}} repository{nameWithOwner} labels(first:20){nodes{name}} assignees(first:10){nodes{login}}}}}}}}}}`;
 
 interface ItemNode {
   fieldValueByName: { name?: string } | null;
@@ -58,8 +60,8 @@ interface ItemNode {
     url?: string;
     state?: string;
     updatedAt?: string;
-    closedByPullRequestsReferences?: { totalCount: number };
-    timelineItems?: { totalCount: number };
+    closedByPullRequestsReferences?: { totalCount: number; nodes?: (RawPull | null)[] };
+    timelineItems?: { totalCount: number; nodes?: ({ source?: RawPull | null } | null)[] };
     repository?: { nameWithOwner: string };
     labels?: { nodes: { name: string }[] };
     assignees?: { nodes: { login: string }[] };
@@ -153,6 +155,10 @@ export async function readProject(
         const text = value?.name ?? value?.text;
         if (text) fields[name] = text;
       });
+      const pulls = mergeCardPulls(
+        (issue.closedByPullRequestsReferences?.nodes ?? []).filter((n): n is RawPull => n !== null),
+        (issue.timelineItems?.nodes ?? []).map((n) => n?.source).filter((n): n is RawPull => n !== null && n !== undefined),
+      );
       cards.push({
         repository,
         number: issue.number as number,
@@ -168,6 +174,7 @@ export async function readProject(
         ...(issue.closedByPullRequestsReferences && issue.timelineItems
           ? { pullCount: issue.closedByPullRequestsReferences.totalCount + issue.timelineItems.totalCount }
           : {}),
+        ...(pulls.length > 0 ? { pulls } : {}),
         placement: placeIssue({ state, labels, ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}) }),
       });
     }

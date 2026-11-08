@@ -138,7 +138,7 @@ The names above are examples. Use your own. Nothing in Weaver assumes a field na
 
 ## Starting from a guideline or from the defaults
 
-A repository with no process file can get a first one offered instead of written by hand. Run `weaver process start --repository your-org/your-repo`. It shows the exact file and writes it only after you approve, as a pull request, so your team reviews it like any other change.
+A repository with no process file can get a first one offered instead of written by hand (the whole picture is in [Work under an operating guideline](operating-guidelines.md)). Run `weaver process start --repository your-org/your-repo`. It shows the exact file and writes it only after you approve, as a pull request, so your team reviews it like any other change.
 
 - If your root or personal configuration names an operating guideline (`guideline:`, [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md)), the file is that guideline's process file as it is, under a first comment that says where it came from.
 - If not, or if the guideline cannot be read, the file is the defaults that match how the repository is tracked: the labels file when its Issues carry `status:*` labels, the board-status file when they do not. With no cards to look at, you get the labels file, which is what Weaver does without a file.

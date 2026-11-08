@@ -2,7 +2,7 @@
 id: REQ-010
 type: requirement
 title: An organization defines its own task contract
-status: draft
+status: verified
 owner: ebrAIn.lab
 story_ids: [US-043]
 repository: ebrAIn-Lab-3B/Weaver

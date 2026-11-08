@@ -2,7 +2,7 @@
 id: REQ-004
 type: requirement
 title: People can install Weaver without building it
-status: draft
+status: in-progress
 owner: ebrAIn.lab
 story_ids: [US-021]
 repository: ebrAIn-Lab-3B/Weaver

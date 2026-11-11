@@ -50,7 +50,7 @@ A team talks with an agent about a new product in two sessions: one on the probl
 
 ## Consequences
 
-- No code changes.
+- No code changes for the loop itself. Finishing such a card from the editor was added afterwards ([DEC-023](./DEC-023-mark-a-card-verified-and-say-why-it-has-no-task-file.md) item 1, amended by `TASK-113`): a card before a requirement is finished either by the pull request that records its outcome and closes it, or from the card with **Mark verified**, which closes the Issue after a yes.
 - `operating-guidelines.md` gains the questions of item 5.
 - `REQ-016` records that a card before a requirement is an ordinary card; `US-054` and `US-057` point here.
 - Capturing a conversation from inside Weaver (`REQ-013`) stays a separate requirement; this decision only says where the result goes.

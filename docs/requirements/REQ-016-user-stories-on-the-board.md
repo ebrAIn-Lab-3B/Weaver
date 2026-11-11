@@ -27,6 +27,7 @@ A story is an artifact like a requirement and a task. A person walks from a stor
 - A story shows the discussions that produced it.
 - A story with no requirement is shown as a gap, not an error.
 - Over time, a set of links to discussions with an agent can be turned into story drafts that a person reviews one by one.
+- Work before a requirement is on the board as ordinary cards, and the conversations behind it are kept as files in the project's repository and linked from the card. Recorded on 2026-11-11 in [DEC-026](../decisions/DEC-026-work-before-a-requirement-is-an-ordinary-card.md): Weaver already shows such a card correctly, so no new card type is made.
 
 ## Open decisions
 
@@ -36,6 +37,8 @@ A story is an artifact like a requirement and a task. A person walks from a stor
 ## Tasks
 
 Tasks are listed here once the open decisions are recorded.
+
+- `TASK-112` Record the loop from conversation to requirement, with work before a requirement as an ordinary card — [GitHub Issue #307](https://github.com/ebrAIn-Lab-3B/Weaver/issues/307)
 
 Origin: the maintainer, 2026-11-07: writing the story map is an important part of the work and is not on the board. On 2026-11-08 the agentic-browser project showed a second need ([US-054](../product/user-story-map.md)): it has a product definition, a Story Chain draft, and samples, but no requirement files, so a card there names no story. The decision of this requirement should cover a project in that state. Depends on [REQ-013](./REQ-013-keep-discussions-with-requirements-and-tasks.md).
 

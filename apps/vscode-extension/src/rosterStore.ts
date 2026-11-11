@@ -1,6 +1,5 @@
 import type * as vscode from 'vscode';
 import { overlayRoster, parseSharedRoster, Roster, RosterOverlay, RosterRef, snapshotAge, SnapshotAge, ValidationIssue } from '@ebrain-lab/weaver-markdown';
-import type { UserConfigResult } from './userConfig';
 import { refreshRosterFile, RosterCacheEntry, rosterCacheKey } from '@ebrain-lab/weaver-github';
 
 const KEY = 'weaver.roster.cache';
@@ -96,8 +95,8 @@ export class RosterStore {
 /** One store for the whole extension, started in `activate`. */
 export const rosterStore = new RosterStore();
 
-/** The roster tasks are judged against: the shared one with the personal one laid over it. None when it has no entry. */
-export function rosterOf(user: UserConfigResult): Roster | undefined {
-  const combined = rosterStore.combined(user.kind === 'ok' ? user.config.roster : undefined)?.roster;
+/** The roster tasks are judged against: the shared one, with the configuration files' roster (root, then personal) laid over it. None when it has no entry. */
+export function rosterOf(configured: Roster | undefined): Roster | undefined {
+  const combined = rosterStore.combined(configured)?.roster;
   return combined && combined.contributors.length > 0 ? combined : undefined;
 }

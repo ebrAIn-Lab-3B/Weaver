@@ -7,7 +7,7 @@ import { followOpenedPages } from './openPage';
 import { describeChange, PageWatcher } from './pageWatcher';
 import { hasWorkspaceRegistry, OverviewView, readRegistry } from './overviewView';
 import { setUp } from './setupWizard';
-import { chooseRepositories, openConfigFile, refreshRepositoryListCommand } from './chooseRepositories';
+import { configure, refreshRepositoryListCommand } from './chooseRepositories';
 import { editContributors } from './editContributors';
 import { SidebarProvider } from './sidebar';
 import { processStore } from './processStore';
@@ -110,10 +110,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // Weaver view of the Activity Bar, and the menu of the Overview tab (see package.json).
   const sidebar = new SidebarProvider();
   const sidebarView = vscode.window.registerTreeDataProvider('weaver.actions', sidebar);
-  const chooseRepos = vscode.commands.registerCommand('weaver.chooseRepositories', async () => {
-    if (await chooseRepositories()) await overview.reload();
+  // One entry for the configuration (TASK-110): choosing the repositories and opening a configuration file
+  // are no longer commands of their own, and the other changes are offered from it too.
+  const configureCommand = vscode.commands.registerCommand('weaver.configure', async () => {
+    if (await configure()) await overview.reload();
   });
-  const openConfig = vscode.commands.registerCommand('weaver.openConfigFile', () => openConfigFile());
   const refreshRepos = vscode.commands.registerCommand('weaver.refreshRepositoryList', () => refreshRepositoryListCommand());
   // A change to the personal roster moves the warnings about owners, so the workspace is read again (TASK-075).
   const editRoster = vscode.commands.registerCommand('weaver.editContributors', async () => {
@@ -215,7 +216,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
-  context.subscriptions.push(pageWatcher, { dispose: () => followOpenedPages(undefined) }, diagnostics, sidebarView, chooseRepos, refreshRepos, openConfig, editRoster, refreshOverview, setUpCommand, editor, openSource, openView, openOverview, showOnOverview, setRoot, cloneAll, openRoot, scanWorkspace, onSave, ...watchers, { dispose: () => pending && clearTimeout(pending) }, onActiveEditor, onLanguage);
+  context.subscriptions.push(pageWatcher, { dispose: () => followOpenedPages(undefined) }, diagnostics, sidebarView, configureCommand, refreshRepos, editRoster, refreshOverview, setUpCommand, editor, openSource, openView, openOverview, showOnOverview, setRoot, cloneAll, openRoot, scanWorkspace, onSave, ...watchers, { dispose: () => pending && clearTimeout(pending) }, onActiveEditor, onLanguage);
   void refresh().then(async (loaded) => {
     // Only a workspace with its own `fabric.yaml` opens the Overview by itself (REQ-006, DEC-014).
     if (await hasWorkspaceRegistry()) {

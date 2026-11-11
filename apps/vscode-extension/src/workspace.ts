@@ -13,7 +13,7 @@ import {
   validationKey,
   WorkspaceResult,
 } from '@ebrain-lab/weaver-markdown';
-import { readUserConfig } from './userConfig';
+import { readConfigRoster } from './configRoster';
 import { describeRef, rosterStore } from './rosterStore';
 
 const EXCLUDE = '**/{node_modules,.git,dist,out,examples,.claude/worktrees}/**';
@@ -69,11 +69,11 @@ export async function loadWorkspaceArtifacts(): Promise<Loaded> {
   // section keeps its defaults; nothing else changes here.
   loaded.issues.push(...processIssues);
 
-  // Who works on, reviews, and approves a task is judged against the roster of the personal configuration
-  // (DEC-013, DEC-014). With no roster there is nothing to judge against, so no problem is raised.
-  const user = await readUserConfig();
-  const personal = user.kind === 'ok' ? user.config.roster : undefined;
-  // The repository's own reference wins over the personal one (DEC-017 item 5). The shared roster is read from
+  // Who works on, reviews, and approves a task is judged against the roster of the configuration files:
+  // the root file's with the personal file's laid over it (DEC-013, DEC-014, DEC-018 item 6). With no roster
+  // there is nothing to judge against, so no problem is raised.
+  const personal = await readConfigRoster();
+  // The repository's own reference wins over the configuration files' (DEC-017 item 5, DEC-018 item 5). The shared roster is read from
   // the copy kept on this computer; the Overview asks GitHub for a newer one.
   const ref = rosterRef ?? personal?.from;
   rosterStore.setCurrent(ref);

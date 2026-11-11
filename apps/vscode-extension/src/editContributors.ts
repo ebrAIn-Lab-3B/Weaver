@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   contributorFromForm,
@@ -13,8 +14,8 @@ import {
   type RosterTarget,
 } from '@ebrain-lab/weaver-markdown';
 import { message } from './locale';
-import { openConfigFile } from './chooseRepositories';
-import { readUserConfig, writeUserConfig } from './userConfig';
+import { findConfigLayers, openFile } from './chooseRepositories';
+import { readConfigFile, userConfigPath, writeConfigFile } from './userConfig';
 
 /** The roster being changed: its text, where it is written, and which list of the file holds the entries. */
 interface Source {
@@ -49,32 +50,51 @@ function messageOfRule(code: string, args?: MessageArgs): string {
   return message(validationKey(code), args);
 }
 
-/** The personal roster, or a roster file the person picks. Nothing is read from a repository (DEC-017). */
+/**
+ * The roster to change: the nearest root file's, the personal file's, or a roster file the person picks.
+ * The configuration files are listed nearest first and both count: the personal roster is laid over the
+ * root file's (DEC-018 item 6), so each says whom it reaches. Nothing is read from a repository (DEC-017).
+ */
 async function chooseSource(): Promise<Source | undefined> {
-  const user = await readUserConfig();
-  const personal = message('ui.roster.target-personal');
-  const file = message('ui.roster.target-file');
-  const pick = await vscode.window.showQuickPick(
-    [
-      { label: personal, description: user.kind === 'none' ? undefined : user.path, target: 'personal' as const },
-      { label: file, description: message('ui.roster.target-file-detail'), target: 'file' as const },
-    ],
-    { placeHolder: message('ui.roster.target-placeholder'), ignoreFocusOut: true },
-  );
+  const layers = (await findConfigLayers()).filter((layer) => layer.kind !== 'workspace');
+  const root = layers.find((layer) => layer.kind === 'root');
+  const personalPath = userConfigPath();
+  type Item = vscode.QuickPickItem & { target: 'config' | 'file'; path?: string };
+  const items: Item[] = [];
+  if (root) {
+    items.push({
+      label: message('ui.roster.target-root'),
+      description: root.file,
+      detail: message('ui.roster.target-root-detail', { folder: path.dirname(path.dirname(root.file)) }),
+      target: 'config',
+      path: root.file,
+    });
+  }
+  items.push({
+    label: message('ui.roster.target-personal'),
+    description: personalPath,
+    ...(root ? { detail: message('ui.roster.target-personal-detail') } : {}),
+    target: 'config',
+    path: personalPath,
+  });
+  items.push({ label: message('ui.roster.target-file'), description: message('ui.roster.target-file-detail'), target: 'file' });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: message('ui.roster.target-placeholder'), ignoreFocusOut: true });
   if (!pick) return undefined;
 
-  if (pick.target === 'personal') {
-    if (user.kind === 'none') {
+  if (pick.target === 'config' && pick.path) {
+    const config = await readConfigFile(pick.path);
+    if (config.kind === 'none') {
       void vscode.window.showInformationMessage(message('ui.roster.no-config'));
       return undefined;
     }
-    if (user.kind === 'invalid') {
+    if (config.kind === 'invalid') {
       const open = message('ui.repos.open-config');
-      const choice = await vscode.window.showWarningMessage(message('ui.repos.invalid-config', { path: user.path }), open);
-      if (choice === open) await openConfigFile();
+      const choice = await vscode.window.showWarningMessage(message('ui.repos.invalid-config', { path: config.path }), open);
+      if (choice === open) await openFile(config.path);
       return undefined;
     }
-    return { target: 'personal', path: user.path, text: user.text, contributors: user.config.roster?.contributors ?? [] };
+    // A root file has the keys of the personal file (DEC-018 item 1), so both are edited the same way.
+    return { target: 'personal', path: config.path, text: config.text, contributors: config.config.roster?.contributors ?? [] };
   }
 
   const [uri] =
@@ -197,7 +217,7 @@ export async function editContributors(): Promise<boolean> {
   const answer = await vscode.window.showInformationMessage(question, { modal: true, detail }, write);
   if (answer !== write) return false;
 
-  if (source.target === 'personal') await writeUserConfig(edit.text, source.text);
+  if (source.target === 'personal') await writeConfigFile(source.path, edit.text, source.text);
   else await fs.writeFile(source.path, edit.text, 'utf8');
   void vscode.window.showInformationMessage(message('ui.repos.written', { path: source.path }));
   return true;

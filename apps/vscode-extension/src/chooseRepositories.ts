@@ -1,21 +1,95 @@
 import * as vscode from 'vscode';
-import { formatNotice, MessageKey, repositoryListIsOld, setRepositories, snapshotAge, type RepositoryList } from '@ebrain-lab/weaver-markdown';
+import {
+  configLayers,
+  formatNotice,
+  MessageKey,
+  repositoryListIsOld,
+  repositoryListTarget,
+  setRepositories,
+  snapshotAge,
+  type ConfigLayer,
+  type FoundConfigFiles,
+  type RepositoryList,
+} from '@ebrain-lab/weaver-markdown';
 import { readProject } from '@ebrain-lab/weaver-github';
 import { getGitHubToken } from './github';
 import { currentLocale, message } from './locale';
 import { readRegistry } from './overviewView';
 import { readSavedRepositoryList, saveRepositoryList } from './repositoryStore';
-import { readUserConfig, userConfigPath, writeUserConfig } from './userConfig';
+import { readRootConfig } from './rootConfig';
+import { readConfigFile, userConfigPath, writeConfigFile } from './userConfig';
 
-/** Opens the personal configuration file, or says that there is none yet. */
-export async function openConfigFile(): Promise<void> {
-  const file = userConfigPath();
-  const exists = await vscode.workspace.fs.stat(vscode.Uri.file(file)).then(() => true, () => false);
-  if (!exists) {
-    void vscode.window.showInformationMessage(message('ui.repos.no-config-file'));
-    return;
-  }
+/**
+ * The configuration files that can apply here, nearest first: the workspace `fabric.yaml`, the nearest
+ * root file, the personal file (DEC-018 item 4). A root file with errors still counts: it decides, and
+ * its errors are told instead of quietly falling back to the personal file.
+ */
+export async function findConfigLayers(): Promise<ConfigLayer[]> {
+  const found: FoundConfigFiles = {};
+  const [workspace] = await vscode.workspace.findFiles('fabric.yaml', '**/{node_modules,.git}/**', 1);
+  if (workspace) found.workspace = workspace.fsPath;
+  const root = await readRootConfig();
+  if (root.kind !== 'none') found.root = root.path;
+  const personal = userConfigPath();
+  if (await vscode.workspace.fs.stat(vscode.Uri.file(personal)).then(() => true, () => false)) found.personal = personal;
+  return configLayers(found);
+}
+
+/** Opens one configuration file. */
+export async function openFile(file: string): Promise<void> {
   await vscode.window.showTextDocument(vscode.Uri.file(file));
+}
+
+type ConfigurationItem = vscode.QuickPickItem & { run?: () => Promise<boolean> };
+
+/**
+ * The one entry for Weaver's configuration (TASK-110). Every change is made here: the repositories to show
+ * (written to the file that applies), the contributors (the root or the personal roster), the clone folder,
+ * and the setup. Below them, every configuration file that can apply, nearest first, marked as applying here
+ * or not and why. Returns true when the repositories changed; the other actions refresh by themselves.
+ */
+export async function configure(): Promise<boolean> {
+  const layers = await findConfigLayers();
+  if (layers.length === 0) {
+    const setUp = message('ui.sidebar.set-up');
+    const choice = await vscode.window.showInformationMessage(message('ui.repos.no-config'), setUp);
+    if (choice === setUp) await vscode.commands.executeCommand('weaver.setUp');
+    return false;
+  }
+  const target = repositoryListTarget(layers);
+  const items: ConfigurationItem[] = [];
+  if (target) {
+    items.push({
+      label: `$(checklist) ${message('ui.sidebar.choose-repositories')}`,
+      description: message(target.kind === 'write' ? 'ui.config.choose-writes' : 'ui.config.choose-opens', { file: target.layer.file }),
+      run: () => chooseRepositories(),
+    });
+  }
+  const command = (id: string) => async () => {
+    await vscode.commands.executeCommand(id);
+    return false;
+  };
+  items.push(
+    { label: `$(organization) ${message('ui.sidebar.edit-roster')}`, description: message('ui.config.roster-detail'), run: command('weaver.editContributors') },
+    { label: `$(folder) ${message('ui.sidebar.set-root')}`, run: command('weaver.setFabricRoot') },
+    { label: `$(wand) ${message('ui.config.set-up-again')}`, description: message('ui.config.set-up-detail'), run: command('weaver.setUp') },
+  );
+  items.push({ label: message('ui.config.files'), kind: vscode.QuickPickItemKind.Separator });
+  for (const layer of layers) {
+    items.push({
+      label: `$(${layer.applies ? 'pass-filled' : 'circle-large-outline'}) ${message(`ui.config.open.${layer.kind}` as MessageKey)}`,
+      description: layer.applies
+        ? message('ui.config.applies')
+        : message('ui.config.overridden', { layer: message(`ui.config.name.${layer.overriddenBy}` as MessageKey) }),
+      detail: layer.file,
+      run: async () => {
+        await openFile(layer.file);
+        return false;
+      },
+    });
+  }
+  const picked = await vscode.window.showQuickPick(items, { placeHolder: message('ui.config.placeholder'), ignoreFocusOut: true });
+  return picked?.run ? picked.run() : false;
 }
 
 /**
@@ -51,29 +125,25 @@ export async function refreshRepositoryListCommand(): Promise<void> {
 
 /**
  * Lets a person choose which repositories of the Project the Overview shows. Only the `repositories`
- * list of the personal configuration changes, after the change has been shown and confirmed; the old
- * file is kept as `config.yaml.bak` (DEC-014).
+ * list of the file that applies here changes: the nearest root file when there is one, otherwise the
+ * personal file (DEC-018 item 4). The change is shown and confirmed first, and the old file is kept as
+ * `config.yaml.bak` (DEC-014, DEC-018 item 10). A workspace `fabric.yaml` belongs to a repository, so it
+ * is only opened.
  */
 export async function chooseRepositories(): Promise<boolean> {
-  const registry = await readRegistry();
-  if (registry.kind === 'ok' && registry.source === 'workspace') {
-    const open = message('ui.repos.open-fabric');
-    const choice = await vscode.window.showInformationMessage(message('ui.repos.from-workspace'), open);
-    if (choice === open) {
-      const [uri] = await vscode.workspace.findFiles('fabric.yaml', '**/{node_modules,.git}/**', 1);
-      if (uri) await vscode.window.showTextDocument(uri);
-    }
+  const target = repositoryListTarget(await findConfigLayers());
+  if (!target) {
+    void vscode.window.showInformationMessage(message('ui.repos.no-config'));
     return false;
   }
-  if (registry.kind === 'ok' && registry.source === 'root' && registry.file) {
-    // The list belongs to the root file that decided (DEC-018 item 4); the personal file is not the place to change it.
-    const open = message('ui.repos.open-root');
-    const choice = await vscode.window.showInformationMessage(message('ui.repos.from-root', { file: registry.file }), open);
-    if (choice === open) await vscode.window.showTextDocument(vscode.Uri.file(registry.file));
+  if (target.kind === 'open') {
+    const open = message('ui.repos.open-fabric');
+    const choice = await vscode.window.showInformationMessage(message('ui.repos.from-workspace'), open);
+    if (choice === open) await openFile(target.layer.file);
     return false;
   }
 
-  const user = await readUserConfig();
+  const user = await readConfigFile(target.layer.file);
   if (user.kind === 'none') {
     void vscode.window.showInformationMessage(message('ui.repos.no-config'));
     return false;
@@ -81,7 +151,7 @@ export async function chooseRepositories(): Promise<boolean> {
   if (user.kind === 'invalid') {
     const open = message('ui.repos.open-config');
     const choice = await vscode.window.showWarningMessage(message('ui.repos.invalid-config', { path: user.path }), open);
-    if (choice === open) await openConfigFile();
+    if (choice === open) await openFile(user.path);
     return false;
   }
 
@@ -137,7 +207,7 @@ export async function chooseRepositories(): Promise<boolean> {
   );
   if (answer !== write) return false;
 
-  const file = await writeUserConfig(setRepositories(user.text, wanted), user.text);
+  const file = await writeConfigFile(user.path, setRepositories(user.text, wanted), user.text);
   void vscode.window.showInformationMessage(message('ui.repos.written', { path: file }));
   return true;
 }

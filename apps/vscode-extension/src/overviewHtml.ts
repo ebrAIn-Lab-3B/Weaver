@@ -106,7 +106,14 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
           : `<div class="muted small no-task-file">${e(tt('ui.overview.no-task-file', { task: card.taskId }))}</div>`
       : '';
     // A finished card with the gap "closed without status:verified" can be marked Verified from the card, unless a pull request of it is still open (DEC-023 item 1).
-    const canMarkVerified = !card.fromFiles && card.url !== '' && card.placement.gaps.some((gap) => gap.code === 'gap.closed-without-verified') && !(card.pulls ?? []).some((p) => p.state === 'open');
+    // An open card that names no task is work before a requirement (DEC-026), finished by a decision rather than
+    // by a pull request that closes it; it can be finished from the card too, and the move closes the Issue (TASK-113).
+    const finishedWithoutTask = card.state === 'open' && !card.taskId && card.placement.column !== 'Verified';
+    const canMarkVerified =
+      !card.fromFiles &&
+      card.url !== '' &&
+      (card.placement.gaps.some((gap) => gap.code === 'gap.closed-without-verified') || finishedWithoutTask) &&
+      !(card.pulls ?? []).some((p) => p.state === 'open');
     const markVerified = canMarkVerified
       ? `<div class="small"><button class="mark-verified" data-mark-verified="${e(card.url)}" title="${e(tt('ui.overview.mark-verified-title', { task: card.taskId ?? `#${card.number}` }))}">${e(tt('ui.overview.mark-verified'))}</button></div>`
       : '';

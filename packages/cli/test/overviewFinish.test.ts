@@ -105,6 +105,34 @@ describe('the button "Mark verified" on a card (REQ-020, DEC-023 item 1)', () =>
   });
 });
 
+describe('finishing an open card of work before a requirement (DEC-026, TASK-113)', () => {
+  const round = (extra: Partial<OverviewCard> = {}): OverviewCard =>
+    card({ taskId: undefined, title: 'Exploration round 1', state: 'open', placement: { column: 'In progress', gaps: [] } as unknown as OverviewCard['placement'], ...extra });
+
+  it('offers "Mark verified" on an open card that names no task, whose pull requests only referred to it', () => {
+    const page = html([round({ pulls: [pull(3, 'merged')] })]);
+    expect(page).toMatch(/<button class="mark-verified" data-mark-verified="https:\/\/github.com\/o\/r\/issues\/270"[^>]*>Mark verified<\/button>/);
+    expect(page).toContain('title="Mark #270 Verified: shows what changes and asks before it writes"');
+  });
+
+  it('offers it on such a card with no pull request at all', () => {
+    expect(html([round()])).toContain('data-mark-verified=');
+  });
+
+  it('does not offer it while a pull request of the card is open', () => {
+    expect(html([round({ pulls: [pull(3, 'open')] })])).not.toContain('data-mark-verified=');
+  });
+
+  it('does not offer it on an open card that names a task: a task is finished by the pull request that closes it', () => {
+    expect(html([card({ state: 'open', placement: { column: 'In progress', gaps: [] } as unknown as OverviewCard['placement'] })])).not.toContain('data-mark-verified=');
+  });
+
+  it('does not offer it on a card that is already Verified, or built from the files', () => {
+    expect(html([round({ placement: { column: 'Verified', gaps: [] } as unknown as OverviewCard['placement'] })])).not.toContain('data-mark-verified=');
+    expect(html([round({ fromFiles: true })])).not.toContain('data-mark-verified=');
+  });
+});
+
 describe('where the missing task file is, and what the card offers (DEC-024 items 1 and 2)', () => {
   it('says the folder is behind and offers to update it when the file is on GitHub', () => {
     const page = html([card({ taskFile: 'on-github' })]);

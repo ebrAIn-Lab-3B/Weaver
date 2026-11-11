@@ -4,7 +4,7 @@ type: requirement
 title: Finishing a card has no hidden step
 status: draft
 owner: ebrAIn.lab
-story_ids: [US-056, US-060]
+story_ids: [US-056, US-060, US-061]
 repository: ebrAIn-Lab-3B/Weaver
 github_project: ebrAIn.lab Kanban
 ---
@@ -30,6 +30,7 @@ A card that is done can be marked Verified from the card, with the plan and the 
 - When the file is on GitHub, the line offers to update the folder. Weaver brings the folder up to date only by a fast-forward, only when its working tree has no change and its branch has no commit of its own, and only after it has shown how far behind the folder is and the person has confirmed. When a condition does not hold, it says which and does nothing.
 - When there is no file, the line offers to make it. Weaver drafts the task file from the Issue and opens a pull request that adds it and adds its line to the requirement, after showing the whole file and the line and being confirmed. The requirement is the one the Issue names, or one the person picks. A repository with no requirement file is told why it cannot.
 - When Weaver notices that a pull request that closes an Issue was merged ([REQ-018](./REQ-018-finish-work-without-leaving-weaver.md)), its notice offers the same action for that card.
+- A card shows its labels other than `status:*` (at most three) and marks the pull request that closes it; an open card whose pull requests only refer to it says that no pull request closes it yet. Added on 2026-11-11 from friction ([TASK-114](../tasks/TASK-114.md), US-061).
 - An open card of work before a requirement (its title names no task) can be finished from the card: **Mark verified** shows that the Issue will be closed and which evidence is missing, and writes after a yes. A card that names a task is still finished by the pull request that closes it. Added on 2026-11-11 from friction ([TASK-113](../tasks/TASK-113.md), US-060).
 
 ## Open decisions
@@ -45,6 +46,7 @@ Accepted in [DEC-023](../decisions/DEC-023-mark-a-card-verified-and-say-why-it-h
 - `TASK-106` A card without a task file says where it is and offers to bring or make it — [GitHub Issue #289](https://github.com/ebrAIn-Lab-3B/Weaver/issues/289)
 - `TASK-107` Update the folder only on the default branch, and do not make a second task file pull request — [GitHub Issue #293](https://github.com/ebrAIn-Lab-3B/Weaver/issues/293)
 - `TASK-113` Finish an open card that names no task from the card — [GitHub Issue #309](https://github.com/ebrAIn-Lab-3B/Weaver/issues/309)
+- `TASK-114` A card shows its labels and which pull request closes it — [GitHub Issue #311](https://github.com/ebrAIn-Lab-3B/Weaver/issues/311)
 
 Origin: the maintainer, 2026-11-08, while trying the pull request follow of REQ-018 and the cards of REQ-019: a card opened its Issue instead of the requirement, and the card could not be marked Verified, which the maintainer had to ask for. Absorbs the label step that was done by hand for every closed task that day.
 

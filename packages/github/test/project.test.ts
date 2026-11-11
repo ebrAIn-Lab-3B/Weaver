@@ -151,7 +151,9 @@ describe('readProject', () => {
     });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
     const cards = result.ok ? result.read.cards : [];
-    expect(cards[0].pulls?.map((p) => `${p.number}:${p.state}`)).toEqual(['8:open', '9:closed', '5:merged']);
+    // Open first, then the ones that close the Issue, then the newest (TASK-114): #5 closes it, #9 only refers.
+    expect(cards[0].pulls?.map((p) => `${p.number}:${p.state}`)).toEqual(['8:open', '5:merged', '9:closed']);
+    expect(cards[0].pulls?.map((p) => p.closes === true)).toEqual([true, true, false]);
     expect(cards[0].pulls?.[0]).toMatchObject({ url: 'https://github.com/me/Weaver/pull/8', title: 'PR 8' });
     // No pull request, or an answer without the lists: no `pulls` at all, not an empty list.
     expect('pulls' in cards[1]).toBe(false);

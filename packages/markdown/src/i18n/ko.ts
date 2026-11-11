@@ -155,6 +155,8 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.pr-state.merged': '병합됨',
   'ui.overview.pr-state.closed': '닫힘',
   'ui.overview.pr-title': '풀 리퀘스트 #{number} 열기({state}): {title}',
+  'ui.overview.pr-closes': '닫는 PR',
+  'ui.overview.no-closing-pr': '아직 닫는 PR 없음',
   'ui.overview.no-task-file': '이 폴더에 {task} 작업 파일이 없습니다. GitHub에 병합되어 있다면 폴더를 최신으로 받으세요(git pull).',
   'ui.overview.task-file-behind': '{task} 작업 파일이 GitHub에 있습니다. 이 폴더가 뒤처져 있습니다.',
   'ui.overview.task-file-absent': 'GitHub에도 {task} 작업 파일이 없습니다.',

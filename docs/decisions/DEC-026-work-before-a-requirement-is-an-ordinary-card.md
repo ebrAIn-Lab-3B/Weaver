@@ -36,6 +36,7 @@ Weaver already carries it. What was missing is the description of the loop, so t
 3. **Conversations are kept in the project's repository** as readable files, and a card or a requirement links them as text. A shared link alone is not enough: it may render only for a signed-in person, so neither an agent nor another reader can read it. Where the files live and in what form is the guideline's decision ([DEC-025](./DEC-025-minimal-model-of-a-development-policy.md) item 4).
 4. **Refining conversations into intent is the guideline's work.** Weaver shows the pull requests of that work on the card; it does not read or check the intent.
 5. **The guideline decides the rest**: how work before a requirement is split into cards (one per round, per topic, per decision), when such a card is closed, how what was settled is approved, and how a card leads to a requirement. These join the questions of [Work under an operating guideline](../onboarding/operating-guidelines.md).
+   *Added on 2026-11-11 (`TASK-114`):* a guideline marks such a card with a **label of its own**, and the card shows its labels other than `status:*`, at most three. Whether the work is settled is read from the pull request that closes the card: the card marks that pull request, and says "no closing pull request yet" until there is one. Weaver learns no word of the guideline for either.
 6. **Weaver's documents show this loop with an abstract example only.** No project or guideline repository is named as its example, so Weaver does not depend on how one project ran it.
 
 ### Example

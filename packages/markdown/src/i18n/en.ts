@@ -156,6 +156,8 @@ export const en = {
   'ui.overview.pr-state.merged': 'merged',
   'ui.overview.pr-state.closed': 'closed',
   'ui.overview.pr-title': 'Open pull request #{number} ({state}): {title}',
+  'ui.overview.pr-closes': 'closes it',
+  'ui.overview.no-closing-pr': 'no closing pull request yet',
   'ui.overview.no-task-file': 'No task file for {task} in this folder. If it is merged on GitHub, update the folder (git pull).',
   'ui.overview.task-file-behind': '{task} is on GitHub, and this folder is behind.',
   'ui.overview.task-file-absent': 'There is no task file for {task} on GitHub.',

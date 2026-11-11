@@ -28,13 +28,13 @@ A guideline is a repository or a folder the organization owns, and a root folder
 - The first task records whether a guideline must also name the levels between a story and a task (the pattern of the IDs and the folder of each level), using the Story Chain of `agentic-base` as the test case, and decides what is built. If levels are needed, a later decision adds them.
 - No guideline's name or vocabulary appears in code, schema, or tests. `agentic-base` appears only as a worked example in the documents.
 - The guideline repository can describe itself for Weaver with a `.weaver` folder. That change is made by a pull request in that repository, not here.
-- A guideline names which of its artifacts plays each role Weaver tracks: intent, acceptance criterion, requirement, task, and verification record with its verifier ([DEC-025](../decisions/DEC-025-a-guideline-names-the-roles-of-its-levels.md)). A requirement's `story_ids` are checked against the guideline's intent pattern, so a requirement can name the Promises or stories it delivers. The test cases are `agentic-base` and `palab-platform`.
+- A process file may set the form of the IDs in a requirement's `story_ids` and a task's `criteria` (`ids.intent`, `ids.criterion`), so a requirement can name the Promises or stories it serves and a task the acceptance criteria it covers. Everything else about intent and verification is the guideline's own decision; the guide lists the questions it answers ([DEC-025](../decisions/DEC-025-minimal-model-of-a-development-policy.md)). The test cases are `agentic-base` and `palab-platform`.
 
 ## Open decisions
 
 Recorded in [DEC-019](../decisions/DEC-019-operating-guidelines-by-reference.md), accepted: the levels of a guideline stay outside Weaver and are not made configurable now (item 9); a guideline never overrides a repository's own `process.yaml` and only starts a file for a repository that has none (items 5 and 7).
 
-Proposed in [DEC-025](../decisions/DEC-025-a-guideline-names-the-roles-of-its-levels.md): with a second guideline in use, item 9 of DEC-019 is amended. A guideline names its artifact for each of five roles; Weaver still models no levels.
+Recorded in [DEC-025](../decisions/DEC-025-minimal-model-of-a-development-policy.md), accepted: Weaver keeps a minimal model. Besides the requirement, the task, and their evidence, a process file may set only the form of two IDs; every other choice of a development policy stays with the guideline. This amends item 9 of DEC-019.
 
 ## Tasks
 
@@ -44,7 +44,7 @@ Proposed in [DEC-025](../decisions/DEC-025-a-guideline-names-the-roles-of-its-le
 - `TASK-087` Offer a starting process file for a repository that has none — [GitHub Issue #227](https://github.com/ebrAIn-Lab-3B/Weaver/issues/227)
 - `TASK-088` Write the guide and sample for operating guidelines — [GitHub Issue #229](https://github.com/ebrAIn-Lab-3B/Weaver/issues/229)
 - `TASK-089` Keep a copy of the guideline file on this computer — [GitHub Issue #236](https://github.com/ebrAIn-Lab-3B/Weaver/issues/236)
-- `TASK-108` Decide the roles a guideline names for Weaver — [GitHub Issue #298](https://github.com/ebrAIn-Lab-3B/Weaver/issues/298)
+- `TASK-108` Decide how little of a development policy Weaver models — [GitHub Issue #298](https://github.com/ebrAIn-Lab-3B/Weaver/issues/298)
 
 Origin: the maintainer, 2026-11-07: ebrAIn.lab keeps its operating guideline in `agentic-base`, and Weaver should handle several guidelines. Absorbs proposal [#173](https://github.com/ebrAIn-Lab-3B/Weaver/issues/173).
 

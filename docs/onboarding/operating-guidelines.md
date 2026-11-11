@@ -9,7 +9,34 @@ Weaver does not know any guideline by name. You point it at yours, and it does t
 - A guideline is **a repository (or a folder in one) that your organization owns**. Weaver reads it and never writes to it. A change to a guideline is a pull request in the repository that owns it.
 - What Weaver takes from it is **one file**: a process file in the format of [Configure how your repository tracks its work](configure-your-process.md). It is where a new repository's columns, evidence rules, and idle limit start from.
 - A guideline **never overrides a repository.** A repository that has its own `.weaver/process.yaml` is read from that file alone ([DEC-015](../decisions/DEC-015-process-configuration.md)). The guideline is used only to start a file for a repository that has none, and the file belongs to the repository from then on.
-- The levels a guideline defines (for example Experience, Moment, Promise) **stay in the guideline's own tools.** Weaver does not read them or make them configurable.
+- The levels a guideline defines (for example Experience, Moment, Promise) **stay in the guideline's own tools.** Weaver does not read them. The only thing about them a process file can set is the form of two IDs; see [What your guideline decides](#what-your-guideline-decides).
+
+## What your guideline decides
+
+Weaver keeps a minimal model of a development policy ([DEC-025](../decisions/DEC-025-minimal-model-of-a-development-policy.md)). It owns requirements (`REQ-###`), tasks (`TASK-###`) under them, and the evidence of a task. Everything else is yours to decide and to write down in your guideline's own repository.
+
+**The two IDs Weaver links.** A requirement's `story_ids` name the intents it serves, and a task's `criteria` name the acceptance criteria it covers. If your IDs are not `US-###` and `AC-###`, set their form in the process file:
+
+```yaml
+ids:
+  intent: '^promise:[a-z0-9-]+$'               # story_ids; default '^US-\d{3,}$'
+  criterion: '^acceptance-check:[a-z0-9-]+$'   # criteria; default '^AC-\d{3,}$'
+```
+
+An ID in another repository is written `owner/repository#ID`.
+
+**The questions Weaver leaves to you.** Answer each in your guideline so that people and agents in every project read the same answer.
+
+| Question | Guideline A (`agentic-base`) | Guideline B (`palab-platform`) |
+| --- | --- | --- |
+| What is the unit of intent, and where does it live? | A Promise in the Story Chain | A User Story on the story map |
+| Does a requirement sit above or below its intents? | Below: one requirement per release slice of Promises | Above: the requirement is the source and stories hang under it |
+| Where do acceptance criteria live, and may a requirement restate them? | In the Promise; the requirement links to them | Under each story |
+| What makes a requirement verified, and which record and tool say so? | Every Acceptance Check covered in its Evidence Ledger, reported by the Story Chain validator | Every AC covered in the Evidence Ledger table, reported by `verify-ac` |
+| Which work is tracked before a requirement exists, and where? | Exploration, contract, and bootstrap work in `fix_plan.md` | Little: the requirement is written first |
+| What happens when an intent changes after work has started? | Its own rule (to be written in `agentic-base`) | Drift and exception in the Evidence Ledger |
+
+The answers above are examples of two guidelines, not defaults. Weaver checks none of them.
 
 ## How a project gets its process file
 

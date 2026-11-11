@@ -25,7 +25,7 @@ A repository that already tracks its work on the board and does not want labels 
 
 ## 2. Run the setup
 
-**In VS Code:** choose **Set up** in the Weaver view of the Activity Bar (or run **Weaver: Set Up** from the command palette, or press **Set up** in the empty Overview). To show only some repositories later, choose **Choose the repositories to show**; it changes only the `repositories` list of the file and keeps your comments.
+**In VS Code:** choose **Configuration** in the Weaver view of the Activity Bar and then **Run the setup again** (or run **Weaver: Set Up** from the command palette, or press **Set up** in the empty Overview). To show only some repositories later, choose **Configuration** → **Choose the repositories to show**. It changes only the `repositories` list of the file that applies here (the nearest root file, otherwise the personal file), shows the change first, and keeps your comments.
 
 **In a terminal:** run `weaver init`.
 
@@ -114,7 +114,7 @@ Never write node addresses, chat channel ids, tokens, or passwords in the roster
 Without a `repositories` list, the Overview shows every repository the Project has cards of. Two things help when that is not enough ([DEC-018](../decisions/DEC-018-operating-root-configuration.md) items 11 and 12):
 
 - A clone under the clone folder (one level down, with a GitHub `origin`) that the Project has no card of gets its own lane with the note *cloned on this computer, but the Project has no card of it*. This applies only when there is no `repositories` list; with a list, the listed lanes already say "no cards".
-- The repositories of the Project are saved with the time they were read, in `repositories.json` next to your personal file (never in a repository). **Weaver: Choose Repositories to Show** opens from that list at once and shows its age. A list older than a day is read again in the background. **Weaver: Refresh the Repository List** reads it again whenever you like.
+- The repositories of the Project are saved with the time they were read, in `repositories.json` next to your personal file (never in a repository). **Weaver: Configuration** → **Choose the repositories to show** opens from that list at once and shows its age. A list older than a day is read again in the background. **Weaver: Refresh the Repository List** reads it again whenever you like.
 
 ## 3. Put the Issues on the Project
 

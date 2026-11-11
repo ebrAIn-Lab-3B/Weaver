@@ -56,18 +56,14 @@
         "icon": "$(project)"
       },
       {
-        "command": "weaver.chooseRepositories",
-        "title": "%weaver.command.chooseRepositories.title%",
-        "icon": "$(checklist)"
+        "command": "weaver.configure",
+        "title": "%weaver.command.configure.title%",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "weaver.refreshRepositoryList",
         "title": "%weaver.command.refreshRepositoryList.title%",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "weaver.openConfigFile",
-        "title": "%weaver.command.openConfigFile.title%"
       },
       {
         "command": "weaver.editContributors",
@@ -129,29 +125,9 @@
           "group": "navigation@1"
         },
         {
-          "command": "weaver.chooseRepositories",
+          "command": "weaver.configure",
           "when": "activeWebviewPanelId == 'weaver.overview'",
           "group": "1_weaver@1"
-        },
-        {
-          "command": "weaver.openConfigFile",
-          "when": "activeWebviewPanelId == 'weaver.overview'",
-          "group": "1_weaver@2"
-        },
-        {
-          "command": "weaver.editContributors",
-          "when": "activeWebviewPanelId == 'weaver.overview'",
-          "group": "1_weaver@2.5"
-        },
-        {
-          "command": "weaver.setUp",
-          "when": "activeWebviewPanelId == 'weaver.overview'",
-          "group": "1_weaver@3"
-        },
-        {
-          "command": "weaver.setFabricRoot",
-          "when": "activeWebviewPanelId == 'weaver.overview'",
-          "group": "1_weaver@4"
         },
         {
           "command": "weaver.cloneRegistered",

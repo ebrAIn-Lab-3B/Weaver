@@ -99,8 +99,9 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
             return `<a class="pr pr-${p.state}${p.closes ? ' pr-closes' : ''}" href="#" data-url="${e(p.url)}" title="${e(tt('ui.overview.pr-title', { number: p.number, state, title: p.title }))}">${e(tt('ui.overview.pr', { number: p.number }))} · ${e(state)}${closes}</a>`;
           })
           .join('')}${
-          // An open card whose pull requests only refer to it says that nothing closes it yet (TASK-114).
-          card.state === 'open' && !(card.pulls ?? []).some((p) => p.closes) ? `<span class="muted small no-closing-pr">${e(tt('ui.overview.no-closing-pr'))}</span>` : ''
+          // An open card that names no task, whose pull requests only refer to it, says that nothing closes it yet (TASK-114).
+          // A task card is left out: it may be open on purpose (deferred), and its line would read as a fault.
+          card.state === 'open' && !card.taskId && !(card.pulls ?? []).some((p) => p.closes) ? `<span class="muted small no-closing-pr">${e(tt('ui.overview.no-closing-pr'))}</span>` : ''
         }</div>`
       : '';
     // The labels other than the status labels, so that a guideline can mark a kind of card with a label of its own (TASK-114).

@@ -86,14 +86,20 @@ describe('which pull request closes the card, and the labels of a card (TASK-114
     expect(page).toContain('PR #5 · 병합됨 · 닫는 PR');
   });
 
-  it('says that nothing closes an open card whose pull requests only refer to it', () => {
-    expect(html([card({ pulls: [pull(3, 'merged')] })])).toContain('no closing pull request yet');
-    expect(html([card({ pulls: [pull(3, 'merged')] })], 'ko')).toContain('아직 닫는 PR 없음');
+  const round = (extra: Partial<OverviewCard> = {}): OverviewCard => card({ title: 'Exploration round 1', ...extra });
+
+  it('says that nothing closes an open card that names no task, whose pull requests only refer to it', () => {
+    expect(html([round({ pulls: [pull(3, 'merged')] })])).toContain('no closing pull request yet');
+    expect(html([round({ pulls: [pull(3, 'merged')] })], 'ko')).toContain('아직 닫는 PR 없음');
+  });
+
+  it('says nothing about it on a task card, which may be open on purpose', () => {
+    expect(html([card({ taskId: 'TASK-007', pulls: [pull(3, 'merged')] })])).not.toContain('no closing pull request yet');
   });
 
   it('says nothing about it on a card with no pull request, or a closed card', () => {
     expect(html([card()])).not.toContain('no closing pull request yet');
-    expect(html([card({ state: 'closed', pulls: [pull(3, 'merged')] })])).not.toContain('no closing pull request yet');
+    expect(html([round({ state: 'closed', pulls: [pull(3, 'merged')] })])).not.toContain('no closing pull request yet');
   });
 
   it('shows the labels other than the status labels, at most three', () => {

@@ -26,11 +26,11 @@ An organization's way of going from intent to code: its levels, their names, its
 
 ## Intent
 
-The unit of product intent that a requirement serves, such as a user story or a Promise. Weaver knows it only as an ID in `story_ids`, whose form the process file may set.
+The unit of product intent that a requirement serves, such as a user story or a Promise. Weaver knows it only as an ID in `story_ids` (`US-###`) or as a link in a requirement's body.
 
 ## Acceptance criterion
 
-A verifiable condition under an intent or a requirement. Weaver knows it only as an ID in a task's `criteria`, whose form the process file may set.
+A verifiable condition under an intent or a requirement. Weaver numbers the items under a requirement's `## Acceptance criteria` `AC-001`, `AC-002`, and a task's `criteria` names those numbers. An item may be a link to a criterion kept elsewhere.
 
 ## Evidence
 

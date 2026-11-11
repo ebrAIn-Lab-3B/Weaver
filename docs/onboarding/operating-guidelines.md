@@ -9,21 +9,25 @@ Weaver does not know any guideline by name. You point it at yours, and it does t
 - A guideline is **a repository (or a folder in one) that your organization owns**. Weaver reads it and never writes to it. A change to a guideline is a pull request in the repository that owns it.
 - What Weaver takes from it is **one file**: a process file in the format of [Configure how your repository tracks its work](configure-your-process.md). It is where a new repository's columns, evidence rules, and idle limit start from.
 - A guideline **never overrides a repository.** A repository that has its own `.weaver/process.yaml` is read from that file alone ([DEC-015](../decisions/DEC-015-process-configuration.md)). The guideline is used only to start a file for a repository that has none, and the file belongs to the repository from then on.
-- The levels a guideline defines (for example Experience, Moment, Promise) **stay in the guideline's own tools.** Weaver does not read them. The only thing about them a process file can set is the form of two IDs; see [What your guideline decides](#what-your-guideline-decides).
+- The levels a guideline defines (for example Experience, Moment, Promise) **stay in the guideline's own tools.** Weaver does not read them. A requirement links them in its body; see [What your guideline decides](#what-your-guideline-decides).
 
 ## What your guideline decides
 
 Weaver keeps a minimal model of a development policy ([DEC-025](../decisions/DEC-025-minimal-model-of-a-development-policy.md)). It owns requirements (`REQ-###`), tasks (`TASK-###`) under them, and the evidence of a task. Everything else is yours to decide and to write down in your guideline's own repository.
 
-**The two IDs Weaver links.** A requirement's `story_ids` name the intents it serves, and a task's `criteria` name the acceptance criteria it covers. If your IDs are not `US-###` and `AC-###`, set their form in the process file:
+**Fit your requirements and tasks to Weaver's contract.** Weaver does not learn your IDs. If your intents and acceptance criteria live outside the requirement (for example in Promises):
 
-```yaml
-ids:
-  intent: '^promise:[a-z0-9-]+$'               # story_ids; default '^US-\d{3,}$'
-  criterion: '^acceptance-check:[a-z0-9-]+$'   # criteria; default '^AC-\d{3,}$'
+- Leave `story_ids` empty and link your intents in the requirement's body. Weaver only displays `story_ids`, so nothing is lost.
+- Under `## Acceptance criteria`, list your criteria as links, in a fixed order. Weaver numbers them `AC-001`, `AC-002`, and a task's `criteria` names those numbers, so the coverage view works.
+
+```markdown
+## Acceptance criteria
+
+- [acceptance-check:current-request-and-scope](../contracts/story-chain/promises/use-visible-work-context.md)
+- [acceptance-check:grounded-result-review](../contracts/story-chain/promises/show-result.md)
 ```
 
-An ID in another repository is written `owner/repository#ID`.
+If the contract cannot express something your guideline needs at all, record it as friction in Weaver's user story map. Weaver changes only to remove an assumption of its own, not to add a setting for one guideline.
 
 **The questions Weaver leaves to you.** Answer each in your guideline so that people and agents in every project read the same answer.
 

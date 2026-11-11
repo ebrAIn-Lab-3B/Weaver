@@ -70,3 +70,41 @@ describe('the pull requests on a card (REQ-019, DEC-022)', () => {
     expect(page).toContain('&lt;script&gt;');
   });
 });
+
+describe('which pull request closes the card, and the labels of a card (TASK-114)', () => {
+  const closing = (number: number, state: 'open' | 'merged' | 'closed') => ({ ...pull(number, state), closes: true });
+
+  it('marks the pull request that closes the Issue', () => {
+    const page = html([card({ pulls: [closing(5, 'open'), pull(3, 'merged')] })]);
+    expect(page).toMatch(/<a class="pr pr-open pr-closes"[^>]*>PR #5 · open · closes it<\/a>/);
+    expect(page).toMatch(/<a class="pr pr-merged"[^>]*>PR #3 · merged<\/a>/);
+    expect(page).not.toContain('no closing pull request yet');
+  });
+
+  it('says so in Korean', () => {
+    const page = html([card({ pulls: [closing(5, 'merged')] })], 'ko');
+    expect(page).toContain('PR #5 · 병합됨 · 닫는 PR');
+  });
+
+  it('says that nothing closes an open card whose pull requests only refer to it', () => {
+    expect(html([card({ pulls: [pull(3, 'merged')] })])).toContain('no closing pull request yet');
+    expect(html([card({ pulls: [pull(3, 'merged')] })], 'ko')).toContain('아직 닫는 PR 없음');
+  });
+
+  it('says nothing about it on a card with no pull request, or a closed card', () => {
+    expect(html([card()])).not.toContain('no closing pull request yet');
+    expect(html([card({ state: 'closed', pulls: [pull(3, 'merged')] })])).not.toContain('no closing pull request yet');
+  });
+
+  it('shows the labels other than the status labels, at most three', () => {
+    const page = html([card({ labels: ['status:in-progress', 'explore', 'design', 'Status:review', 'ux', 'later'] })]);
+    expect(page).toContain('<div class="labels"><span class="label-chip">explore</span><span class="label-chip">design</span><span class="label-chip">ux</span></div>');
+    expect(page).not.toContain('label-chip">later');
+    expect(page).not.toContain('label-chip">status:');
+  });
+
+  it('shows no label line when there are only status labels, and escapes a label', () => {
+    expect(html([card({ labels: ['status:review'] })])).not.toContain('class="labels"');
+    expect(html([card({ labels: ['<b>탐색</b>'] })])).toContain('<span class="label-chip">&lt;b&gt;탐색&lt;/b&gt;</span>');
+  });
+});

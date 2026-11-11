@@ -48,3 +48,16 @@ describe('mergeCardPulls', () => {
     expect(mergeCardPulls([pull(1, 'OPEN')])[0].title).toBe('PR 1');
   });
 });
+
+describe('mergeCardPulls and the closing pull requests (TASK-114)', () => {
+  it('marks the pull requests of the first list as closing, also when the second list has them too', () => {
+    const result = mergeCardPulls([pull(5, 'MERGED')], [pull(5, 'MERGED'), pull(3, 'MERGED')]);
+    expect(result.find((p) => p.number === 5)?.closes).toBe(true);
+    expect(result.find((p) => p.number === 3)?.closes).toBeUndefined();
+  });
+
+  it('keeps a closing pull request among the three it shows, ahead of newer ones that only refer', () => {
+    const result = mergeCardPulls([pull(2, 'MERGED')], [pull(9, 'MERGED'), pull(8, 'MERGED'), pull(7, 'MERGED')]);
+    expect(result.map((p) => p.number)).toEqual([2, 9, 8]);
+  });
+});

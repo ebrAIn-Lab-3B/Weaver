@@ -37,6 +37,8 @@ export interface OverviewCard {
   state?: 'open' | 'closed';
   /** The pull requests that refer to the Issue, open first, at most three (DEC-022). */
   pulls?: CardPull[];
+  /** The labels of the Issue. The card shows those other than `status:*`, at most three (TASK-114). */
+  labels?: string[];
   /** Where the task file of a card without one in the open folder is, asked of GitHub (DEC-024): on GitHub (the folder is behind) or nowhere. */
   taskFile?: 'on-github' | 'absent';
 }
@@ -93,10 +95,17 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       ? `<div class="pulls">${(card.pulls ?? [])
           .map((p) => {
             const state = tt(`ui.overview.pr-state.${p.state}` as MessageKey);
-            return `<a class="pr pr-${p.state}" href="#" data-url="${e(p.url)}" title="${e(tt('ui.overview.pr-title', { number: p.number, state, title: p.title }))}">${e(tt('ui.overview.pr', { number: p.number }))} · ${e(state)}</a>`;
+            const closes = p.closes ? ` · ${e(tt('ui.overview.pr-closes'))}` : '';
+            return `<a class="pr pr-${p.state}${p.closes ? ' pr-closes' : ''}" href="#" data-url="${e(p.url)}" title="${e(tt('ui.overview.pr-title', { number: p.number, state, title: p.title }))}">${e(tt('ui.overview.pr', { number: p.number }))} · ${e(state)}${closes}</a>`;
           })
-          .join('')}</div>`
+          .join('')}${
+          // An open card whose pull requests only refer to it says that nothing closes it yet (TASK-114).
+          card.state === 'open' && !(card.pulls ?? []).some((p) => p.closes) ? `<span class="muted small no-closing-pr">${e(tt('ui.overview.no-closing-pr'))}</span>` : ''
+        }</div>`
       : '';
+    // The labels other than the status labels, so that a guideline can mark a kind of card with a label of its own (TASK-114).
+    const shownLabels = (card.labels ?? []).filter((name) => !name.toLowerCase().startsWith('status:')).slice(0, 3);
+    const labels = shownLabels.length ? `<div class="labels">${shownLabels.map((name) => `<span class="label-chip">${e(name)}</span>`).join('')}</div>` : '';
     // A card whose title names a task but that has no task file in the folder says why it opens its Issue (DEC-023 item 3).
     const noTaskFile = card.taskId && !card.requirement && !card.fromFiles
       ? card.taskFile === 'on-github'
@@ -124,7 +133,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
-        <div>${titleHtml}</div>${pulls}${noTaskFile}${gaps}${markVerified}${stale}${assignees}
+        <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${assignees}
       </div>`;
   };
 
@@ -256,6 +265,10 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   li.warning strong { color: var(--vscode-editorWarning-foreground); }
   ul.plain { padding-left: 0; list-style: none; }
   .small { font-size: 0.85em; }
+  .labels { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .label-chip { font-size: 0.8em; padding: 0 6px; border-radius: 8px; border: 1px solid var(--vscode-badge-background, var(--vscode-focusBorder)); color: var(--vscode-foreground); }
+  .pr-closes { font-weight: 600; }
+  .no-closing-pr { margin-left: 6px; }
   button.mark-verified { margin-top: 4px; font-size: 0.85em; padding: 2px 10px; cursor: pointer; border: 1px solid var(--vscode-button-border, var(--vscode-focusBorder)); background: var(--vscode-button-secondaryBackground, transparent); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); border-radius: 3px; }
   button.mark-verified:hover, button.mark-verified:focus-visible { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground)); }
   .pulls { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }

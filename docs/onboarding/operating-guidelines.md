@@ -42,6 +42,12 @@ If the contract cannot express something your guideline needs at all, record it 
 
 The answers above are examples of two guidelines, not defaults. Weaver checks none of them.
 
+**Work before a requirement.** Weaver shows it as ordinary cards: an Issue whose title names no task gets its column, evidence rules, and idle days like any card, and the pull requests that refer to it appear on it ([DEC-026](../decisions/DEC-026-work-before-a-requirement-is-an-ordinary-card.md)). Your guideline decides:
+
+- where conversations with an agent are kept in the project's repository, and in what form (a shared link alone may be readable only by a signed-in person);
+- how that work is split into cards (one per exploration round, per topic, or per decision) and when such a card is closed;
+- how what the conversations settled is approved, and how it becomes intent and then requirements.
+
 ## How a project gets its process file
 
 There are two ways, and they cover different projects.

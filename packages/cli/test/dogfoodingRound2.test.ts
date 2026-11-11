@@ -104,7 +104,8 @@ describe('the guide to the second round of using Weaver', () => {
       const result = parseConfig('config.yaml', block as string);
       expect(result.issues, `${file}: the example has no problem`).toEqual([]);
       expect(result.config?.repositories?.map((r) => r.repository)).toEqual(['ebrAIn-Lab-3B/agentic-browser']);
-      expect(result.config?.guideline).toMatchObject({ repository: 'ebrAIn-Lab-3B/agentic-base', path: '.weaver/process.yaml', ref: 'weaver-process-file' });
+      expect(result.config?.guideline).toMatchObject({ repository: 'ebrAIn-Lab-3B/agentic-base', path: '.weaver/process.yaml' });
+      expect(result.config?.guideline?.ref).toBeUndefined();
     }
   });
 
@@ -123,11 +124,17 @@ describe('the guide to the second round of using Weaver', () => {
     }
   });
 
-  it('does not wait for the review of the guideline: the branch is the normal way', async () => {
+  it('reads the guideline from main, and tells a reader of the earlier version to drop the old branch', async () => {
     for (const file of [GUIDE, GUIDE_KO]) {
       const text = await read(file);
-      expect(text).toContain('ref: weaver-process-file');
-      expect(text).toContain('pull/2');
+      // The setup file of step 2 has no ref: the branch of agentic-base PR #2 is gone (TASK-111).
+      const setup = text.match(/```yaml\n([\s\S]*?)```/)?.[1] ?? '';
+      expect(setup).toContain('repository: ebrAIn-Lab-3B/agentic-base');
+      expect(setup).not.toContain('ref:');
+      expect(text).not.toContain('pull/2');
+      expect(text).toContain('development-flow.md');
+      // Only as a line to remove, never as one to add.
+      expect(text).not.toContain('process.yaml@weaver-process-file');
     }
   });
 });

@@ -22,6 +22,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.author.id-changed': '파일을 만드는 동안 요구사항 ID가 변경되었습니다. 새 ID를 선택하려면 다시 시작하세요.',
   'ui.preview.diagram-error': 'Mermaid 다이어그램을 그릴 수 없습니다. 아래에서 원본을 확인하세요.',
   'ui.markdown.source': '원문 열기',
+  'ui.markdown.requirement': '요구사항 열기',
   'ui.markdown.edit-hint': '한 줄 문단이나 제목을 두 번 눌러 편집하세요. 다른 내용은 원문 열기를 이용하세요.',
   'ui.markdown.link-error': '링크를 열 수 없습니다.',
   'ui.markdown.edit-block': '이 Markdown 줄 편집',

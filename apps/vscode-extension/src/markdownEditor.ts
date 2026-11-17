@@ -5,7 +5,7 @@ import { message } from './locale';
 import { escapeHtml } from './requirementHtml';
 
 /** A read-only rendered surface; all edits go through VS Code's normal text document. */
-export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel, context: vscode.ExtensionContext): void {
+export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, task = false): void {
   const localRoots = [context.extensionUri, vscode.Uri.joinPath(document.uri, '..'), ...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri)];
   panel.webview.options = { enableScripts: true, localResourceRoots: localRoots };
   const render = (): void => {
@@ -18,10 +18,11 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     panel.webview.html = `<!doctype html><html><head><meta charset="utf-8">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} https: data:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${panel.webview.cspSource} data:;">
       <style>body{padding:20px 32px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);line-height:1.6}button{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;padding:6px 12px;cursor:pointer}img,svg{max-width:100%}pre{overflow:auto;padding:12px;background:var(--vscode-textCodeBlock-background)}table{border-collapse:collapse}th,td{border:1px solid var(--vscode-panel-border);padding:6px}a{color:var(--vscode-textLink-foreground)}[data-source-line]:hover{outline:1px solid var(--vscode-focusBorder)}</style>
-      </head><body><button id="source">${escapeHtml(message('ui.markdown.source'))}</button><p>${escapeHtml(message('ui.markdown.edit-hint'))}</p><main>${body}</main>
+      </head><body><button id="source">${escapeHtml(message('ui.markdown.source'))}</button> ${task ? `<button id="requirement">${escapeHtml(message('ui.markdown.requirement'))}</button>` : ''}<p>${escapeHtml(message('ui.markdown.edit-hint'))}</p><main>${body}</main>
       <script nonce="${nonce}" src="${script}"></script><script nonce="${nonce}">
       const vscode = acquireVsCodeApi();
       document.getElementById('source').addEventListener('click', () => vscode.postMessage({type:'source'}));
+      document.getElementById('requirement')?.addEventListener('click', () => vscode.postMessage({type:'requirement'}));
       document.querySelector('main').addEventListener('dblclick', event => { const block = event.target.closest('[data-source-line]'); if(block) vscode.postMessage({type:'edit', line:Number(block.dataset.sourceLine), end:Number(block.dataset.sourceEnd), blockType:block.dataset.sourceType, version:${document.version}}); });
       document.querySelector('main').addEventListener('click', event => { const link = event.target.closest('a'); if(link) { event.preventDefault(); vscode.postMessage({type:'link', href:link.getAttribute('href')}); } });
       </script></body></html>`;
@@ -30,7 +31,9 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (event.document.uri.toString() === document.uri.toString()) render();
   });
   const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; end?: number; blockType?: string; version?: number; href?: string }) => {
-    if (event.type === 'edit' && Number.isInteger(event.line) && event.line! >= 0 && event.line! < document.lineCount &&
+    if (event.type === 'requirement' && task) {
+      await vscode.commands.executeCommand('weaver.openRequirementView', document.uri);
+    } else if (event.type === 'edit' && Number.isInteger(event.line) && event.line! >= 0 && event.line! < document.lineCount &&
         event.end === event.line! + 1 && (event.blockType === 'paragraph_open' || event.blockType === 'heading_open')) {
       if (event.version !== document.version) {
         void vscode.window.showWarningMessage(message('ui.markdown.edit-conflict'));

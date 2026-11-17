@@ -22,6 +22,7 @@ export const en = {
   'ui.author.id-changed': 'The requirement IDs changed while you were creating this file. Start again to choose a new ID.',
   'ui.preview.diagram-error': 'The Mermaid diagram could not be rendered. Its source is shown below.',
   'ui.markdown.source': 'Open source',
+  'ui.markdown.requirement': 'Open requirement',
   'ui.markdown.edit-hint': 'Double-click a single-line paragraph or heading to edit it. Use Open source for other content.',
   'ui.markdown.link-error': 'This link could not be opened.',
   'ui.markdown.edit-block': 'Edit this Markdown line',

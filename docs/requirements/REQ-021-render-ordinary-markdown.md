@@ -17,7 +17,7 @@ The proposed SlashMD-style canvas focuses on requirements. People also need to r
 
 ## Outcome
 
-A person opening an ordinary Markdown file sees a SlashMD-like rendered view first, can read its diagrams, and can return to its source. Requirement and task files retain their existing behavior. The repository file remains authoritative.
+A person opening an ordinary Markdown or task file sees a SlashMD-like rendered view first, can read its diagrams, and can return to its source. Requirement files retain their existing view. The repository file remains authoritative.
 
 ## Acceptance criteria
 
@@ -26,7 +26,7 @@ A person opening an ordinary Markdown file sees a SlashMD-like rendered view fir
 - A valid Mermaid fenced block is displayed as a diagram rather than only as code. Its source remains accessible in source mode, and other code blocks remain code.
 - An invalid or unsupported diagram leaves its source accessible and shows a useful explanation; the rest of the document remains readable.
 - A person can reach the source editor from the rendered view and see saved source changes in the view. Opening or viewing a file does not rewrite it.
-- A person can choose the text editor again for ordinary Markdown. Requirement and task documents retain their existing opening and navigation behavior under [REQ-003](./REQ-003-open-views-from-documents.md).
+- Task files also open rendered, with actions to open the source and the matching requirement focused on that task. Requirement files retain their existing view. A person can choose the text editor again. This extends [REQ-003](./REQ-003-open-views-from-documents.md).
 
 ## Open decisions
 

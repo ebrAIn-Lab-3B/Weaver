@@ -18,13 +18,8 @@ export class RequirementEditorProvider implements vscode.CustomTextEditorProvide
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
     const target = markdownEditorTarget(document.uri.fsPath, document.getText());
-    if (target === 'task') {
-      await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', { viewColumn: panel.viewColumn });
-      panel.dispose();
-      return;
-    }
-    if (target === 'markdown') {
-      attachMarkdownEditor(document, panel, this.context);
+    if (target === 'markdown' || target === 'task') {
+      attachMarkdownEditor(document, panel, this.context, target === 'task');
       return;
     }
     panel.webview.options = { enableScripts: true };

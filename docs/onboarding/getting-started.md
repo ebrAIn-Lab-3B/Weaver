@@ -22,7 +22,7 @@ For a local workspace, the command palette also offers **Weaver: Create Ideation
 
 To connect a requirement to an existing ideation file in the same workspace folder, open the requirement source in the text editor and run **Weaver: Link Ideation to Requirement**. The link is inserted as an unsaved edit; save the requirement when ready. Ordinary Markdown opens in the rendered Weaver editor by default; **Open source** opens the text editor. Double-click a single-line paragraph or heading to edit its Markdown in place. Other content can be edited in the source editor. **Weaver: Preview Markdown** also opens VS Code's Markdown preview beside the source. Both views use local Mermaid rendering; invalid diagrams keep their source visible.
 
-To make the text editor your default for Markdown again, use **Reopen Editor With…** and configure the default editor in VS Code. Requirement and task files keep their existing opening behavior.
+To make the text editor your default for Markdown again, use **Reopen Editor With…** and configure the default editor in VS Code. Requirement files keep their existing view. Task files open rendered and offer **Open requirement** and **Open source**.
 
 In the repository you want to trace, add a Markdown file with frontmatter. Place it anywhere; Weaver reads every Markdown file in the workspace.
 

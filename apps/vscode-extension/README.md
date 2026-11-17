@@ -4,7 +4,7 @@ This is the first implementation slice of Weaver.
 
 ## Current scope
 
-- Create local ideation and requirement Markdown files, insert links to ideation from requirement source, and open ordinary Markdown rendered by default. Render Mermaid diagrams and edit single-line paragraphs and headings from the rendered view; other blocks are edited in the source editor.
+- Create local ideation and requirement Markdown files, insert links to ideation from requirement source, and open ordinary Markdown and task files rendered by default. Task files offer navigation to their requirement. Render Mermaid diagrams and edit single-line paragraphs and headings from the rendered view; other blocks are edited in the source editor.
 - Read every Markdown file in the workspace and validate Weaver artifacts with `@ebrain-lab/weaver-markdown` (see [Artifact Schema v0.1](../../docs/product/artifact-schema-v0.1.md)).
 - Show validation errors and warnings in the Problems panel, refreshed on startup and on save.
 - Show a read-only Requirement view: metadata, acceptance criteria, tasks with Issue links, validation gaps. It refreshes on save.

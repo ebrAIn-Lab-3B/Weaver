@@ -5,6 +5,7 @@ import { RequirementView } from './requirementView';
 import { Loaded, requirementsOf } from './workspace';
 import { markdownEditorTarget } from '@ebrain-lab/weaver-markdown';
 import { attachMarkdownEditor } from './markdownEditor';
+import { whilePanelAlive } from './panelLifecycle';
 
 export const REQUIREMENT_EDITOR = 'weaver.requirementEditor';
 
@@ -23,13 +24,14 @@ export class RequirementEditorProvider implements vscode.CustomTextEditorProvide
       return;
     }
     panel.webview.options = { enableScripts: true };
-    const loaded = await this.load();
-    const path = vscode.workspace.asRelativePath(document.uri, false);
-    const requirement = requirementsOf(loaded).find((r) => r.path === path);
-    if (!requirement) {
-      panel.webview.html = `<body style="padding:24px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)">${escapeHtml(message('ui.msg.not-requirement'))}</body>`;
-      return;
-    }
-    this.view.attach(panel, loaded, requirement);
+    await whilePanelAlive(panel, this.load, (loaded) => {
+      const path = vscode.workspace.asRelativePath(document.uri, false);
+      const requirement = requirementsOf(loaded).find((r) => r.path === path);
+      if (!requirement) {
+        panel.webview.html = `<body style="padding:24px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)">${escapeHtml(message('ui.msg.not-requirement'))}</body>`;
+        return;
+      }
+      this.view.attach(panel, loaded, requirement);
+    });
   }
 }

@@ -41,6 +41,7 @@ interface Panel {
   hosted: boolean;
   /** A task to scroll to, kept until the first status read has finished. */
   focusTask?: string;
+  disposed?: boolean;
 }
 
 /** Read-only view of one requirement: a side panel per requirement ID, or a custom editor tab per file. */
@@ -72,10 +73,10 @@ export class RequirementView {
 
   private open(entry: Panel): void {
     const { panel } = entry;
+    panel.onDidDispose(() => { entry.disposed = true; this.panels.delete(entry); });
+    const webview = panel.webview;
     this.panels.add(entry);
-
-    panel.onDidDispose(() => this.panels.delete(entry));
-    panel.webview.onDidReceiveMessage(async (message: { type: string; url?: string; taskId?: string; column?: string; role?: string }) => {
+    webview.onDidReceiveMessage(async (message: { type: string; url?: string; taskId?: string; column?: string; role?: string }) => {
       if (message.type === 'openSource' && entry.uri) {
         // `default` is the text editor even when Weaver is the default editor for the file.
         await vscode.commands.executeCommand('vscode.openWith', entry.uri, 'default', {
@@ -381,6 +382,7 @@ export class RequirementView {
   }
 
   private render(entry: Panel): void {
+    if (entry.disposed) return;
     const { panel, requirement, loaded } = entry;
     const nonce = randomBytes(16).toString('hex');
     const issues = loaded.issues.filter((issue) => issue.path === requirement.path);

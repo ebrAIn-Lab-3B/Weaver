@@ -1,5 +1,6 @@
 export * from './types';
 export { parseArtifact } from './parse';
+export { requirementDraft, ideationDraft, markdownEditorTarget } from './documentAuthoring';
 export { parseCriteria, parseTasks, sectionItems } from './body';
 export { loadWorkspace, validateWorkspace } from './validate';
 export type { SourceFile, LoadOptions } from './validate';

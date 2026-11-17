@@ -19,6 +19,8 @@ A user who opens a requirement file sees raw Markdown and must find a command to
 
 Opening a requirement file shows its Weaver view, and other Weaver documents offer a button to open their view, without affecting ordinary Markdown files.
 
+The later [REQ-021](./REQ-021-render-ordinary-markdown.md) changes the ordinary Markdown default to a rendered view; the requirement and task behavior recorded here remains in effect.
+
 ## Acceptance criteria
 
 - Opening a requirement file (`REQ-*.md`) shows the Requirement view, and the source stays one click away.

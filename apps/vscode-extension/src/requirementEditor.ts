@@ -3,6 +3,8 @@ import { message } from './locale';
 import { escapeHtml } from './requirementHtml';
 import { RequirementView } from './requirementView';
 import { Loaded, requirementsOf } from './workspace';
+import { markdownEditorTarget } from '@ebrain-lab/weaver-markdown';
+import { attachMarkdownEditor } from './markdownEditor';
 
 export const REQUIREMENT_EDITOR = 'weaver.requirementEditor';
 
@@ -11,9 +13,20 @@ export class RequirementEditorProvider implements vscode.CustomTextEditorProvide
   constructor(
     private readonly view: RequirementView,
     private readonly load: () => Promise<Loaded>,
+    private readonly context: vscode.ExtensionContext,
   ) {}
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
+    const target = markdownEditorTarget(document.uri.fsPath, document.getText());
+    if (target === 'task') {
+      await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', { viewColumn: panel.viewColumn });
+      panel.dispose();
+      return;
+    }
+    if (target === 'markdown') {
+      attachMarkdownEditor(document, panel, this.context);
+      return;
+    }
     panel.webview.options = { enableScripts: true };
     const loaded = await this.load();
     const path = vscode.workspace.asRelativePath(document.uri, false);

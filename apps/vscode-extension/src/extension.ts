@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { createDocument, linkIdeation } from './authorDocument';
 import { documentKindOf, viewTargetOf } from '@ebrain-lab/weaver-markdown';
 import { currentLocale, message } from './locale';
 import { REQUIREMENT_EDITOR, RequirementEditorProvider } from './requirementEditor';
@@ -21,6 +22,16 @@ const WATCH_DELAY_MS = 400;
 const IGNORED_PATH = /[\\/](node_modules|\.git|dist|out|examples|\.claude[\\/]worktrees)[\\/]/;
 
 export function activate(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('weaver.createIdeation', () => createDocument('ideation')),
+    vscode.commands.registerCommand('weaver.createRequirement', () => createDocument('requirement')),
+    vscode.commands.registerCommand('weaver.linkIdeation', linkIdeation),
+    vscode.commands.registerCommand('weaver.previewMarkdown', (uri?: vscode.Uri) => {
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (target) return vscode.commands.executeCommand('markdown.showPreviewToSide', target);
+      void vscode.window.showInformationMessage(message('ui.author.open-markdown'));
+    }),
+  );
   const diagnostics = vscode.languages.createDiagnosticCollection('weaver');
   processStore.init(context.globalState);
   rosterStore.init(context.globalState);
@@ -179,7 +190,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const editor = vscode.window.registerCustomEditorProvider(
     REQUIREMENT_EDITOR,
-    new RequirementEditorProvider(view, refresh),
+    new RequirementEditorProvider(view, refresh, context),
     { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } },
   );
 

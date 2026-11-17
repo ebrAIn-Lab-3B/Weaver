@@ -2,7 +2,7 @@
   "name": "@ebrain-lab/weaver-vscode-extension",
   "displayName": "ebrAIn.lab Weaver",
   "description": "Repository-native requirements and task traceability for humans and AI agents.",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "publisher": "ebrain-lab",
   "license": "MIT",
   "engines": {
@@ -16,7 +16,26 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "markdown.previewScripts": [
+      "./dist/markdownPreview.js"
+    ],
     "commands": [
+      {
+        "command": "weaver.createIdeation",
+        "title": "%weaver.command.createIdeation.title%"
+      },
+      {
+        "command": "weaver.createRequirement",
+        "title": "%weaver.command.createRequirement.title%"
+      },
+      {
+        "command": "weaver.linkIdeation",
+        "title": "%weaver.command.linkIdeation.title%"
+      },
+      {
+        "command": "weaver.previewMarkdown",
+        "title": "%weaver.command.previewMarkdown.title%"
+      },
       {
         "command": "weaver.openRequirementView",
         "title": "%weaver.command.openRequirementView.title%",
@@ -142,7 +161,7 @@
         "displayName": "%weaver.editor.requirement.displayName%",
         "selector": [
           {
-            "filenamePattern": "REQ-*.md"
+            "filenamePattern": "*.md"
           }
         ],
         "priority": "default"
@@ -170,10 +189,11 @@
     "compile": "tsc -p ./",
     "watch": "tsc -p ./ --watch",
     "check": "tsc -p ./ --noEmit",
-    "bundle": "esbuild src/extension.ts --bundle --platform=node --target=node20 --format=cjs --external:vscode --sourcemap=external --allow-overwrite --outfile=dist/extension.js",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --target=node20 --format=cjs --external:vscode --sourcemap=external --allow-overwrite --outfile=dist/extension.js && esbuild src/markdownPreview.js --bundle --platform=browser --target=chrome120 --format=iife --outfile=dist/markdownPreview.js",
     "package": "npm run bundle && node ../../scripts/package-vsix.js"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^4.1.0",
@@ -182,7 +202,10 @@
   },
   "dependencies": {
     "@ebrain-lab/weaver-github": "0.0.1",
-    "@ebrain-lab/weaver-markdown": "0.0.1"
+    "@ebrain-lab/weaver-markdown": "0.0.1",
+    "markdown-it": "^15.0.3",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^12.3.0"
   },
   "repository": {
     "type": "git",

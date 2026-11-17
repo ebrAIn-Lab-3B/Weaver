@@ -24,6 +24,7 @@ for (const file of ['README.md', 'package.nls.json', 'package.nls.ko.json']) {
 fs.copyFileSync(path.join(root, 'LICENSE'), path.join(stage, 'LICENSE'));
 fs.cpSync(path.join(extension, 'resources'), path.join(stage, 'resources'), { recursive: true });
 fs.copyFileSync(path.join(extension, 'dist', 'extension.js'), path.join(stage, 'dist', 'extension.js'));
+fs.copyFileSync(path.join(extension, 'dist', 'markdownPreview.js'), path.join(stage, 'dist', 'markdownPreview.js'));
 
 const output = path.join(root, 'dist', `weaver-${manifest.version}.vsix`);
 const vsce = path.join(root, 'node_modules', '@vscode', 'vsce', 'vsce');

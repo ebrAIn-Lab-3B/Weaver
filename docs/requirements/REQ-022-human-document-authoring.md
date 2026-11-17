@@ -28,6 +28,7 @@ A person can create and edit an ideation document and a schema-valid requirement
 - The author can see where a new file will be saved and review its initial content before creation. Existing files are not silently overwritten; unsaved changes are not silently discarded.
 - The created documents can be reopened and edited as ordinary Markdown outside Weaver, and saved changes appear in Weaver. Creating or editing them does not require GitHub, a board, or an agent.
 - The product documents how a person starts an ideation document, creates a requirement, links the two, and switches between rendered and source editing.
+- The requirement view lists navigable Markdown links from the requirement body, including the link to its originating ideation document.
 
 ## Open decisions
 

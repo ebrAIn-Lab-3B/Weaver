@@ -31,6 +31,7 @@ import {
 
 import { coverageOf } from './coverage';
 import type { ProcessSummary } from './processStore';
+import type { DocumentLink } from './documentLinks';
 
 export type TaskStatus =
   | { ok: true; issue: IssueSnapshot; evidence?: TaskEvidence; evidenceError?: Notice; board?: BoardItem[]; rules?: ColumnRules; evidenceRules?: EvidenceRules; boardStatus?: string }
@@ -73,6 +74,7 @@ export function renderRequirementHtml(
   status?: StatusState,
   locale: Locale = 'en',
   focusTask?: string,
+  links: DocumentLink[] = [],
 ): string {
   const e = escapeHtml;
   const tt = (key: MessageKey, args?: MessageArgs): string => t(key, locale, args);
@@ -317,6 +319,8 @@ export function renderRequirementHtml(
     ${requirement.status === 'accepted' ? '' : `<button data-cmd="acceptRequirement">${e(tt('ui.button.accept'))}</button>`}
   </div>
 
+  ${links.length ? `<h2>${e(tt('ui.requirement.document-links'))}</h2><ul>${links.map(({ label, href }) => `<li><a href="#" data-document-link="${e(href)}">${e(label)}</a></li>`).join('')}</ul>` : ''}
+
   <h2>${e(tt('ui.criteria.title', { count: requirement.criteria.length }))}</h2>
   ${criteriaHtml}
 
@@ -347,11 +351,12 @@ export function renderRequirementHtml(
       vscode.postMessage({ type: 'assign', taskId: assign.dataset.assign, role: assign.dataset.role });
       return;
     }
-    const target = event.target.closest('[data-cmd],[data-url]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-document-link]');
     if (!target) return;
     event.preventDefault();
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
     if (target.dataset.url) vscode.postMessage({ type: 'openUrl', url: target.dataset.url });
+    if (target.dataset.documentLink) vscode.postMessage({ type: 'openDocumentLink', url: target.dataset.documentLink });
   });
 </script>
 </body>

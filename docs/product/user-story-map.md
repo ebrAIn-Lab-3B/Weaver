@@ -125,7 +125,7 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-062` — As a reader, I open an ordinary Markdown file in a rendered Weaver view by default and can return to its source, so I can read project documents without changing their format. (Belongs to `REQ-021`.)
 - `US-063` — As a reader, I can see a Mermaid diagram drawn in a Markdown document and reach its source, so the diagram communicates without requiring me to interpret code. (Belongs to `REQ-021`.)
 - `US-064` — As a person exploring an idea, I can create and edit an ideation document in Weaver without an agent, so I can develop and keep my own thinking in the repository. (Belongs to `REQ-022`.)
-- `US-065` — As a requirement author, I can create and edit a requirement in Weaver without an agent and link it to its originating ideation document, so intent remains traceable. (Belongs to `REQ-022`.)
+- `US-065` — As a requirement author, I can create and edit a requirement in Weaver without an agent and link it to its originating ideation document, so intent remains traceable. The requirement view lists body links so the originating document can be opened there. (Belongs to `REQ-022`; discovered during 0.1.21 manual verification.)
 
 ### PALab project adoption
 

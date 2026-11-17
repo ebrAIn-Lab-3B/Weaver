@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
+import * as path from 'path';
 import {
   acceptanceGaps,
   AssignRole,
@@ -18,6 +19,7 @@ import {
   parseIssueUrl,
   planMove,
   recordAcceptance,
+  t,
   RequirementArtifact,
 } from '@ebrain-lab/weaver-markdown';
 import { applyMove, fetchBoardItems, fetchEvidence, fetchIssue, getGitHubToken } from './github';
@@ -88,6 +90,17 @@ export class RequirementView {
         await vscode.commands.executeCommand('markdown.showPreviewToSide', entry.uri);
       } else if (message.type === 'openUrl' && message.url && isOpenableUrl(message.url)) {
         await openPage(message.url);
+      } else if (message.type === 'openDocumentLink' && message.url && entry.uri) {
+        try {
+          if (!entry.loaded.documentLinks.get(entry.requirement.path)?.some((link) => link.href === message.url)) return;
+          if (/^https?:/i.test(message.url)) await vscode.env.openExternal(vscode.Uri.parse(message.url));
+          else if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(message.url)) {
+            const target = decodeURIComponent(message.url.split(/[?#]/)[0]);
+            if (target) await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.resolve(path.dirname(entry.uri.fsPath), target)));
+          }
+        } catch {
+          void vscode.window.showErrorMessage(t('ui.markdown.link-error', currentLocale()));
+        }
       } else if (message.type === 'loadStatus') {
         await this.loadStatus(entry, true);
       } else if (message.type === 'moveTask' && message.taskId && message.column) {
@@ -387,6 +400,6 @@ export class RequirementView {
     const nonce = randomBytes(16).toString('hex');
     const issues = loaded.issues.filter((issue) => issue.path === requirement.path);
     if (!entry.hosted) panel.title = `${requirement.id} ${requirement.title}`;
-    panel.webview.html = renderRequirementHtml(requirement, this.tasksOf(entry), issues, nonce, panel.webview.cspSource, entry.status, currentLocale(), entry.focusTask);
+    panel.webview.html = renderRequirementHtml(requirement, this.tasksOf(entry), issues, nonce, panel.webview.cspSource, entry.status, currentLocale(), entry.focusTask, loaded.documentLinks.get(requirement.path));
   }
 }

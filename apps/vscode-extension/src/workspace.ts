@@ -15,6 +15,7 @@ import {
 } from '@ebrain-lab/weaver-markdown';
 import { readConfigRoster } from './configRoster';
 import { describeRef, rosterStore } from './rosterStore';
+import { documentLinks, DocumentLink } from './documentLinks';
 
 const EXCLUDE = '**/{node_modules,.git,dist,out,examples,.claude/worktrees}/**';
 const MAX_FILES = 2000;
@@ -25,6 +26,7 @@ const MAX_PROCESS_FILES = 20;
 const PROCESS_FILE_PATH = '.weaver/process.yaml';
 
 export interface Loaded extends WorkspaceResult {
+  documentLinks: Map<string, DocumentLink[]>;
   uris: Map<string, vscode.Uri>;
   markdownFileCount: number;
   /** Who tasks are judged against: the shared roster with the personal one laid over it (DEC-017). Absent when there is none. */
@@ -95,7 +97,7 @@ export async function loadWorkspaceArtifacts(): Promise<Loaded> {
       }
     }
   }
-  return { ...loaded, uris, markdownFileCount: files.length, ...(roster ? { roster } : {}) };
+  return { ...loaded, uris, documentLinks: new Map(files.map(({ path, text }) => [path, documentLinks(text)])), markdownFileCount: files.length, ...(roster ? { roster } : {}) };
 }
 
 export function publishDiagnostics(

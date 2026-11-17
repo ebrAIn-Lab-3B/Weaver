@@ -16,3 +16,5 @@ After TASK-118, provide a human-driven way to choose an existing ideation docume
 Verify the link resolves from the requirement, survives reopening as Markdown, and leaves the target unchanged. A named agent owner remains to be assigned.
 
 Progress: the command-palette action inserts a relative link into the active requirement as an unsaved edit. VS Code host verification and navigation testing remain open; this task is not yet verified.
+
+Manual feedback on 2026-11-18 confirmed link insertion but found the link invisible in the requirement view. The view now lists body links; opening the link in the VS Code host still needs manual verification.

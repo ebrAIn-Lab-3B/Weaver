@@ -604,6 +604,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.button.refresh': 'Issue 상태 새로 읽기',
   'ui.button.load': 'Issue 상태 읽기',
   'ui.button.open-source': '원문 열기',
+  'ui.requirement.document-links': '문서 링크',
   'ui.button.open-preview': '미리보기 열기',
   'ui.move.tooltip': '다른 칸으로 옮기기(옮기기 전에 확인을 받습니다)',
   'ui.move.aria': '{task} 옮기기',

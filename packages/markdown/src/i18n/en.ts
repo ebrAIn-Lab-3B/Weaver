@@ -611,6 +611,7 @@ export const en = {
   'ui.button.refresh': 'Refresh issue status',
   'ui.button.load': 'Load issue status',
   'ui.button.open-source': 'Open source',
+  'ui.requirement.document-links': 'Document links',
   'ui.button.open-preview': 'Open preview',
   'ui.move.tooltip': 'Move to another column (asks for confirmation)',
   'ui.move.aria': 'Move {task}',

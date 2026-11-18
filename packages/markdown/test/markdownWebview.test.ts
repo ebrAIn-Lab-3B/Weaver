@@ -61,6 +61,19 @@ describe('rendered editor synchronization', () => {
     expect(matchesOwnDocumentChange(expected, 6, [{ rangeOffset: 12, rangeLength: 3, text: '한글' }])).toBe(false);
     expect(matchesOwnDocumentChange(expected, 5, [])).toBe(false);
   });
+  it('offers an explicit copy of the current draft after a conflicting edit', () => {
+    const { dom, sent, first } = webview();
+    first.focus(); first.textContent = 'Draft to recover';
+    first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'conflict', detail: 'Changed elsewhere' } }));
+    first.textContent = 'Draft with later typing';
+    const button = dom.window.document.querySelector<HTMLButtonElement>('[role=alert] button')!;
+    expect(button).toBeTruthy();
+    button.click();
+    expect(sent.at(-1)).toMatchObject({ type: 'copy-draft', value: 'Draft with later typing' });
+    expect(first.textContent).toBe('Draft with later typing');
+    dom.window.close();
+  });
   it('flushes an in-flight edit before opening source or requesting undo', () => {
     for (const action of ['source', 'undo', 'save'] as const) {
       const { dom, sent, first } = webview();

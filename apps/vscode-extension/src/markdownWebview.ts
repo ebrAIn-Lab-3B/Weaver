@@ -13,6 +13,17 @@ let checklistPending;
 let locationsStale = false;
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
 
+function showDraftConflict(current, detail) {
+  current.failed = true; current.inflight = false;
+  const note = document.createElement('p'); note.setAttribute('role', 'alert');
+  note.textContent = detail || editorConfig.labels.conflict;
+  const button = document.createElement('button'); button.type = 'button';
+  button.textContent = editorConfig.labels.copyDraft;
+  button.addEventListener('mousedown', event => event.preventDefault());
+  button.addEventListener('click', () => vscode.postMessage({ type: 'copy-draft', value: nodeValue(current.node) }));
+  note.append(' ', button); current.node.insertAdjacentElement('afterend', note);
+}
+
 function clearInvalid() {
   if (!session?.invalid) return;
   session.invalid = false;
@@ -180,9 +191,7 @@ window.addEventListener('message', event => {
     else if (next) {
       start(next.node);
       if (session) {
-        session.failed = true;
-        const note = document.createElement('p'); note.setAttribute('role', 'alert'); note.textContent = event.data.detail || editorConfig.labels.conflict;
-        session.node.insertAdjacentElement('afterend', note);
+        showDraftConflict(session, event.data.detail);
       }
     }
     return;
@@ -207,9 +216,7 @@ window.addEventListener('message', event => {
     session.invalidNote.textContent = event.data.detail || editorConfig.labels.fenceInvalid;
     if (session.dirty && nodeValue(session.node) !== session.sentValue) { clearInvalid(); pump(); }
   } else if (event.data?.type === 'edit-failed' || event.data?.type === 'conflict') {
-    session.failed = true; session.inflight = false;
-    const note = document.createElement('p'); note.setAttribute('role', 'alert'); note.textContent = event.data.detail || editorConfig.labels.conflict;
-    session.node.insertAdjacentElement('afterend', note);
+    showDraftConflict(session, event.data.detail);
   }
 });
 function sendAction(type) {

@@ -35,7 +35,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, labels: {
       menu: message('ui.markdown.slash-menu'), heading: message('ui.markdown.heading'), bullet: message('ui.markdown.bullet'),
       checklist: message('ui.markdown.checklist'), code: message('ui.markdown.code'), conflict: message('ui.markdown.edit-conflict'),
-      codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'),
+      codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'), copyDraft: message('ui.markdown.copy-draft'),
     } }).replace(/</g, '\\u003c');
     focusAfter = undefined;
     focusTextLine = undefined;
@@ -57,6 +57,15 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
   });
   const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
+    if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
+      try {
+        await vscode.env.clipboard.writeText(event.value);
+        void vscode.window.showInformationMessage(message('ui.markdown.draft-copied'));
+      } catch {
+        void vscode.window.showErrorMessage(message('ui.markdown.copy-failed'));
+      }
+      return;
+    }
     if (event.type === 'finish') {
       if (event.next && (event.blockType === 'paragraph_open' || event.blockType === 'list_item_inline') && Number.isInteger(event.line) && Number.isInteger(event.caret) && Number.isInteger(event.selectionEnd) && event.line! >= 0 && event.line! < document.lineCount) {
         // A queued editor still points into the old projection. Do not split and

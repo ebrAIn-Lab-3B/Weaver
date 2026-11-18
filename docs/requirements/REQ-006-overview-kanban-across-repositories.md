@@ -114,6 +114,7 @@ The editor behaviors in the right column cannot be driven by the test suite; the
 - `TASK-063` Reach the Overview and its settings from the Activity Bar and the Overview tab — [GitHub Issue #152](https://github.com/ebrAIn-Lab-3B/Weaver/issues/152)
 - `TASK-073` Read the workspace files on refresh and when files change on disk — [GitHub Issue #172](https://github.com/ebrAIn-Lab-3B/Weaver/issues/172)
 - `TASK-076` Skip agent worktrees and sample folders when reading the workspace — [GitHub Issue #185](https://github.com/ebrAIn-Lab-3B/Weaver/issues/185)
+- `TASK-122` Show unfinished card counts by stage for each repository — [GitHub Issue #323](https://github.com/ebrAIn-Lab-3B/Weaver/issues/323)
 
 `TASK-029` and `TASK-030` come first, then `TASK-031` and `TASK-032` give the first end-to-end board. `TASK-034` needs only `TASK-030`. The rest follow the board.
 

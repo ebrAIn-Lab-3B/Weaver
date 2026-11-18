@@ -15,4 +15,6 @@ After TASK-115 and TASK-116, implement the agreed rendered block editing and sou
 
 Verify editing and reopening common blocks, switching modes, unsaved changes, external edits, and round trips containing diagrams and unsupported Markdown. A named agent owner remains to be assigned.
 
-Progress: the rendered editor can edit single-line headings and paragraphs through VS Code's text document and opens source for other blocks. Full block and slash-command editing and extension-host round-trip verification remain open.
+Progress: the rendered editor can edit single-line headings and paragraphs through VS Code's text document and opens source for other blocks. Full block and slash-command editing and broader round-trip verification remain open.
+
+Manual verification on 2026-11-18: the maintainer confirmed that document content was preserved after editing, saving, and reopening. This does not by itself establish coverage of every unsupported construct or the remaining full block editor scope.

@@ -24,3 +24,7 @@ The Overview repository chip and lane header show a total that includes finished
 - Counts update after refresh, filtering, card moves, and offline snapshot loading consistently with the cards represented by the Overview. Automated tests cover the classification and rendering, including closed cards with gaps and a non-default process mapping.
 
 The precise compact presentation and whether active stages are shown separately or as a labelled group are to be chosen during implementation. Keep access to finished cards unchanged.
+
+## Implementation
+
+The repository selector and lane header display Backlog and Active counts; Active groups Ready through Review, including Blocked. A separate blocked badge remains on the lane. Counts use the board's derived columns and exclude closed or Verified cards even when a gap keeps them visible. Lanes being read show no premature count. The board's existing finished-card controls are unchanged.

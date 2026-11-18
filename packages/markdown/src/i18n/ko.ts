@@ -97,6 +97,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.project': 'Project: {title}',
   'ui.overview.config': 'Project와 저장소는 {file}에서 왔습니다.',
   'ui.overview.cards': { one: '카드 {count}장', other: '카드 {count}장' },
+  'ui.overview.unfinished-summary': '백로그 {backlog} · 진행 단계 {active}',
   'ui.overview.blocked': '막힘 {count}',
   'ui.overview.no-cards': '카드 없음',
   'ui.overview.clone-no-cards': '이 컴퓨터에 복제돼 있지만 Project에 이 저장소의 카드가 없습니다',

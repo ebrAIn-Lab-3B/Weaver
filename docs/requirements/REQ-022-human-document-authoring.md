@@ -4,7 +4,7 @@ type: requirement
 title: People can author ideation and requirement documents without an agent
 status: draft
 owner: ebrAIn.lab
-story_ids: [US-064, US-065]
+story_ids: [US-064, US-065, US-067]
 repository: ebrAIn-Lab-3B/Weaver
 github_project: ebrAIn.lab Kanban
 ---
@@ -25,15 +25,22 @@ A person can create and edit an ideation document and a schema-valid requirement
 - A person can create and edit a requirement without an AI service or agent, supplying its title, intent, and acceptance criteria. The resulting file follows the current [artifact schema](../product/artifact-schema-v0.1.md), including a unique requirement ID and required metadata.
 - The author can link a requirement to an existing ideation document using a readable repository link and navigate that link. Creating the link does not alter the ideation document without the person's action.
 - The author can edit common document content through a rendered block experience and use source mode; saving preserves existing content, including diagram source and unsupported Markdown, without silent loss.
+- In the rendered ordinary Markdown and task editor, an author can insert a heading, bullet list, checklist, or fenced code block at a block boundary using a keyboard-accessible slash menu, with cancellation and protection against edits based on a stale document. Requirement documents also provide a route from their view into the editor and back.
 - The author can see where a new file will be saved and review its initial content before creation. Existing files are not silently overwritten; unsaved changes are not silently discarded.
 - The created documents can be reopened and edited as ordinary Markdown outside Weaver, and saved changes appear in Weaver. Creating or editing them does not require GitHub, a board, or an agent.
 - The product documents how a person starts an ideation document, creates a requirement, links the two, and switches between rendered and source editing.
 - The requirement view lists navigable Markdown links from the requirement body, including the link to its originating ideation document.
+- The rendered editor provides a Notion-like writing flow: a person clicks a supported block and types in place, uses Enter at the caret to split a paragraph or create the next block, and can continue writing without repeated insertion controls or disproportionate blank space.
+- In an empty editable block, `/` opens a searchable menu at the caret with heading, bullet list, checklist, and fenced code block choices. Keyboard navigation and mouse selection work, Escape closes the menu, and a literal slash can still be entered as content.
+- A person can reopen and directly edit supported headings, paragraphs, bullet lists, checklist items, and fenced code blocks, including multiple lines or items. Content the editor cannot safely edit remains intact and has an accessible source-mode route.
+- Editing, undo and redo, save, close, and mode changes use VS Code's document lifecycle. Korean IME composition and rapid movement between blocks do not lose input. Concurrent source or external edits do not silently overwrite either version; conflicts preserve recoverable input and explain how to proceed.
+- Requirement documents retain the requirement view and navigation, and offer a clear route to the rendered editor and back. Editing their bodies preserves front matter, IDs, metadata, links, tasks, Mermaid, and unsupported Markdown.
+- Before claiming the authoring journey verified, exercise creation, slash insertion, subsequent editing, mode switches, save and reopen, Markdown preservation, undo, Korean input, and a genuine concurrent change in a VS Code extension host using Computer Use. Record the actual results and remaining gaps in repository artifacts. UI messages are provided in English and Korean.
 
 ## Open decisions
 
 - A proposed first slice is recorded for human review in [DEC-027](../decisions/DEC-027-markdown-viewing-and-authoring.md).
-- The initial block and slash-command set, and the editing behavior for constructs that have no block editor.
+- The initial direction for direct editing and slash commands is recorded in [DEC-028](../decisions/DEC-028-notion-like-markdown-editing.md); multi-line and nested editing, and the behavior for constructs that have no block editor, need further work.
 - How requirement IDs and destination paths are proposed and how collisions are reported across a workspace.
 - Whether ideation documents have optional templates; no organization-specific structure is assumed.
 
@@ -43,6 +50,11 @@ A person can create and edit an ideation document and a schema-valid requirement
 - `TASK-119` Edit Markdown blocks without losing source content — [GitHub Issue #318](https://github.com/ebrAIn-Lab-3B/Weaver/issues/318)
 - `TASK-120` Link a requirement to its originating ideation document — [GitHub Issue #319](https://github.com/ebrAIn-Lab-3B/Weaver/issues/319)
 - `TASK-121` Document and verify the human-only authoring journey — [GitHub Issue #320](https://github.com/ebrAIn-Lab-3B/Weaver/issues/320)
+- `TASK-123` Make direct writing and slash menus flow naturally — [GitHub Issue #326](https://github.com/ebrAIn-Lab-3B/Weaver/issues/326)
+- `TASK-124` Edit structured Markdown blocks in the rendered document — [GitHub Issue #327](https://github.com/ebrAIn-Lab-3B/Weaver/issues/327)
+- `TASK-125` Protect document changes and concurrent edits — [GitHub Issue #328](https://github.com/ebrAIn-Lab-3B/Weaver/issues/328)
+- `TASK-126` Edit requirement documents from their Weaver view — [GitHub Issue #329](https://github.com/ebrAIn-Lab-3B/Weaver/issues/329)
+- `TASK-127` Verify the authoring journey in VS Code — [GitHub Issue #330](https://github.com/ebrAIn-Lab-3B/Weaver/issues/330)
 
 These tasks are assigned to agents; named owners remain to be assigned. The shared decisions are tracked in [TASK-115](../tasks/TASK-115.md), and rendered reading and diagram display in [REQ-021](./REQ-021-render-ordinary-markdown.md). Story authoring is covered by [REQ-016](./REQ-016-user-stories-on-the-board.md).
 

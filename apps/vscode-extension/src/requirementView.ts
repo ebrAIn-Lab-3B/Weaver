@@ -84,6 +84,8 @@ export class RequirementView {
         await vscode.commands.executeCommand('vscode.openWith', entry.uri, 'default', {
           viewColumn: entry.hosted ? vscode.ViewColumn.Active : vscode.ViewColumn.One,
         });
+      } else if (message.type === 'editDocument' && entry.uri) {
+        await vscode.commands.executeCommand('vscode.openWith', entry.uri, 'weaver.markdownAuthor', { viewColumn: entry.hosted ? vscode.ViewColumn.Active : vscode.ViewColumn.One });
       } else if (message.type === 'showOnOverview') {
         await vscode.commands.executeCommand('weaver.showOnOverview', { requirementId: entry.requirement.id });
       } else if (message.type === 'openPreview' && entry.uri) {

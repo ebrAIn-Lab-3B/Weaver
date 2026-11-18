@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createDocument, linkIdeation } from './authorDocument';
 import { documentKindOf, viewTargetOf } from '@ebrain-lab/weaver-markdown';
 import { currentLocale, message } from './locale';
-import { REQUIREMENT_EDITOR, RequirementEditorProvider } from './requirementEditor';
+import { MARKDOWN_AUTHOR_EDITOR, MarkdownAuthorProvider, REQUIREMENT_EDITOR, RequirementEditorProvider } from './requirementEditor';
 import { cloneRegistered, openFabricRoot, setFabricRoot } from './fabricRoot';
 import { followOpenedPages } from './openPage';
 import { describeChange, PageWatcher } from './pageWatcher';
@@ -193,6 +193,10 @@ export function activate(context: vscode.ExtensionContext): void {
     new RequirementEditorProvider(view, refresh, context),
     { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } },
   );
+  context.subscriptions.push(vscode.window.registerCustomEditorProvider(
+    MARKDOWN_AUTHOR_EDITOR, new MarkdownAuthorProvider(context),
+    { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } },
+  ));
 
   // A change on disk made outside the editor (an agent, `git checkout`, `git pull`) is read without a
   // button press (TASK-073). A branch switch touches many files, so the reads are gathered into one.

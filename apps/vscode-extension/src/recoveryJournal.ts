@@ -58,6 +58,9 @@ function encode(record: RecoveryRecord): string {
     draft: record.draft, updatedAt: record.updatedAt });
 }
 
+/** Shared validation and canonical serialization for VS Code filesystem providers. */
+export { validate as validateRecoveryRecord, encode as encodeRecoveryRecord };
+
 function inOrder<T>(key: string, work: () => Promise<T>): Promise<T> {
   const previous = queues.get(key) ?? Promise.resolve();
   const result = previous.then(work, work);
@@ -70,7 +73,7 @@ function inOrder<T>(key: string, work: () => Promise<T>): Promise<T> {
 function isMissing(error: unknown): boolean { return isRecord(error) && error.code === 'ENOENT'; }
 
 /**
- * No editor integration, cleanup policy, retry, automatic replay, or remote
+ * No editor integration, automatic cleanup, retry, automatic replay, or remote
  * provider support. A successful write reports only file flush + rename;
  * it is not a claim of power-loss durability or a saved document. A failure
  * after rename (for example lock cleanup) can leave the new checkpoint visible;
@@ -173,6 +176,29 @@ export class RecoveryJournal {
             if (created) { try { await this.io.unlink(temp); } catch { /* The old checkpoint remains; orphan cleanup needs a policy. */ } }
           }
           return { sequence: captured.sequence, result: 'written', durability: 'unverified' };
+        });
+      } catch (error) { if (error instanceof RecoveryJournalError) throw error; throw new RecoveryJournalError('storage-failure'); }
+    });
+  }
+
+  /**
+   * Explicitly discard one reviewed checkpoint only if its sequence has not
+   * changed since it was shown. Cooperating writers use the same lock and
+   * queue, so a later checkpoint cannot be removed by an older UI action.
+   * Unknown locks and corrupt records are never removed as a side effect.
+   */
+  async discard(documentUri: string, sessionId: string, expectedSequence: number): Promise<'discarded' | 'missing' | 'changed'> {
+    validate({ schema: 1, documentUri, sessionId, sequence: expectedSequence, baseDigest: '0'.repeat(64), anchor: { start: 0, end: 0, original: '' }, draft: '', updatedAt: '2026-01-01T00:00:00.000Z' });
+    const key = keyFor(documentUri, sessionId);
+    return inOrder(path.join(this.directory, key), async () => {
+      try {
+        await this.prepare();
+        return await this.locked(key, async () => {
+          const current = await this.readKey(key);
+          if (!current) return 'missing';
+          if (current.sequence !== expectedSequence) return 'changed';
+          await this.io.unlink(path.join(this.directory, `${key}.json`));
+          return 'discarded';
         });
       } catch (error) { if (error instanceof RecoveryJournalError) throw error; throw new RecoveryJournalError('storage-failure'); }
     });

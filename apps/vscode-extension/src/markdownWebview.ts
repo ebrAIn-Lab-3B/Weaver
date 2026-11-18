@@ -12,6 +12,32 @@ let deferredAction;
 let checklistPending;
 let locationsStale = false;
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
+const recoveryNodes = new WeakMap();
+const recoveryDrafts = new Map();
+let recoveryCounter = 0;
+const recoveryStatus = document.getElementById('recovery-status');
+
+function updateRecoveryStatus() {
+  if (!recoveryStatus || !editorConfig.recoveryEnabled || !recoveryDrafts.size) return;
+  const states = [...recoveryDrafts.values()];
+  recoveryStatus.textContent = states.some(item => item.failed) ? editorConfig.labels.recoveryFailed :
+    states.some(item => item.acknowledged < item.revision) ? editorConfig.labels.recoveryPending : editorConfig.labels.recoveryCheckpointed;
+}
+function checkpointDraft(node) {
+  if (!editorConfig.recoveryEnabled) return;
+  let draft = recoveryNodes.get(node);
+  if (!draft) {
+    const slot = node.classList.contains('insert-field');
+    draft = { node, draftId: editorConfig.recoveryGeneration + '-' + (++recoveryCounter), revision: 0, acknowledged: 0, failed: false,
+      line: Number(slot ? node.parentElement.dataset.insertLine : node.dataset.sourceLine),
+      endLine: Number(node.dataset.sourceEnd), blockType: slot ? 'slot' : node.dataset.sourceType };
+    recoveryNodes.set(node, draft); recoveryDrafts.set(draft.draftId, draft);
+  }
+  draft.revision++; draft.failed = false;
+  vscode.postMessage({ type: 'recovery-checkpoint', draftId: draft.draftId, revision: draft.revision,
+    line: draft.line, endLine: draft.endLine, blockType: draft.blockType, value: nodeValue(node) });
+  updateRecoveryStatus();
+}
 
 function showDraftConflict(current, detail) {
   if (current.conflictShown) return;
@@ -27,7 +53,7 @@ function showDraftConflict(current, detail) {
   recover.textContent = editorConfig.labels.openDraft;
   recover.addEventListener('mousedown', event => event.preventDefault());
   recover.addEventListener('click', () => vscode.postMessage({ type: 'open-draft', value: nodeValue(current.node) }));
-  note.append(' ', button, ' ', recover); current.node.insertAdjacentElement('afterend', note);
+  note.append(' ', button, ' ', recover); current.node.insertAdjacentElement('afterend', note); return note;
 }
 
 function clearInvalid() {
@@ -118,6 +144,7 @@ main.addEventListener('focusin', event => {
   start(node);
 });
 main.addEventListener('input', event => {
+  if (event.target.closest('.insert-field,[data-inline-original],textarea[data-fence-input]')) checkpointDraft(event.target);
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
   if (!session || event.target !== session.node || event.isComposing) return;
@@ -129,6 +156,7 @@ main.addEventListener('input', event => {
   hideMenu(); session.dirty = true; pump();
 });
 main.addEventListener('compositionend', event => {
+  if (event.target.closest('.insert-field,[data-inline-original],textarea[data-fence-input]')) checkpointDraft(event.target);
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
   if (!session || event.target !== session.node) return;
@@ -177,6 +205,17 @@ main.addEventListener('focusout', event => {
   hideMenu(); session.finish = true; setTimeout(pump, 0);
 });
 window.addEventListener('message', event => {
+  if (event.data?.type === 'recovery-checkpointed' || event.data?.type === 'recovery-failed') {
+    const draft = recoveryDrafts.get(event.data.draftId);
+    if (!draft || !Number.isSafeInteger(event.data.revision) || event.data.revision > draft.revision) return;
+    if (event.data.type === 'recovery-checkpointed') draft.acknowledged = Math.max(draft.acknowledged, event.data.revision);
+    if (event.data.revision === draft.revision) {
+      draft.failed = event.data.type === 'recovery-failed';
+      if (draft.failed && !draft.recoveryNote) draft.recoveryNote = showDraftConflict(draft, editorConfig.labels.recoveryFailed);
+      if (!draft.failed && draft.recoveryNote) { draft.recoveryNote.remove(); draft.recoveryNote = undefined; draft.conflictShown = false; }
+    }
+    updateRecoveryStatus(); return;
+  }
   if (event.data?.type === 'checklist-result' && checklistPending) {
     const checkbox = checklistPending.node;
     if (event.data.ok) {
@@ -246,6 +285,8 @@ function queueAction(type) {
 }
 document.getElementById('source').addEventListener('click', () => queueAction('source'));
 document.getElementById('requirement')?.addEventListener('click', () => queueAction('requirement'));
+document.getElementById('recovery')?.addEventListener('mousedown', event => event.preventDefault());
+document.getElementById('recovery')?.addEventListener('click', () => vscode.postMessage({ type: 'review-recovery' }));
 main.addEventListener('dblclick', event => {
   // An editable list-item span is nested inside the list's source-marked <ul>.
   // Double-click selects its text; it must not open the enclosing list's source.

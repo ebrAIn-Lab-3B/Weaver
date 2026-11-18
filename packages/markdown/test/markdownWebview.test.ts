@@ -3,10 +3,10 @@ import { JSDOM } from 'jsdom';
 import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebview';
 import { matchesOwnDocumentChange } from '../../../apps/vscode-extension/src/ownDocumentChange';
 
-function webview(focusTextLine?: number) {
-  const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
+function webview(focusTextLine?: number, recoveryEnabled = false) {
+  const dom = new JSDOM('<button id="source"></button><button id="recovery"></button><span id="recovery-status"></span><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
   const sent: Record<string, unknown>[] = [];
-  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, focusTextLine, labels: { conflict: 'Conflict' } } });
+  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, focusTextLine, recoveryEnabled, recoveryGeneration: 'test', labels: { conflict: 'Conflict', recoveryPending: 'Pending', recoveryCheckpointed: 'Local checkpoint', recoveryFailed: 'Recovery failed', copyDraft: 'Copy', openDraft: 'Open' } } });
   dom.window.eval(markdownClient);
   const [first, second] = [...dom.window.document.querySelectorAll('p')];
   return { dom, sent, first, second };
@@ -21,6 +21,42 @@ function checklistWebview() {
 }
 
 describe('rendered editor synchronization', () => {
+  it('checkpoints composition and queued blocks independently, without claiming the file is saved', () => {
+    const { dom, sent, first, second } = webview(undefined, true);
+    first.focus(); first.textContent = '한'; first.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
+    expect(sent.at(-1)).toMatchObject({ type: 'recovery-checkpoint', draftId: 'test-1', revision: 1, value: '한', line: 0 });
+    expect(sent.some((event) => event.type === 'inline-change')).toBe(false);
+    first.textContent = '한글'; first.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '한글' }));
+    second.focus(); second.textContent = 'Queued'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    expect(sent.find((event) => event.draftId === 'test-2')).toMatchObject({ type: 'recovery-checkpoint', revision: 1, value: 'Queued', line: 2 });
+    const status = dom.window.document.getElementById('recovery-status')!;
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 1 } }));
+    expect(status.textContent).toBe('Pending');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 2 } }));
+    expect(status.textContent).toBe('Pending');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-2', revision: 1 } }));
+    expect(status.textContent).toBe('Local checkpoint');
+    expect(sent.some((event) => event.type === 'save')).toBe(false);
+    dom.window.close();
+  });
+  it('reports the newest checkpoint failure and keeps its draft available for opening', () => {
+    const { dom, sent, first } = webview(undefined, true);
+    first.focus(); first.textContent = 'first'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    first.textContent = 'latest'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-failed', draftId: 'test-1', revision: 1 } }));
+    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Pending');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-failed', draftId: 'test-1', revision: 2 } }));
+    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Recovery failed');
+    dom.window.document.querySelectorAll<HTMLButtonElement>('[role=alert] button')[1].click();
+    expect(sent.at(-1)).toMatchObject({ type: 'open-draft', value: 'latest' });
+    first.textContent = 'retry'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 3 } }));
+    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Local checkpoint');
+    expect(dom.window.document.querySelector('[role=alert]')).toBeNull();
+    dom.window.document.getElementById('recovery')!.click();
+    expect(sent.at(-1)).toMatchObject({ type: 'review-recovery' });
+    dom.window.close();
+  });
   it('retains text typed in a second block while the first edit is awaiting acknowledgement', () => {
     const { dom, sent, first, second } = webview();
     first.focus(); first.textContent = 'First changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));

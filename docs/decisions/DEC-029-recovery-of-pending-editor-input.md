@@ -53,6 +53,8 @@ Journal files can contain private document text and paths. Store them under the 
 
 ## Implementation work and decisions still needed
 
+An experimental implementation now records local-file block drafts when the machine-level `weaver.experimentalRecovery` setting is enabled; the setting defaults to off. Review and explicit discard are available for current and moved or deleted source files. Computer Use verified an earlier enabled test build could reopen a recorded draft after a window reload. The final default-off configuration and all-records UI still need extension-host verification. Interrupted or corrupt storage artifacts may remain and require a safe management policy; this implementation does not yet satisfy the release criteria above.
+
 1. Specify the per-document operation protocol, supported local/remote storage and crash-consistency capabilities, exact acknowledgement semantics, and the retention policy. Prototype the journal and fault-injection tests without connecting it to the live editor.
 2. Implement journal persistence, error reporting, sequencing, and recovery review UI; connect them to the `TextDocument` without weakening source-preservation checks. Decide the treatment of input before the journal acknowledgement and how unsaved composition is communicated.
 3. Integrate save, mode-switch, close, restart, undo, and conflict flows to the extent the VS Code APIs support them. Verify the real behavior rather than relying on `onWillSaveTextDocument` or panel serialization as a guarantee.

@@ -55,6 +55,12 @@ describe('isolated split transaction model', () => {
     expect(prepareSplit(request('a😀b', { selectionStart: 3, selectionEnd: 3 }))!.split.resultingSource).toBe('a😀\n\nb');
   });
 
+  it('rejects source ranges that cut through a CRLF sequence', () => {
+    const source = 'a\r\nb';
+    expect(prepareSplit(request(source, { start: 2, end: 2, original: '', selectionStart: 0, selectionEnd: 0, eol: '\r\n' }))).toBeUndefined();
+    expect(prepareSplit(request(source, { start: 0, end: 2, original: 'a\r', selectionStart: 0, selectionEnd: 0, eol: '\r\n' }))).toBeUndefined();
+  });
+
   it('waits for IME composition and preserves the draft through conflicts', () => {
     let tx = draft(prepareSplit(request())!, '한llo', true);
     tx = acknowledgeSplit(tx, ack(tx));

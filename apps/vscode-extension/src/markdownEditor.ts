@@ -11,6 +11,11 @@ import { splitParagraph } from './splitParagraph';
 import { fenceBody, planFenceBodyEdit } from './fenceEditing';
 import { planChecklistToggle } from './checklistEditing';
 import { markdownSlotStyles } from './markdownSlotStyles';
+import { RecoveryJournal } from './recoveryJournal';
+import { RecoveryProviderJournal } from './recoveryProviderJournal';
+import { RecoveryCoordinator, type RecoverySession } from './recoveryCoordinator';
+import { reviewRecoveryDrafts } from './recoveryReview';
+import { createRecoveryReviewPort } from './recoveryReviewVsCode';
 
 /** Edits are targeted VS Code document changes; unsupported Markdown stays in source mode. */
 export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, task = false): void {
@@ -24,18 +29,52 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
   let fence: { base: string; line: number; endLine: number; start: number; inserted: string } | undefined;
   let ownChanges: ExpectedDocumentChange[] = [];
   let staleProjection = false;
+  let projectionSource = document.getText();
+  const recoveryAvailable = !!context.globalStorageUri && ['file', 'vscode-userdata'].includes(context.globalStorageUri.scheme) && document.uri.scheme === 'file' && !vscode.env.remoteName;
+  // The journal is experimental: unresolved privacy, lifecycle, and
+  // cross-window cleanup cases must not silently record personal drafts.
+  const recoveryEnabled = recoveryAvailable && vscode.workspace.getConfiguration('weaver').get<boolean>('experimentalRecovery', false) === true;
+  let coordinatorPromise: Promise<RecoveryCoordinator> | undefined;
+  type RecoveryWriter = { session?: RecoverySession; source: string; start: number; end: number; running: boolean; completion?: Promise<void>; pending?: { revision: number; value: string } };
+  const recoverySessions = new Map<string, RecoveryWriter>();
+  let recoveryPrivacyAnnounced = false;
+  const recoveryCoordinator = (): Promise<RecoveryCoordinator> => {
+    if (!coordinatorPromise) coordinatorPromise = (async () => {
+      if (!recoveryAvailable) throw new Error('Recovery storage unavailable');
+      await vscode.workspace.fs.createDirectory(context.globalStorageUri);
+      const store = context.globalStorageUri.scheme === 'vscode-userdata'
+        ? new RecoveryProviderJournal(vscode.workspace.fs, context.globalStorageUri, (base, ...parts) => vscode.Uri.joinPath(base, ...parts))
+        : new RecoveryJournal(context.globalStorageUri.fsPath);
+      return new RecoveryCoordinator(store);
+    })().catch((error: unknown) => { coordinatorPromise = undefined; throw error; });
+    return coordinatorPromise;
+  };
+  const recoveryAnchor = (source: string, line: number, endLine: number | undefined, blockType: string | undefined): { start: number; end: number } => {
+    const lines = source.split('\n');
+    if (!Number.isSafeInteger(line) || line < 0 || line > lines.length) return { start: 0, end: 0 };
+    if (blockType === 'fence_code' && Number.isSafeInteger(endLine)) {
+      const body = fenceBody(source, line, endLine!);
+      if (body) return { start: body.start, end: body.end };
+    }
+    const start = line === lines.length ? source.length : lines.slice(0, line).reduce((total, part) => total + part.length + 1, 0);
+    if (blockType === 'slot' || line === lines.length) return { start, end: start };
+    const text = lines[line].endsWith('\r') ? lines[line].slice(0, -1) : lines[line];
+    return { start, end: start + text.length };
+  };
   const render = (): void => {
     staleProjection = false;
+    projectionSource = document.getText();
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'dist', 'markdownPreview.js'));
     const nonce = `${Date.now()}${Math.random().toString(36).slice(2)}`;
     const body = renderMarkdown(document.getText(), (src) => {
       const uri = vscode.Uri.joinPath(document.uri, '..', decodeURIComponent(src.split(/[?#]/)[0]));
       return panel.webview.asWebviewUri(uri).toString();
     }, message('ui.markdown.insert-placeholder'));
-    const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, labels: {
+    const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, recoveryEnabled, recoveryGeneration: nonce, labels: {
       menu: message('ui.markdown.slash-menu'), heading: message('ui.markdown.heading'), bullet: message('ui.markdown.bullet'),
       checklist: message('ui.markdown.checklist'), code: message('ui.markdown.code'), conflict: message('ui.markdown.edit-conflict'),
       codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'), copyDraft: message('ui.markdown.copy-draft'), openDraft: message('ui.markdown.open-draft'),
+      recoveryPending: message('ui.markdown.recovery-pending'), recoveryCheckpointed: message('ui.markdown.recovery-checkpointed'), recoveryFailed: message('ui.markdown.recovery-failed'),
     } }).replace(/</g, '\\u003c');
     focusAfter = undefined;
     focusTextLine = undefined;
@@ -44,7 +83,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       <style>body{padding:20px 32px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);line-height:1.6}button{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;padding:6px 12px;cursor:pointer}img,svg{max-width:100%}main p{margin:.4em 0}main h1,main h2,main h3,main h4,main h5,main h6{margin:.8em 0 .3em}main ul,main ol{margin:.4em 0}pre{overflow:auto;padding:12px;background:var(--vscode-textCodeBlock-background);margin:.5em 0}table{border-collapse:collapse}th,td{border:1px solid var(--vscode-panel-border);padding:6px}a{color:var(--vscode-textLink-foreground)}[data-inline-original]:focus,.insert-field:focus{outline:none}[data-inline-original]:hover{background:var(--vscode-editor-hoverHighlightBackground)}.insert-slot{position:relative;height:4px}.insert-slot:last-child,.insert-slot:focus-within{height:auto;min-height:1.6em}.insert-field{min-height:4px;outline:none;white-space:pre-wrap}.insert-slot:last-child .insert-field,.insert-slot:focus-within .insert-field{min-height:1.6em}.insert-field:focus:empty:before,.insert-slot:last-child .insert-field:empty:before{content:attr(data-placeholder);color:var(--vscode-descriptionForeground);opacity:.7}.slash-menu{position:absolute;z-index:5;left:0;top:100%;min-width:190px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-editorWidget-border,var(--vscode-panel-border));box-shadow:0 4px 12px #0005;padding:4px}.slash-menu button{display:block;width:100%;text-align:left;background:transparent;color:var(--vscode-editorWidget-foreground);padding:5px 9px}.slash-menu button[aria-selected=true],.slash-menu button:hover{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}.insert-slot[data-kind=heading] .insert-field{font-size:1.5em;font-weight:600}.insert-slot[data-kind=bullet] .insert-field:before{content:'• ';color:inherit}.insert-slot[data-kind=checklist] .insert-field:before{content:'☐ ';color:inherit}.insert-slot[data-kind=code] .insert-field{font-family:var(--vscode-editor-font-family);background:var(--vscode-textCodeBlock-background);padding:6px}.fence-input{display:block;box-sizing:border-box;width:100%;min-height:4em;resize:vertical;border:1px solid var(--vscode-focusBorder);background:transparent;color:var(--vscode-editor-foreground);font:inherit;font-family:var(--vscode-editor-font-family);line-height:inherit;white-space:pre;tab-size:4}</style>
       <style>pre code[data-fence-editable]{display:block;min-height:1.4em;cursor:text}</style>
       <style>${markdownSlotStyles}</style>
-      </head><body><button id="source">${escapeHtml(message('ui.markdown.source'))}</button> ${task ? `<button id="requirement">${escapeHtml(message('ui.markdown.requirement'))}</button>` : ''}<main>${body}</main>
+      </head><body><button id="source">${escapeHtml(message('ui.markdown.source'))}</button> ${task ? `<button id="requirement">${escapeHtml(message('ui.markdown.requirement'))}</button>` : ''} <button id="recovery" title="${escapeHtml(message('ui.markdown.recovery-privacy'))}">${escapeHtml(message('ui.markdown.recovery-review'))}</button> <span id="recovery-status" role="status" aria-live="polite">${recoveryEnabled ? '' : escapeHtml(message(recoveryAvailable ? 'ui.markdown.recovery-disabled' : 'ui.markdown.recovery-unavailable'))}</span><main>${body}</main>
       <script nonce="${nonce}" src="${script}"></script><script nonce="${nonce}">const editorConfig=${config};${markdownClient}</script></body></html>`;
   };
   const change = vscode.workspace.onDidChangeTextDocument((event) => {
@@ -55,7 +94,66 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (editing || staleProjection) void panel.webview.postMessage({ type: 'conflict', detail: message('ui.markdown.stale-draft') });
     else render();
   });
-  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
+  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; caret?: number; selectionEnd?: number; href?: string; draftId?: string; revision?: number }) => {
+    if (event.type === 'recovery-checkpoint') {
+      const failure = (): void => { void panel.webview.postMessage({ type: 'recovery-failed', draftId: event.draftId, revision: event.revision }); };
+      if (!recoveryEnabled || typeof event.draftId !== 'string' || !/^[a-z0-9]+-[0-9]+$/i.test(event.draftId) || event.draftId.length > 80 ||
+          !Number.isSafeInteger(event.revision) || event.revision! < 1 || !Number.isSafeInteger(event.line) || typeof event.value !== 'string' || event.value.length > 1_000_000) { failure(); return; }
+      let tracked = recoverySessions.get(event.draftId);
+      if (!tracked) {
+        if (recoverySessions.size >= 500) { failure(); return; }
+        const source = projectionSource;
+        const anchor = recoveryAnchor(source, event.line!, event.endLine, event.blockType);
+        tracked = { source, ...anchor, running: false };
+        recoverySessions.set(event.draftId, tracked);
+      }
+      if (!recoveryPrivacyAnnounced) {
+        recoveryPrivacyAnnounced = true;
+        if (!context.globalState.get('weaver.recoveryPrivacyAnnounced')) {
+          void vscode.window.showInformationMessage(message('ui.markdown.recovery-privacy'));
+          void context.globalState.update('weaver.recoveryPrivacyAnnounced', true);
+        }
+      }
+      const id = event.draftId;
+      tracked.pending = { revision: event.revision!, value: event.value };
+      if (!tracked.running) {
+        tracked.running = true;
+        const writer = tracked;
+        writer.completion = (async () => {
+          try {
+            while (writer.pending) {
+              const current = writer.pending; writer.pending = undefined;
+              try {
+                const session = writer.session ?? (writer.session = (await recoveryCoordinator()).begin(document.uri.toString()));
+                await session.checkpoint({ source: writer.source, start: writer.start, end: writer.end, draft: current.value });
+                void panel.webview.postMessage({ type: 'recovery-checkpointed', draftId: id, revision: current.revision });
+              } catch { void panel.webview.postMessage({ type: 'recovery-failed', draftId: id, revision: current.revision }); }
+            }
+          } finally { writer.running = false; }
+        })();
+      }
+      return;
+    }
+    if (event.type === 'review-recovery') {
+      try {
+        // Wait for input already delivered to this host before presenting the
+        // list. This is not a barrier for keystrokes still in the webview.
+        await Promise.all([...recoverySessions.values()].map((writer) => writer.completion));
+        const coordinator = await recoveryCoordinator();
+        await reviewRecoveryDrafts(coordinator, document.uri.toString(), createRecoveryReviewPort({
+          chooseRecord: message('ui.markdown.recovery-choose'), chooseAction: message('ui.markdown.recovery-action'),
+          open: message('ui.markdown.open-draft'), discard: message('ui.markdown.recovery-discard'),
+          confirmDiscard: message('ui.markdown.recovery-confirm'), confirm: message('ui.markdown.recovery-discard'),
+          notices: {
+            empty: message('ui.markdown.recovery-empty'), opened: message('ui.markdown.open-draft-save'),
+            discarded: message('ui.markdown.recovery-discarded'), changed: message('ui.markdown.recovery-changed'),
+            missing: message('ui.markdown.recovery-missing'), diagnostics: message('ui.markdown.recovery-diagnostics'),
+            error: message('ui.markdown.recovery-failed'),
+          },
+        }));
+      } catch { void vscode.window.showErrorMessage(message('ui.markdown.recovery-failed')); }
+      return;
+    }
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
     if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
       try {

@@ -31,6 +31,8 @@ export type DraftPlan =
 
 function validBoundary(value: string, offset: number): boolean {
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > value.length) return false;
+  // A source range must never bisect a CRLF line ending.
+  if (offset > 0 && offset < value.length && value[offset - 1] === '\r' && value[offset] === '\n') return false;
   // A browser selection offset can bisect a UTF-16 surrogate pair. Never split it.
   return !(offset > 0 && offset < value.length && /[\uD800-\uDBFF]/.test(value[offset - 1]) && /[\uDC00-\uDFFF]/.test(value[offset]));
 }
@@ -43,7 +45,7 @@ function validBoundary(value: string, offset: number): boolean {
 export function prepareSplit(request: SplitRequest): SplitTransaction | undefined {
   const { source, start, end, original, blockType, selectionStart, selectionEnd, eol } = request;
   if (!request.id || !request.documentId || !request.projectionId || !Number.isSafeInteger(request.version) || request.version < 0 ||
-      !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end > source.length ||
+      !validBoundary(source, start) || !validBoundary(source, end) || end < start ||
       (start > 0 && source[start - 1] !== '\n' && source[start - 1] !== '\r') ||
       (end < source.length && source[end] !== '\n' && source[end] !== '\r') || source.slice(start, end) !== original ||
       (eol !== '\n' && eol !== '\r\n')) return undefined;

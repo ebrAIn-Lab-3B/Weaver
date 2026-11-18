@@ -77,6 +77,16 @@ export type OverviewState =
 
 const TASK_PREFIX = /^\[TASK-\d{3,}\]\s*/;
 
+/** Closed Issues and Verified cards are excluded even when gaps keep them visible. */
+export function unfinishedCounts(lane: Lane<OverviewCard>): { backlog: number; active: number; blocked: number } {
+  const count = (column: keyof Lane<OverviewCard>['columns']) => lane.columns[column].filter((card) => card.state !== 'closed' && card.placement.column !== 'Verified').length;
+  return {
+    backlog: count('Backlog'),
+    active: count('Ready') + count('In progress') + count('Blocked') + count('Review'),
+    blocked: count('Blocked'),
+  };
+}
+
 export function renderOverviewHtml(state: OverviewState, nonce: string, cspSource: string, locale: Locale): string {
   const e = escapeHtml;
   const tt = (key: MessageKey, args?: MessageArgs): string => t(key, locale, args);
@@ -141,7 +151,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   const laneHtml = (lane: Lane<OverviewCard>, folded: boolean, index: number, count: number, reading = false, finished = 0, showFinished = false): string => `<section class="lane">
       <h2><button class="fold" data-fold="${e(lane.repository)}" aria-expanded="${!folded}" title="${e(tt(folded ? 'ui.overview.unfold' : 'ui.overview.fold', { title: lane.title }))}">${folded ? '\u25b8' : '\u25be'}</button>${e(lane.title)} <span class="muted small">${e(lane.repository)}</span>
         <span class="lane-move">${index > 0 ? `<button class="mv" data-move-lane="${e(lane.repository)}" data-delta="-1" title="${e(tt('ui.overview.move-up', { title: lane.title }))}">\u25b2</button>` : ''}${index < count - 1 ? `<button class="mv" data-move-lane="${e(lane.repository)}" data-delta="1" title="${e(tt('ui.overview.move-down', { title: lane.title }))}">\u25bc</button>` : ''}</span>
-        <span class="badge">${e(tt('ui.overview.cards', { count: lane.total }))}</span>${lane.blocked ? `<span class="badge blocked">${e(tt('ui.overview.blocked', { count: lane.blocked }))}</span>` : ''}</h2>
+        ${reading ? '' : `<span class="badge">${e(tt('ui.overview.unfinished-summary', unfinishedCounts(lane)))}</span>${unfinishedCounts(lane).blocked ? `<span class="badge blocked">${e(tt('ui.overview.blocked', { count: unfinishedCounts(lane).blocked }))}</span>` : ''}`}</h2>
       ${folded || !lane.canStart ? '' : `<p class="small"><button data-start-process="${e(lane.repository)}">${e(tt('ui.overview.start-process'))}</button></p>`}
       ${folded ? '' : lane.guideline ? `<p class="muted small guideline">${e(tt('ui.overview.guideline', { label: lane.guideline.label, where: tt(`ui.overview.guideline-where.${lane.guideline.source}` as MessageKey) }))}${lane.guideline.startable ? ` ${e(tt('ui.overview.guideline-start'))}` : ''}</p>` : ''}
       ${folded ? '' : reading ? `<p class="muted small">${e(tt('ui.overview.reading-process'))}</p>` : lane.total === 0 ? `<p class="muted small">${e(tt(lane.note === 'clone' ? 'ui.overview.clone-no-cards' : 'ui.overview.no-cards'))}</p>` : `<div class="cols">${KANBAN_COLUMNS.map((column) => `<div class="col">${column === 'Verified' && finished ? `<button class="finished-fold" data-cmd="toggleFinished" aria-expanded="${showFinished}" title="${e(tt(showFinished ? 'ui.overview.hide-finished' : 'ui.overview.show-finished', { count: finished }))}">${showFinished ? '▾' : '▸'} ${e(tt(showFinished ? 'ui.overview.finished-shown' : 'ui.overview.finished-folded', { count: finished }))}</button>` : ''}${lane.columns[column].map(cardHtml).join('')}</div>`).join('')}</div>`}
@@ -179,7 +189,8 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       const chips = state.lanes
         .map((lane) => {
           const on = !hidden.has(lane.repository);
-          return `<button class="chip ${on ? 'on' : 'off'}" data-toggle="${e(lane.repository)}" aria-pressed="${on}" title="${e(tt('ui.overview.toggle-project', { title: lane.title }))}">${e(lane.title)} <span class="n">${lane.total}</span></button>`;
+          const summary = state.reading.includes(lane.repository) ? '' : ` <span class="n">${e(tt('ui.overview.unfinished-summary', unfinishedCounts(lane)))}</span>`;
+          return `<button class="chip ${on ? 'on' : 'off'}" data-toggle="${e(lane.repository)}" aria-pressed="${on}" title="${e(tt('ui.overview.toggle-project', { title: lane.title }))}">${e(lane.title)}${summary}</button>`;
         })
         .join('');
       filter = `<div class="filter"><span class="muted">${e(tt('ui.overview.projects'))}</span>${chips}${hidden.size ? button('showAll', 'ui.overview.show-all') : ''}</div>`;

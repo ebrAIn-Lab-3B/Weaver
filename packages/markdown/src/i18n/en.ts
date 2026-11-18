@@ -98,6 +98,7 @@ export const en = {
   'ui.overview.project': 'Project: {title}',
   'ui.overview.config': 'The Project and the repositories come from {file}.',
   'ui.overview.cards': { one: '{count} card', other: '{count} cards' },
+  'ui.overview.unfinished-summary': 'Backlog {backlog} · Active {active}',
   'ui.overview.blocked': '{count} blocked',
   'ui.overview.no-cards': 'no cards',
   'ui.overview.clone-no-cards': 'cloned on this computer, but the Project has no card of it',

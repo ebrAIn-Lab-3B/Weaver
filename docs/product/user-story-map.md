@@ -126,6 +126,7 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-063` — As a reader, I can see a Mermaid diagram drawn in a Markdown document and reach its source, so the diagram communicates without requiring me to interpret code. (Belongs to `REQ-021`.)
 - `US-064` — As a person exploring an idea, I can create and edit an ideation document in Weaver without an agent, so I can develop and keep my own thinking in the repository. (Belongs to `REQ-022`.)
 - `US-065` — As a requirement author, I can create and edit a requirement in Weaver without an agent and link it to its originating ideation document, so intent remains traceable. The requirement view lists body links so the originating document can be opened there. (Belongs to `REQ-022`; discovered during 0.1.21 manual verification.)
+- `US-066` — As a team member looking at the Overview, I can distinguish a repository's backlog from its unfinished work in the active stages without finished cards inflating the count, so I can see where attention is needed. (Belongs to `REQ-006`; tracked in `TASK-122`.)
 
 ### PALab project adoption
 

@@ -69,7 +69,7 @@ function activateQueued(next) {
     if (session.type === 'slot' && session.node.textContent.startsWith('/')) showMenu(session.node);
     else { session.dirty = true; pump(); }
   }
-  if ((next.finish || deferredAction) && session) { session.finish = true; pump(); }
+  if ((next.finish || (deferredAction && deferredAction !== 'save')) && session) { session.finish = true; pump(); }
 }
 function pump() {
   if (!session || session.inflight || session.failed || session.invalid || session.composing) return;
@@ -85,14 +85,18 @@ function pump() {
   if (session.split && !session.split.sent) {
     session.inflight = true; session.split.sent = true;
     vscode.postMessage({ type: session.type === 'slot' ? 'split-slot' : 'split', line: session.line, blockType: session.blockType, value: session.split.original,
-      version: session.version, expected: session.expected,
+      version: session.version, expected: session.expected, kind: session.kind,
       caret: session.split.caret, selectionEnd: session.split.selectionEnd });
     return;
   }
+  // Save the committed document without leaving the active field. This keeps
+  // the caret and provisional empty slots stable while the user continues typing.
+  if (deferredAction === 'save' && !session.finish) { deferredAction = undefined; sendAction('save'); return; }
   if (session.finish) {
     const finished = session; session = undefined; hideMenu();
     const next = pending.shift();
-    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
+    if (!next && (deferredAction === 'undo' || deferredAction === 'redo')) { main.inert = true; main.setAttribute('aria-busy', 'true'); }
+    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle', history: deferredAction === 'undo' || deferredAction === 'redo', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
     if (next) activateQueued(next);
     else if (deferredAction) {
       const action = deferredAction; deferredAction = undefined;
@@ -121,15 +125,20 @@ function selectionOffsets(node) {
 }
 function beginSplit(offsets, node = session?.node) {
   const owner = provisionalSplit(node);
-  const blockType = owner?.rightBlockType || (session?.type === 'slot' ? 'paragraph_open' : session?.blockType);
-  if (!session || !['inline', 'slot'].includes(session.type) || (session.type === 'slot' && !owner && (session.kind !== 'paragraph' || !nodeValue(node).trim())) || !['paragraph_open', 'heading_open', 'list_item_inline'].includes(blockType) || pending.length || (session.split && !owner) || (owner && owner !== (extraSplits.at(-1) || session.split))) return false;
+  const blockType = owner?.rightBlockType || (session?.type === 'slot' ? (session.kind === 'heading' ? 'heading_open' : ['bullet', 'checklist'].includes(session.kind) ? 'list_item_inline' : 'paragraph_open') : session?.blockType);
+  if (!session || !['inline', 'slot'].includes(session.type) || (session.type === 'slot' && !owner && (!['paragraph', 'heading', 'bullet', 'checklist'].includes(session.kind) || !nodeValue(node).trim())) || !['paragraph_open', 'heading_open', 'list_item_inline'].includes(blockType) || pending.length || (session.split && !owner) || (owner && owner !== (extraSplits.at(-1) || session.split))) return false;
   const original = nodeValue(node);
   if (!offsets || offsets.caret < 0 || offsets.selectionEnd < offsets.caret || offsets.selectionEnd > original.length) return false;
   const breaksSurrogate = offset => offset > 0 && offset < original.length && /[\uD800-\uDBFF]/.test(original[offset - 1]) && /[\uDC00-\uDFFF]/.test(original[offset]);
   if (breaksSurrogate(offsets.caret) || breaksSurrogate(offsets.selectionEnd)) return false;
   if (blockType === 'heading_open' && (offsets.caret !== original.length || offsets.selectionEnd !== original.length)) return false;
   let right;
-  if (blockType === 'list_item_inline') {
+  if (blockType === 'list_item_inline' && session.type === 'slot' && !owner) {
+    const list = document.createElement('ul'), item = document.createElement('li');
+    right = document.createElement('span'); right.setAttribute('contenteditable', 'plaintext-only'); right.dataset.inlineOriginal = ''; right.dataset.sourceType = blockType;
+    if (session.kind === 'checklist') { const box = document.createElement('input'); box.type = 'checkbox'; box.dataset.checklistLine = ''; box.setAttribute('aria-label', editorConfig.labels.checklist); item.append(box); }
+    item.append(right); list.append(item); node.parentElement.after(list);
+  } else if (blockType === 'list_item_inline') {
     const item = node.closest('li');
     if (!item || !item.parentElement || item.querySelector('ul,ol') || item.querySelectorAll('[data-inline-original]').length !== 1) return false;
     const clone = item.cloneNode(true);
@@ -221,6 +230,14 @@ main.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
     event.preventDefault();
     if (menu) { choose(filtered[selected]); return; }
+    if (session.type === 'slot' && session.kind === 'paragraph' && !nodeValue(session.node) && !session.inflight && !session.dirty && !pending.length) {
+      // Markdown has no persistent empty paragraph. Keep a visual blank slot in
+      // this projection while moving the caret to another slot at the same source position.
+      const current = session.node.parentElement, next = current.cloneNode(true);
+      current.classList.add('empty-paragraph');
+      next.classList.remove('empty-paragraph'); current.after(next);
+      session.finish = true; pump(); next.querySelector('.insert-field').focus(); return;
+    }
     if (!beginSplit(selectionOffsets(session.node))) vscode.postMessage({ type: 'split-unavailable' });
   }
 });
@@ -285,9 +302,19 @@ window.addEventListener('message', event => {
       }
     }
     if (event.data.slot) {
-      const field = previous.node; const paragraph = document.createElement('p'); paragraph.setAttribute('contenteditable', 'plaintext-only');
-      paragraph.textContent = field.textContent; paragraph.dataset.sourceType = 'paragraph_open';
-      field.parentElement.replaceWith(paragraph); previous.node = paragraph;
+      // A successful slot split remaps every following source position above.
+      // The insertion no longer leaves the projection stale for checkbox actions.
+      locationsStale = false;
+      const field = previous.node;
+      const listKind = ['bullet', 'checklist'].includes(previous.kind);
+      const left = document.createElement(listKind ? 'span' : previous.kind === 'heading' ? 'h2' : 'p'); left.setAttribute('contenteditable', 'plaintext-only');
+      left.textContent = field.textContent; left.dataset.sourceType = listKind ? 'list_item_inline' : previous.kind === 'heading' ? 'heading_open' : 'paragraph_open';
+      if (listKind) {
+        const item = document.createElement('li');
+        if (previous.kind === 'checklist') { const box = document.createElement('input'); box.type = 'checkbox'; box.dataset.checklistLine = String(event.data.leftLine); box.dataset.checklistExpected = event.data.leftExpected; box.setAttribute('aria-label', editorConfig.labels.checklist); item.append(box); }
+        item.append(left); right.closest('ul').prepend(item); field.parentElement.remove();
+      } else field.parentElement.replaceWith(left);
+      previous.node = left;
       previous.node.dataset.sourceLine = String(event.data.leftLine);
     }
     previous.node.dataset.inlineOriginal = event.data.leftExpected;
@@ -301,7 +328,7 @@ window.addEventListener('message', event => {
     const nextSplit = extraSplits.shift();
     session = { node:right, type:'inline', line:nextLine, kind:'paragraph', blockType:split.rightBlockType, split:nextSplit,
       expected:event.data.rightExpected, version:event.data.version, inflight:false, dirty:split.rightDirty || !!nextSplit,
-      finish:split.rightFinish || pending.length > 0 || !!deferredAction, next:false, failed:false, composing:split.composing };
+      finish:split.rightFinish || pending.length > 0 || (!!deferredAction && deferredAction !== 'save'), next:false, failed:false, composing:split.composing };
     pump();
   } else if (event.data?.type === 'edit-applied') {
     // Slot and fence edits may change the line numbers of every later block.
@@ -342,7 +369,8 @@ function queueAction(type) {
   if (!session) { sendAction(type); return true; }
   if (session.failed || session.invalid || deferredAction || (type === 'checklist-toggle' && session.next)) { session.node.focus(); return false; }
   deferredAction = type;
-  session.finish = true; session.next = false; pump();
+  if (type !== 'save') { session.finish = true; session.next = false; }
+  pump();
   return true;
 }
 document.getElementById('source').addEventListener('click', () => queueAction('source'));

@@ -65,7 +65,11 @@ describe('safe fenced-code editing', () => {
     input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
     expect(sent.some((event) => event.type === 'save')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'first\nsecond\n' } }));
-    expect(sent.slice(-2).map((event) => event.type)).toEqual(['finish', 'save']);
+    expect(sent.at(-1)).toMatchObject({ type: 'save' });
+    expect(sent.some((event) => event.type === 'finish')).toBe(false);
+    expect(dom.window.document.activeElement).toBe(input);
+    input.value = 'first\nsecond\nthird\n'; input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    expect(sent.at(-1)).toMatchObject({ type: 'fence-change', version: 2, expected: 'first\nsecond\n', value: 'first\nsecond\nthird\n' });
     expect(dom.window.document.querySelector('code.language-mermaid')!.hasAttribute('data-fence-editable')).toBe(false);
     dom.window.close();
   });

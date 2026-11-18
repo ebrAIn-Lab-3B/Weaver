@@ -11,6 +11,7 @@ import { splitParagraph } from './splitParagraph';
 import { fenceBody, planFenceBodyEdit } from './fenceEditing';
 import { planChecklistToggle } from './checklistEditing';
 import { markdownSlotStyles } from './markdownSlotStyles';
+import { submitDocumentEdit } from './submitDocumentEdit';
 
 /** Edits are targeted VS Code document changes; unsupported Markdown stays in source mode. */
 export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, task = false): void {
@@ -24,6 +25,11 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
   let fence: { base: string; line: number; endLine: number; start: number; inserted: string } | undefined;
   let ownChanges: ExpectedDocumentChange[] = [];
   let staleProjection = false;
+  const applyEdit = (edit: vscode.WorkspaceEdit, version: number): Promise<boolean> =>
+    submitDocumentEdit(document, version, () => vscode.workspace.applyEdit(edit)).then((ok) => {
+      if (!ok) ownChanges = ownChanges.filter((change) => change.version !== version + 1);
+      return ok;
+    });
   const render = (): void => {
     staleProjection = false;
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'dist', 'markdownPreview.js'));
@@ -41,7 +47,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     focusTextLine = undefined;
     panel.webview.html = `<!doctype html><html><head><meta charset="utf-8">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} https: data:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${panel.webview.cspSource} data:;">
-      <style>body{padding:20px 32px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);line-height:1.6}button{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;padding:6px 12px;cursor:pointer}img,svg{max-width:100%}main p{margin:.4em 0}main h1,main h2,main h3,main h4,main h5,main h6{margin:.8em 0 .3em}main ul,main ol{margin:.4em 0}pre{overflow:auto;padding:12px;background:var(--vscode-textCodeBlock-background);margin:.5em 0}table{border-collapse:collapse}th,td{border:1px solid var(--vscode-panel-border);padding:6px}a{color:var(--vscode-textLink-foreground)}[data-inline-original]:focus,.insert-field:focus{outline:none}[data-inline-original]:hover{background:var(--vscode-editor-hoverHighlightBackground)}.insert-slot{position:relative;height:4px}.insert-slot:last-child,.insert-slot:focus-within{height:auto;min-height:1.6em}.insert-field{min-height:4px;outline:none;white-space:pre-wrap}.insert-slot:last-child .insert-field,.insert-slot:focus-within .insert-field{min-height:1.6em}.insert-field:focus:empty:before,.insert-slot:last-child .insert-field:empty:before{content:attr(data-placeholder);color:var(--vscode-descriptionForeground);opacity:.7}.slash-menu{position:absolute;z-index:5;left:0;top:100%;min-width:190px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-editorWidget-border,var(--vscode-panel-border));box-shadow:0 4px 12px #0005;padding:4px}.slash-menu button{display:block;width:100%;text-align:left;background:transparent;color:var(--vscode-editorWidget-foreground);padding:5px 9px}.slash-menu button[aria-selected=true],.slash-menu button:hover{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}.insert-slot[data-kind=heading] .insert-field{font-size:1.5em;font-weight:600}.insert-slot[data-kind=bullet] .insert-field:before{content:'• ';color:inherit}.insert-slot[data-kind=checklist] .insert-field:before{content:'☐ ';color:inherit}.insert-slot[data-kind=code] .insert-field{font-family:var(--vscode-editor-font-family);background:var(--vscode-textCodeBlock-background);padding:6px}.fence-input{display:block;box-sizing:border-box;width:100%;min-height:4em;resize:vertical;border:1px solid var(--vscode-focusBorder);background:transparent;color:var(--vscode-editor-foreground);font:inherit;font-family:var(--vscode-editor-font-family);line-height:inherit;white-space:pre;tab-size:4}</style>
+      <style>body{padding:20px 32px;color:var(--vscode-editor-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family);line-height:1.6}button{color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:0;padding:6px 12px;cursor:pointer}img,svg{max-width:100%}main p{margin:.4em 0}main h1,main h2,main h3,main h4,main h5,main h6{margin:.8em 0 .3em}main ul,main ol{margin:.4em 0}pre{overflow:auto;padding:12px;background:var(--vscode-textCodeBlock-background);margin:.5em 0}table{border-collapse:collapse}th,td{border:1px solid var(--vscode-panel-border);padding:6px}a{color:var(--vscode-textLink-foreground)}[data-inline-original]:focus,.insert-field:focus{outline:none}[data-inline-original]:hover{background:var(--vscode-editor-hoverHighlightBackground)}.insert-slot{position:relative;height:4px}.insert-slot:last-child,.insert-slot:focus-within,.insert-slot.empty-paragraph{height:auto;min-height:1.6em}.insert-field{min-height:4px;outline:none;white-space:pre-wrap}.insert-slot:last-child .insert-field,.insert-slot:focus-within .insert-field{min-height:1.6em}.insert-field:focus:empty:before,.insert-slot:last-child .insert-field:empty:before{content:attr(data-placeholder);color:var(--vscode-descriptionForeground);opacity:.7}.slash-menu{position:absolute;z-index:5;left:0;top:100%;min-width:190px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-editorWidget-border,var(--vscode-panel-border));box-shadow:0 4px 12px #0005;padding:4px}.slash-menu button{display:block;width:100%;text-align:left;background:transparent;color:var(--vscode-editorWidget-foreground);padding:5px 9px}.slash-menu button[aria-selected=true],.slash-menu button:hover{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}.insert-slot[data-kind=heading] .insert-field{font-size:1.5em;font-weight:600}.insert-slot[data-kind=bullet] .insert-field:before{content:'• ';color:inherit}.insert-slot[data-kind=checklist] .insert-field:before{content:'☐ ';color:inherit}.insert-slot[data-kind=code] .insert-field{font-family:var(--vscode-editor-font-family);background:var(--vscode-textCodeBlock-background);padding:6px}.fence-input{display:block;box-sizing:border-box;width:100%;min-height:4em;resize:vertical;border:1px solid var(--vscode-focusBorder);background:transparent;color:var(--vscode-editor-foreground);font:inherit;font-family:var(--vscode-editor-font-family);line-height:inherit;white-space:pre;tab-size:4}</style>
       <style>pre code[data-fence-editable]{display:block;min-height:1.4em;cursor:text}</style>
       <style>${markdownSlotStyles}</style>
       </head><body><button id="source">${escapeHtml(message('ui.markdown.source'))}</button> ${task ? `<button id="requirement">${escapeHtml(message('ui.markdown.requirement'))}</button>` : ''}<main>${body}</main>
@@ -55,7 +61,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (editing || staleProjection) void panel.webview.postMessage({ type: 'conflict', detail: message('ui.markdown.stale-draft') });
     else render();
   });
-  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
+  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
     if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
       try {
@@ -79,13 +85,15 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     let slotSplit: { line: number; shift: number } | undefined;
     if (event.type === 'split-slot') {
       const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.stale-draft') }); };
-      if (!slot || event.line !== slot.line || event.version !== document.version || event.expected !== slot.inserted || typeof event.value !== 'string' || !event.value.trim() || /[\r\n]/.test(event.value) || document.getText().slice(slot.offset, slot.offset + slot.inserted.length) !== slot.inserted) { fail(); return; }
+      if (!slot || !event.kind || !['paragraph', 'heading', 'bullet', 'checklist'].includes(event.kind) || event.line !== slot.line || event.version !== document.version || event.expected !== slot.inserted || typeof event.value !== 'string' || !event.value.trim() || /[\r\n]/.test(event.value) || document.getText().slice(slot.offset, slot.offset + slot.inserted.length) !== slot.inserted) { fail(); return; }
       const index = slot.inserted.indexOf(event.value);
       if (index < 0) { fail(); return; }
       const actualLine = document.positionAt(slot.offset + index).line;
-      if (document.lineAt(actualLine).text !== event.value) { fail(); return; }
-      slotSplit = { line: slot.line, shift: (slot.inserted.match(/\n/g) || []).length + 2 };
-      event.type = 'split'; event.line = actualLine; event.blockType = 'paragraph_open'; event.expected = event.value;
+      const blockType = event.kind === 'heading' ? 'heading_open' : event.kind === 'bullet' || event.kind === 'checklist' ? 'list_item_inline' : 'paragraph_open';
+      const sourceLine = document.lineAt(actualLine).text, prefix = inlinePrefix(sourceLine, blockType);
+      if (prefix === undefined || sourceLine.slice(prefix.length) !== event.value) { fail(); return; }
+      slotSplit = { line: slot.line, shift: (slot.inserted.match(/\n/g) || []).length + (blockType === 'list_item_inline' ? 1 : 2) };
+      event.type = 'split'; event.line = actualLine; event.blockType = blockType; event.expected = sourceLine;
     }
     if (event.type === 'split') {
       const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.stale-draft') }); };
@@ -111,7 +119,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       const own: ExpectedDocumentChange = { version: expectedVersion, offset: start, length: original.text.length, text: split };
       ownChanges.push(own);
       try {
-        if (!await vscode.workspace.applyEdit(edit) || document.version !== expectedVersion || document.getText() !== nextSource) { ownChanges = ownChanges.filter(item => item !== own); fail(); return; }
+        if (!await applyEdit(edit, event.version!) || document.version !== expectedVersion || document.getText() !== nextSource) { ownChanges = ownChanges.filter(item => item !== own); fail(); return; }
         const right = document.lineAt(nextLine).text;
         const prefix = inlinePrefix(right, event.blockType === 'heading_open' ? 'paragraph_open' : event.blockType!);
         if (prefix === undefined) { fail(); return; }
@@ -123,6 +131,13 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       return;
     }
     if (event.type === 'finish') {
+      if (event.history) {
+        // The history command refreshes the document on completion. Avoid an
+        // intermediate projection that steals focus before the command runs.
+        editing = false; staleProjection = false; slot = undefined; inline = undefined; fence = undefined;
+        if (Number.isInteger(event.line)) { focusAfter = event.line; focusTextLine = event.line; }
+        return;
+      }
       if (event.next && (event.blockType === 'paragraph_open' || event.blockType === 'list_item_inline') && Number.isInteger(event.line) && Number.isInteger(event.caret) && Number.isInteger(event.selectionEnd) && event.line! >= 0 && event.line! < document.lineCount) {
         // A queued editor still points into the old projection. Do not split and
         // re-render behind it: that would discard its unacknowledged draft.
@@ -140,7 +155,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         const offset = document.offsetAt(original.range.start);
         edit.replace(document.uri, original.range, split);
         ownChanges.push({ version: document.version + 1, offset, length: original.text.length, text: split });
-        if (!await vscode.workspace.applyEdit(edit)) { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.edit-failed') }); return; }
+        if (!await applyEdit(edit, event.version!)) { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.edit-failed') }); return; }
         const nextLine = event.line! + (event.blockType === 'list_item_inline' ? 1 : 2);
         focusAfter = nextLine;
         if (event.blockType === 'list_item_inline' || event.selectionEnd! < original.text.length) focusTextLine = nextLine;
@@ -156,7 +171,13 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     }
     if (event.type === 'undo' || event.type === 'redo') {
       editing = false; slot = undefined; inline = undefined; fence = undefined;
-      await vscode.commands.executeCommand(event.type);
+      const version = document.version;
+      try { await vscode.commands.executeCommand(event.type); }
+      finally {
+        // No document event is emitted when there is no history entry or the
+        // command fails; release the busy view in either case.
+        if (document.version === version) render();
+      }
       return;
     }
     if (event.type === 'save') { await document.save(); return; }
@@ -183,7 +204,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       const own: ExpectedDocumentChange = { version: document.version + 1, offset: plan.offset, length: plan.length, text: plan.text };
       ownChanges.push(own);
       try {
-        if (!await vscode.workspace.applyEdit(edit)) { ownChanges = ownChanges.filter((change) => change !== own); fail(); return; }
+        if (!await applyEdit(edit, event.version!)) { ownChanges = ownChanges.filter((change) => change !== own); fail(); return; }
         void panel.webview.postMessage({ type: 'checklist-result', ok: true, version: document.version, expected: document.lineAt(event.line!).text, checked: event.checked });
       } catch { ownChanges = ownChanges.filter((change) => change !== own); fail(); }
       return;
@@ -220,7 +241,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
           if (!slot) { void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected: '' }); return; }
           edit.replace(document.uri, new vscode.Range(document.positionAt(slot.offset), document.positionAt(slot.offset + slot.inserted.length)), '');
           ownChanges.push({ version: document.version + 1, offset: slot.offset, length: slot.inserted.length, text: '' });
-          if (!await vscode.workspace.applyEdit(edit)) { fail(); return; }
+          if (!await applyEdit(edit, event.version!)) { fail(); return; }
           slot = undefined; void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected: '' });
           return;
         }
@@ -252,7 +273,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         return;
       }
       if (changeDetails) ownChanges.push({ version: document.version + 1, ...changeDetails });
-      if (!await vscode.workspace.applyEdit(edit)) { fail(); return; }
+      if (!await applyEdit(edit, event.version!)) { fail(); return; }
       if (event.type === 'slot-change' && slot) slot.inserted = expected;
       if (event.type === 'fence-change' && fence) fence.inserted = expected;
       void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected });

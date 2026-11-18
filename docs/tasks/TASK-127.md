@@ -41,3 +41,14 @@ A later development-host pass exercised a paragraph split in the middle followed
 
 
 After unlocking the Windows session and reloading the rebuilt development host, a further Computer Use pass verified Enter at the end of an existing heading followed by text, a nonempty insertion field split in the middle followed immediately by text, and two consecutive Enter key presses followed by text. Saving, closing, and reopening the temporary document preserved the visible text and Mermaid diagram. This does not establish behavior under deliberately delayed acknowledgements, real Korean IME, or concurrent external edits.
+
+## Prioritized verification plan
+
+After TASK-125 establishes a safe application mechanism and TASK-123/124 complete the intended Enter paths, exercise the integrated build in a separate VS Code development workspace using Computer Use. Include newly inserted and existing blocks, immediate and consecutive Enter, simple lists and checklists, source fallback, real Korean IME where available, save and reopen, undo/redo, view and focus changes, and a genuine external change. Test the check/apply race with a deterministic automated harness as well; a UI-only external-change observation does not prove that boundary is safe. Record exact outcomes and any unavailable environment capability, keeping incomplete cases open. Re-run the build and required checks after changes; do not mark a card or requirement verified on partial evidence.
+
+
+## Further extension-host checks (2026-11-19)
+
+Computer Use in a temporary workspace verified a newly created bullet item followed by Enter and a second item, save and reopen; empty paragraph Enter followed by input; and save followed by continued typing at the same caret after a focus-loss fix. A separate disk change while a paragraph was focused showed a conflict notice with copy/open controls. Physical key input through the Korean IME produced `한글`, Enter, and `가`; saving and reopening retained both paragraphs. This is one real IME path, not exhaustive composition or concurrency coverage. A newly created checklist initially produced a false conflict when the first item was checked after save. After a stale-location fix, Computer Use repeated creation, Enter, checking, save, close and reopen; the checked state was retained. A newly inserted heading followed by Enter and paragraph text was also exercised. Undo removed that paragraph and redo restored it, as confirmed in source; pending-operation undo grouping remains unverified.
+
+A later Computer Use check verified a local dirty-document save conflict: VS Code offered Compare/Overwrite, the editor kept the local text, and the external file retained its marker. In another test, undo and redo restored the changed paragraph and returned focus to that paragraph after a focus fix. These are targeted examples and do not prove all timing, provider, or configuration cases.

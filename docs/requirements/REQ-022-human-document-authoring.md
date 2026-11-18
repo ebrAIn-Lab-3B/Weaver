@@ -61,3 +61,7 @@ These tasks are assigned to agents; named owners remain to be assigned. The shar
 ## Evidence policy
 
 Completion requires repository changes, checks of the human-only authoring and round-trip flows, and review of remaining gaps.
+
+## Prioritized implementation decision
+
+Follow [DEC-028](../decisions/DEC-028-notion-like-markdown-editing.md): establish safe concurrent-change handling first, complete the ordinary Enter flow next, then verify the integrated journey in an actual VS Code extension host. In normal use, authors click and type and use VS Code save, without a separate Apply action. On an actual conflict retain visible in-session input, offer copying or opening it separately, and do not automatically overwrite or merge either version. Where safe direct editing is not established, preserve the source and offer source editing. Automatic recovery after close, restart, or crash remains deferred. The requirement and related tasks remain unverified until their acceptance criteria and evidence policy are satisfied.

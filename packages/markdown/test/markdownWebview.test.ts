@@ -21,6 +21,18 @@ function checklistWebview() {
 }
 
 describe('rendered editor synchronization', () => {
+  it('flushes save without finishing or losing focus, then continues editing', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'Before save'; first.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'s', ctrlKey:true, bubbles:true, cancelable:true}));
+    expect(sent.some(event => event.type === 'save')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:2, expected:'Before save'}}));
+    expect(sent.at(-1)).toMatchObject({type:'save'});
+    expect(sent.some(event => event.type === 'finish')).toBe(false);
+    expect(dom.window.document.activeElement).toBe(first);
+    first.textContent = 'After save'; first.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+    expect(sent.at(-1)).toMatchObject({type:'inline-change', value:'After save', version:2}); dom.window.close();
+  });
   it('retains text typed in a second block while the first edit is awaiting acknowledgement', () => {
     const { dom, sent, first, second } = webview();
     first.focus(); first.textContent = 'First changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -97,7 +109,8 @@ describe('rendered editor synchronization', () => {
       else first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: action === 'save' ? 's' : 'z', ctrlKey: true, bubbles: true, cancelable: true }));
       expect(sent.some((e) => e.type === action)).toBe(false);
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
-      expect(sent.slice(-2).map((e) => e.type)).toEqual(['finish', action]);
+      if (action === 'save') { expect(sent.at(-1)?.type).toBe('save'); expect(sent.some(e => e.type === 'finish')).toBe(false); }
+      else { expect(sent.slice(-2).map((e) => e.type)).toEqual(['finish', action]); if (action === 'undo') { expect(sent.at(-2)).toMatchObject({history:true}); expect(dom.window.document.querySelector('main')?.getAttribute('aria-busy')).toBe('true'); } }
       dom.window.close();
     }
   });
@@ -111,6 +124,19 @@ describe('rendered editor synchronization', () => {
     expect(first.textContent).toBe('First');
     expect(sent.some((e) => e.type === 'multiline-paste')).toBe(true);
     dom.window.close();
+  });
+  it('saves after an in-flight split without closing the new block', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'After split'; right.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+    right.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'s', ctrlKey:true, bubbles:true, cancelable:true}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:1, expected:'First'}}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:''}}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:3, expected:'After split'}}));
+    expect(sent.at(-1)).toMatchObject({type:'save'}); expect(sent.some(event => event.type === 'finish')).toBe(false);
+    expect(dom.window.document.activeElement).toBe(right); dom.window.close();
   });
   it('buffers typing in the new paragraph until the split is acknowledged', () => {
     const { dom, sent, first } = webview();
@@ -220,13 +246,16 @@ describe('rendered editor synchronization', () => {
     text.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
     expect(sent.at(-1)).toMatchObject({type:'split-unavailable'}); expect(dom.window.document.querySelectorAll('ul ul')).toHaveLength(1); dom.window.close();
   });
-  it('does not split an insertion slot without a committed paragraph', () => {
+  it('moves through empty insertion fields without writing blank paragraphs or dropping later text', () => {
     const { dom, sent, first } = webview();
     const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '0';
     slot.innerHTML = '<div class="insert-field" contenteditable="plaintext-only"></div>'; first.before(slot);
-    const node = slot.firstElementChild as HTMLElement; node.focus();
-    node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-    expect(sent.at(-1)).toMatchObject({ type: 'split-unavailable' }); dom.window.close();
+    const enter = (node: HTMLElement) => node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    let node = slot.firstElementChild as HTMLElement; node.focus(); enter(node);
+    node = dom.window.document.activeElement as HTMLElement; expect(node.parentElement?.previousElementSibling?.classList.contains('empty-paragraph')).toBe(true); enter(node);
+    node = dom.window.document.activeElement as HTMLElement; node.textContent = 'Actual text'; node.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+    expect(sent.filter(event => event.type === 'slot-change')).toEqual([expect.objectContaining({value:'Actual text', line:0})]);
+    expect(sent.some(event => event.type === 'split-unavailable')).toBe(false); dom.window.close();
   });
   it('creates an unchecked checklist item and preserves immediate input', () => {
     const { dom, sent, checkbox, text } = checklistWebview(); text.focus();

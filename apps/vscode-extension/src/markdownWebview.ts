@@ -11,33 +11,10 @@ const pending = [];
 let deferredAction;
 let checklistPending;
 let locationsStale = false;
+let movingToSplit = false;
+const extraSplits = [];
+const provisionalSplit = node => [session?.split, ...extraSplits].find(split => split?.right === node);
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
-const recoveryNodes = new WeakMap();
-const recoveryDrafts = new Map();
-let recoveryCounter = 0;
-const recoveryStatus = document.getElementById('recovery-status');
-
-function updateRecoveryStatus() {
-  if (!recoveryStatus || !editorConfig.recoveryEnabled || !recoveryDrafts.size) return;
-  const states = [...recoveryDrafts.values()];
-  recoveryStatus.textContent = states.some(item => item.failed) ? editorConfig.labels.recoveryFailed :
-    states.some(item => item.acknowledged < item.revision) ? editorConfig.labels.recoveryPending : editorConfig.labels.recoveryCheckpointed;
-}
-function checkpointDraft(node) {
-  if (!editorConfig.recoveryEnabled) return;
-  let draft = recoveryNodes.get(node);
-  if (!draft) {
-    const slot = node.classList.contains('insert-field');
-    draft = { node, draftId: editorConfig.recoveryGeneration + '-' + (++recoveryCounter), revision: 0, acknowledged: 0, failed: false,
-      line: Number(slot ? node.parentElement.dataset.insertLine : node.dataset.sourceLine),
-      endLine: Number(node.dataset.sourceEnd), blockType: slot ? 'slot' : node.dataset.sourceType };
-    recoveryNodes.set(node, draft); recoveryDrafts.set(draft.draftId, draft);
-  }
-  draft.revision++; draft.failed = false;
-  vscode.postMessage({ type: 'recovery-checkpoint', draftId: draft.draftId, revision: draft.revision,
-    line: draft.line, endLine: draft.endLine, blockType: draft.blockType, value: nodeValue(node) });
-  updateRecoveryStatus();
-}
 
 function showDraftConflict(current, detail) {
   if (current.conflictShown) return;
@@ -53,7 +30,7 @@ function showDraftConflict(current, detail) {
   recover.textContent = editorConfig.labels.openDraft;
   recover.addEventListener('mousedown', event => event.preventDefault());
   recover.addEventListener('click', () => vscode.postMessage({ type: 'open-draft', value: nodeValue(current.node) }));
-  note.append(' ', button, ' ', recover); current.node.insertAdjacentElement('afterend', note); return note;
+  note.append(' ', button, ' ', recover); current.node.insertAdjacentElement('afterend', note);
 }
 
 function clearInvalid() {
@@ -95,15 +72,22 @@ function activateQueued(next) {
   if ((next.finish || deferredAction) && session) { session.finish = true; pump(); }
 }
 function pump() {
-  if (!session || session.inflight || session.failed || session.invalid) return;
+  if (!session || session.inflight || session.failed || session.invalid || session.composing) return;
   if (session.dirty) {
     session.dirty = false; session.inflight = true;
-    const value = nodeValue(session.node);
+    const value = session.split ? session.split.original : nodeValue(session.node);
     session.sentValue = value;
     const payload = { type: session.type === 'slot' ? 'slot-change' : session.type === 'fence' ? 'fence-change' : 'inline-change', line: session.line,
       value, version: session.version, kind: session.kind, endLine: session.endLine,
       blockType: session.blockType, expected: session.expected };
     vscode.postMessage(payload); return;
+  }
+  if (session.split && !session.split.sent) {
+    session.inflight = true; session.split.sent = true;
+    vscode.postMessage({ type: session.type === 'slot' ? 'split-slot' : 'split', line: session.line, blockType: session.blockType, value: session.split.original,
+      version: session.version, expected: session.expected,
+      caret: session.split.caret, selectionEnd: session.split.selectionEnd });
+    return;
   }
   if (session.finish) {
     const finished = session; session = undefined; hideMenu();
@@ -135,19 +119,63 @@ function selectionOffsets(node) {
   const through = selected.cloneRange(); through.selectNodeContents(node); through.setEnd(selected.endContainer, selected.endOffset);
   return { caret: before.toString().length, selectionEnd: through.toString().length };
 }
+function beginSplit(offsets, node = session?.node) {
+  const owner = provisionalSplit(node);
+  const blockType = owner?.rightBlockType || (session?.type === 'slot' ? 'paragraph_open' : session?.blockType);
+  if (!session || !['inline', 'slot'].includes(session.type) || (session.type === 'slot' && !owner && (session.kind !== 'paragraph' || !nodeValue(node).trim())) || !['paragraph_open', 'heading_open', 'list_item_inline'].includes(blockType) || pending.length || (session.split && !owner) || (owner && owner !== (extraSplits.at(-1) || session.split))) return false;
+  const original = nodeValue(node);
+  if (!offsets || offsets.caret < 0 || offsets.selectionEnd < offsets.caret || offsets.selectionEnd > original.length) return false;
+  const breaksSurrogate = offset => offset > 0 && offset < original.length && /[\uD800-\uDBFF]/.test(original[offset - 1]) && /[\uDC00-\uDFFF]/.test(original[offset]);
+  if (breaksSurrogate(offsets.caret) || breaksSurrogate(offsets.selectionEnd)) return false;
+  if (blockType === 'heading_open' && (offsets.caret !== original.length || offsets.selectionEnd !== original.length)) return false;
+  let right;
+  if (blockType === 'list_item_inline') {
+    const item = node.closest('li');
+    if (!item || !item.parentElement || item.querySelector('ul,ol') || item.querySelectorAll('[data-inline-original]').length !== 1) return false;
+    const clone = item.cloneNode(true);
+    right = clone.querySelector('[data-inline-original]');
+    if (!right) return false;
+    const box = clone.querySelector('input[type=checkbox]'); if (box) box.checked = false;
+    item.after(clone);
+  } else {
+    right = blockType === 'heading_open' || (session.type === 'slot' && !owner) ? document.createElement('p') : node.cloneNode(false);
+    if (blockType === 'heading_open' || (session.type === 'slot' && !owner)) { right.setAttribute('contenteditable', 'plaintext-only'); right.dataset.inlineOriginal = ''; right.dataset.sourceType = 'paragraph_open'; }
+    if (session.type === 'slot' && !owner) node.parentElement.after(right); else node.after(right);
+  }
+  const left = original.slice(0, offsets.caret), suffix = original.slice(offsets.selectionEnd);
+  right.textContent = suffix;
+  node.textContent = left;
+  const split = { original, rightBlockType: blockType === 'heading_open' ? 'paragraph_open' : blockType, caret: offsets.caret, selectionEnd: offsets.selectionEnd, right, rightDirty: false, rightFinish: false, composing: false, sent: false };
+  if (owner) { owner.rightDirty = true; extraSplits.push(split); }
+  else { session.split = split; session.dirty = true; }
+  movingToSplit = true; right.focus();
+  const range = document.createRange(); range.selectNodeContents(right); range.collapse(true);
+  const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
+  movingToSplit = false; pump(); return true;
+}
 main.addEventListener('focusin', event => {
   const node = event.target.closest('.insert-field,[data-inline-original],textarea[data-fence-input]');
   if (!node) return;
+  if (movingToSplit || provisionalSplit(node)) return;
   if (!session && checklistPending) { pending.push({ node, dirty: false }); return; }
   if (session && (node !== session.node || pending.length)) { pending.push({ node, dirty: false }); return; }
   if (session && node === session.node) { session.finish = false; return; }
   start(node);
 });
+function changedSupersededSplit(node) {
+  const split = provisionalSplit(node);
+  if (!session?.split || (node !== session.node && (!split || split === (extraSplits.at(-1) || session.split)))) return false;
+  showDraftConflict(session);
+  showDraftConflict({ node:session.split.right });
+  for (const queued of extraSplits) showDraftConflict({ node:queued.right });
+  return true;
+}
 main.addEventListener('input', event => {
-  if (event.target.closest('.insert-field,[data-inline-original],textarea[data-fence-input]')) checkpointDraft(event.target);
+  if (changedSupersededSplit(event.target)) return;
+  if (provisionalSplit(event.target)) { provisionalSplit(event.target).rightDirty = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
-  if (!session || event.target !== session.node || event.isComposing) return;
+  if (!session || event.target !== session.node || event.isComposing || session.composing) return;
   clearInvalid();
   // If Enter was pressed over a selection and a new edit arrives before the
   // split is acknowledged, the browser has already replaced that selection.
@@ -155,11 +183,17 @@ main.addEventListener('input', event => {
   if (session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/')) { selected = 0; showMenu(session.node); return; }
   hideMenu(); session.dirty = true; pump();
 });
+main.addEventListener('compositionstart', event => {
+  if (provisionalSplit(event.target)) provisionalSplit(event.target).composing = true;
+  else if (session && event.target === session.node) session.composing = true;
+});
 main.addEventListener('compositionend', event => {
-  if (event.target.closest('.insert-field,[data-inline-original],textarea[data-fence-input]')) checkpointDraft(event.target);
+  if (changedSupersededSplit(event.target)) return;
+  if (provisionalSplit(event.target)) { provisionalSplit(event.target).composing = false; provisionalSplit(event.target).rightDirty = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
   if (!session || event.target !== session.node) return;
+  session.composing = false;
   clearInvalid();
   if (session.type === 'inline' && session.finish && session.next && session.selectionEnd > session.caret) session.selectionEnd = session.caret;
   if (session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/')) showMenu(session.node);
@@ -174,7 +208,11 @@ main.addEventListener('keydown', event => {
     queueAction(event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo');
     return;
   }
-  if (!session || event.target !== session.node || event.isComposing) return;
+  if (provisionalSplit(event.target)) {
+    if (event.key === 'Enter' && !event.isComposing && !provisionalSplit(event.target).composing) { event.preventDefault(); if (!beginSplit(selectionOffsets(event.target), event.target)) vscode.postMessage({ type: 'split-unavailable' }); }
+    return;
+  }
+  if (!session || event.target !== session.node || event.isComposing || session.composing) return;
   if (session.type === 'fence' && event.key === 'Enter') return;
   if (menu && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
     event.preventDefault(); selected = (selected + (event.key === 'ArrowDown' ? 1 : filtered.length - 1)) % filtered.length; showMenu(session.node); return;
@@ -183,9 +221,7 @@ main.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
     event.preventDefault();
     if (menu) { choose(filtered[selected]); return; }
-    // Re-rendering after a split can discard keys typed before the new webview
-    // is ready. Keep the current editing session and its draft intact instead.
-    vscode.postMessage({ type: 'split-unavailable' });
+    if (!beginSplit(selectionOffsets(session.node))) vscode.postMessage({ type: 'split-unavailable' });
   }
 });
 main.addEventListener('paste', event => {
@@ -198,6 +234,8 @@ main.addEventListener('paste', event => {
   }
 });
 main.addEventListener('focusout', event => {
+  if (movingToSplit) return;
+  if (provisionalSplit(event.target)) { provisionalSplit(event.target).rightFinish = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) { queued.finish = true; return; }
   if (!session || event.target !== session.node) return;
@@ -205,17 +243,6 @@ main.addEventListener('focusout', event => {
   hideMenu(); session.finish = true; setTimeout(pump, 0);
 });
 window.addEventListener('message', event => {
-  if (event.data?.type === 'recovery-checkpointed' || event.data?.type === 'recovery-failed') {
-    const draft = recoveryDrafts.get(event.data.draftId);
-    if (!draft || !Number.isSafeInteger(event.data.revision) || event.data.revision > draft.revision) return;
-    if (event.data.type === 'recovery-checkpointed') draft.acknowledged = Math.max(draft.acknowledged, event.data.revision);
-    if (event.data.revision === draft.revision) {
-      draft.failed = event.data.type === 'recovery-failed';
-      if (draft.failed && !draft.recoveryNote) draft.recoveryNote = showDraftConflict(draft, editorConfig.labels.recoveryFailed);
-      if (!draft.failed && draft.recoveryNote) { draft.recoveryNote.remove(); draft.recoveryNote = undefined; draft.conflictShown = false; }
-    }
-    updateRecoveryStatus(); return;
-  }
   if (event.data?.type === 'checklist-result' && checklistPending) {
     const checkbox = checklistPending.node;
     if (event.data.ok) {
@@ -243,7 +270,40 @@ window.addEventListener('message', event => {
     return;
   }
   if (!session) return;
-  if (event.data?.type === 'edit-applied') {
+  if (session.failed) return;
+  if (event.data?.type === 'split-applied' && session.split) {
+    const previous = session, split = previous.split, right = split.right;
+    const oldLine = previous.line, nextLine = event.data.nextLine, delta = event.data.slot ? event.data.shift : nextLine - oldLine;
+    if (event.data.line !== oldLine || !Number.isInteger(nextLine) || delta < 1 || typeof event.data.rightExpected !== 'string') {
+      showDraftConflict(previous); showDraftConflict({node:right}); return;
+    }
+    const provisionalContainers = [split, ...extraSplits].map(item => item.rightBlockType === 'list_item_inline' ? item.right.closest('li') : item.right);
+    for (const node of main.querySelectorAll('[data-source-line],[data-source-end],[data-insert-line],[data-checklist-line]')) {
+      if (provisionalContainers.some(container => container?.contains(node) || node === container)) continue;
+      for (const [key, threshold] of [['sourceLine', oldLine], ['sourceEnd', oldLine], ['insertLine', oldLine], ['checklistLine', oldLine]]) {
+        if (node.dataset[key] !== undefined && (event.data.slot ? Number(node.dataset[key]) >= threshold : Number(node.dataset[key]) > threshold)) node.dataset[key] = String(Number(node.dataset[key]) + delta);
+      }
+    }
+    if (event.data.slot) {
+      const field = previous.node; const paragraph = document.createElement('p'); paragraph.setAttribute('contenteditable', 'plaintext-only');
+      paragraph.textContent = field.textContent; paragraph.dataset.sourceType = 'paragraph_open';
+      field.parentElement.replaceWith(paragraph); previous.node = paragraph;
+      previous.node.dataset.sourceLine = String(event.data.leftLine);
+    }
+    previous.node.dataset.inlineOriginal = event.data.leftExpected;
+    previous.node.dataset.sourceEnd = String((event.data.slot ? event.data.leftLine : oldLine) + 1);
+    const oldCheckbox = previous.node.closest('li')?.querySelector('input[data-checklist-line]');
+    if (oldCheckbox) oldCheckbox.dataset.checklistExpected = event.data.leftExpected;
+    right.dataset.sourceLine = String(nextLine); right.dataset.sourceEnd = String(nextLine + 1); right.dataset.inlineOriginal = event.data.rightExpected;
+    const checkbox = right.closest('li')?.querySelector('input[data-checklist-line]');
+    if (checkbox) { checkbox.dataset.checklistLine = String(nextLine); checkbox.dataset.checklistExpected = event.data.rightExpected; }
+    editorConfig.version = event.data.version;
+    const nextSplit = extraSplits.shift();
+    session = { node:right, type:'inline', line:nextLine, kind:'paragraph', blockType:split.rightBlockType, split:nextSplit,
+      expected:event.data.rightExpected, version:event.data.version, inflight:false, dirty:split.rightDirty || !!nextSplit,
+      finish:split.rightFinish || pending.length > 0 || !!deferredAction, next:false, failed:false, composing:split.composing };
+    pump();
+  } else if (event.data?.type === 'edit-applied') {
     // Slot and fence edits may change the line numbers of every later block.
     // Never send a checkbox action using the old DOM after such an edit.
     if (session.type === 'slot' || session.type === 'fence') locationsStale = true;
@@ -263,6 +323,8 @@ window.addEventListener('message', event => {
     if (session.dirty && nodeValue(session.node) !== session.sentValue) { clearInvalid(); pump(); }
   } else if (event.data?.type === 'edit-failed' || event.data?.type === 'conflict') {
     showDraftConflict(session, event.data.detail);
+    if (session.split) showDraftConflict({ node:session.split.right }, event.data.detail);
+    for (const split of extraSplits) showDraftConflict({ node:split.right }, event.data.detail);
     for (const queued of pending) if (queued.dirty) showDraftConflict(queued, event.data.detail);
   }
 });
@@ -285,8 +347,6 @@ function queueAction(type) {
 }
 document.getElementById('source').addEventListener('click', () => queueAction('source'));
 document.getElementById('requirement')?.addEventListener('click', () => queueAction('requirement'));
-document.getElementById('recovery')?.addEventListener('mousedown', event => event.preventDefault());
-document.getElementById('recovery')?.addEventListener('click', () => vscode.postMessage({ type: 'review-recovery' }));
 main.addEventListener('dblclick', event => {
   // An editable list-item span is nested inside the list's source-marked <ul>.
   // Double-click selects its text; it must not open the enclosing list's source.

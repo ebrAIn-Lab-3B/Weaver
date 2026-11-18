@@ -3,10 +3,10 @@ import { JSDOM } from 'jsdom';
 import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebview';
 import { matchesOwnDocumentChange } from '../../../apps/vscode-extension/src/ownDocumentChange';
 
-function webview(focusTextLine?: number, recoveryEnabled = false) {
-  const dom = new JSDOM('<button id="source"></button><button id="recovery"></button><span id="recovery-status"></span><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
+function webview(focusTextLine?: number) {
+  const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
   const sent: Record<string, unknown>[] = [];
-  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, focusTextLine, recoveryEnabled, recoveryGeneration: 'test', labels: { conflict: 'Conflict', recoveryPending: 'Pending', recoveryCheckpointed: 'Local checkpoint', recoveryFailed: 'Recovery failed', copyDraft: 'Copy', openDraft: 'Open' } } });
+  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, focusTextLine, labels: { conflict: 'Conflict' } } });
   dom.window.eval(markdownClient);
   const [first, second] = [...dom.window.document.querySelectorAll('p')];
   return { dom, sent, first, second };
@@ -21,42 +21,6 @@ function checklistWebview() {
 }
 
 describe('rendered editor synchronization', () => {
-  it('checkpoints composition and queued blocks independently, without claiming the file is saved', () => {
-    const { dom, sent, first, second } = webview(undefined, true);
-    first.focus(); first.textContent = '한'; first.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
-    expect(sent.at(-1)).toMatchObject({ type: 'recovery-checkpoint', draftId: 'test-1', revision: 1, value: '한', line: 0 });
-    expect(sent.some((event) => event.type === 'inline-change')).toBe(false);
-    first.textContent = '한글'; first.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '한글' }));
-    second.focus(); second.textContent = 'Queued'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    expect(sent.find((event) => event.draftId === 'test-2')).toMatchObject({ type: 'recovery-checkpoint', revision: 1, value: 'Queued', line: 2 });
-    const status = dom.window.document.getElementById('recovery-status')!;
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 1 } }));
-    expect(status.textContent).toBe('Pending');
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 2 } }));
-    expect(status.textContent).toBe('Pending');
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-2', revision: 1 } }));
-    expect(status.textContent).toBe('Local checkpoint');
-    expect(sent.some((event) => event.type === 'save')).toBe(false);
-    dom.window.close();
-  });
-  it('reports the newest checkpoint failure and keeps its draft available for opening', () => {
-    const { dom, sent, first } = webview(undefined, true);
-    first.focus(); first.textContent = 'first'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    first.textContent = 'latest'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-failed', draftId: 'test-1', revision: 1 } }));
-    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Pending');
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-failed', draftId: 'test-1', revision: 2 } }));
-    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Recovery failed');
-    dom.window.document.querySelectorAll<HTMLButtonElement>('[role=alert] button')[1].click();
-    expect(sent.at(-1)).toMatchObject({ type: 'open-draft', value: 'latest' });
-    first.textContent = 'retry'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'recovery-checkpointed', draftId: 'test-1', revision: 3 } }));
-    expect(dom.window.document.getElementById('recovery-status')!.textContent).toBe('Local checkpoint');
-    expect(dom.window.document.querySelector('[role=alert]')).toBeNull();
-    dom.window.document.getElementById('recovery')!.click();
-    expect(sent.at(-1)).toMatchObject({ type: 'review-recovery' });
-    dom.window.close();
-  });
   it('retains text typed in a second block while the first edit is awaiting acknowledgement', () => {
     const { dom, sent, first, second } = webview();
     first.focus(); first.textContent = 'First changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -148,27 +112,136 @@ describe('rendered editor synchronization', () => {
     expect(sent.some((e) => e.type === 'multiline-paste')).toBe(true);
     dom.window.close();
   });
-  it('keeps immediate typing in the current paragraph, list item, and insertion slot after Enter', () => {
-    for (const kind of ['paragraph', 'list', 'slot']) {
-      const { dom, sent, first } = webview();
-      let node: HTMLElement = first;
-      if (kind === 'list') { node.dataset.sourceType = 'list_item_inline'; node.dataset.inlineOriginal = '- First'; }
-      if (kind === 'slot') {
-        const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '0';
-        node = dom.window.document.createElement('div'); node.className = 'insert-field'; node.setAttribute('contenteditable', 'plaintext-only'); slot.append(node);
-        first.before(slot);
-      }
-      node.focus();
-      const enter = new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
-      node.dispatchEvent(enter);
-      expect(enter.defaultPrevented).toBe(true);
-      expect(sent.at(-1)).toMatchObject({ type: 'split-unavailable' });
-      node.textContent = 'Typed immediately'; node.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-      expect(sent.some((event) => event.type === 'finish')).toBe(false);
-      expect(sent.at(-1)).toMatchObject({ type: kind === 'slot' ? 'slot-change' : 'inline-change', value: 'Typed immediately' });
-      expect(node.textContent).toBe('Typed immediately');
-      dom.window.close();
-    }
+  it('buffers typing in the new paragraph until the split is acknowledged', () => {
+    const { dom, sent, first } = webview();
+    first.focus();
+    const range = dom.window.document.createRange(); range.setStart(first.firstChild!, 2); range.collapse(true);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement;
+    expect(first.textContent).toBe('Fi'); expect(right.textContent).toBe('rst');
+    right.textContent = 'typed rst'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'First' });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'split', line: 0, caret: 2, selectionEnd: 2, expected: 'First', version: 1 });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', line: 2, expected: 'rst', value: 'typed rst', version: 2 });
+    expect(right.textContent).toBe('typed rst');
+    dom.window.close();
+  });
+  it('queues successive Enter presses and preserves immediate typing in each new block', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const selectEnd = (node: HTMLElement) => { const range = dom.window.document.createRange(); range.selectNodeContents(node); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range); };
+    const enter = (node: HTMLElement) => node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    selectEnd(first); enter(first);
+    const second = first.nextElementSibling as HTMLElement;
+    second.textContent = 'Second'; second.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    selectEnd(second); enter(second);
+    const third = second.nextElementSibling as HTMLElement;
+    third.textContent = 'Third'; third.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'Second', expected:'' });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:3, expected:'Second' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'split', line:2, caret:6, version:3 });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:2, nextLine:4, version:4, leftExpected:'Second', rightExpected:'' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:4, value:'Third', expected:'' });
+    expect([first.textContent, second.textContent, third.textContent]).toEqual(['First', 'Second', 'Third']);
+    dom.window.close();
+  });
+  it('retains every draft if an earlier provisional block is changed during a queued split', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const enterAtEnd = (node: HTMLElement) => { const range = dom.window.document.createRange(); range.selectNodeContents(node); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range); node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true })); };
+    enterAtEnd(first); const second = first.nextElementSibling as HTMLElement;
+    second.textContent = 'Second'; second.dispatchEvent(new dom.window.Event('input', { bubbles:true })); enterAtEnd(second);
+    const third = second.nextElementSibling as HTMLElement; third.textContent = 'Third'; third.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    second.textContent = 'Revised'; second.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(3);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
+    expect(sent.some(event => event.type === 'split')).toBe(false);
+    expect(second.textContent).toBe('Revised'); expect(third.textContent).toBe('Third'); dom.window.close();
+  });
+  it('retains both halves if a split conflicts and does not send the provisional draft', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.setStart(first.firstChild!, 2); range.collapse(true);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement; right.textContent = 'changed'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', detail: 'Conflict' } }));
+    expect(first.textContent).toBe('Fi'); expect(right.textContent).toBe('changed');
+    expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(2);
+    expect(sent.some(event => event.type === 'split')).toBe(false); dom.window.close();
+  });
+  it('waits for IME composition in the new block before sending buffered input', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
+    right.textContent = '한'; right.dispatchEvent(new dom.window.InputEvent('input', { bubbles:true, isComposing:true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'split' });
+    right.textContent = '한글'; right.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles:true, data:'한글' }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'한글', version:2 }); dom.window.close();
+  });
+  it('does not split during tracked IME composition even if keydown lacks the flag', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, isComposing:false }));
+    expect(sent.some(event => event.type === 'split' || event.type === 'inline-change')).toBe(false);
+    expect(first.nextElementSibling?.textContent).toBe('Second'); dom.window.close();
+  });
+  it('does not split the provisional paragraph while its IME composition is active', () => {
+    const { dom, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
+    right.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, isComposing:false }));
+    expect(right.nextElementSibling?.textContent).toBe('Second'); dom.window.close();
+  });
+  it('starts a plain paragraph after a heading and buffers its input', () => {
+    const { dom, sent, first } = webview(); first.dataset.sourceType = 'heading_open'; first.dataset.inlineOriginal = '## First'; first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const right = first.nextElementSibling as HTMLElement; expect(right.tagName).toBe('P');
+    right.textContent = 'Next'; right.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'## First' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'split', blockType:'heading_open', caret:5 });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'## First', rightExpected:'' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', blockType:'paragraph_open', value:'Next' }); dom.window.close();
+  });
+  it('refuses to clone a list item containing nested lists', () => {
+    const { dom, sent, text } = checklistWebview();
+    text.closest('li')!.insertAdjacentHTML('beforeend', '<ul><li>nested</li></ul>'); text.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(text); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    text.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    expect(sent.at(-1)).toMatchObject({type:'split-unavailable'}); expect(dom.window.document.querySelectorAll('ul ul')).toHaveLength(1); dom.window.close();
+  });
+  it('does not split an insertion slot without a committed paragraph', () => {
+    const { dom, sent, first } = webview();
+    const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '0';
+    slot.innerHTML = '<div class="insert-field" contenteditable="plaintext-only"></div>'; first.before(slot);
+    const node = slot.firstElementChild as HTMLElement; node.focus();
+    node.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(sent.at(-1)).toMatchObject({ type: 'split-unavailable' }); dom.window.close();
+  });
+  it('creates an unchecked checklist item and preserves immediate input', () => {
+    const { dom, sent, checkbox, text } = checklistWebview(); text.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(text); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    text.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const next = text.closest('li')!.nextElementSibling!;
+    const nextBox = next.querySelector<HTMLInputElement>('input')!, nextText = next.querySelector<HTMLElement>('span')!;
+    expect(checkbox.checked).toBe(false); expect(nextBox.checked).toBe(false);
+    nextText.textContent = 'Next'; nextText.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type:'edit-applied', version:1, expected:'- [ ] First' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'split', caret:5 });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type:'split-applied', line:0, nextLine:1, version:2, leftExpected:'- [ ] First', rightExpected:'- [ ] ' } }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:1, value:'Next', expected:'- [ ] ' });
+    expect(nextBox.dataset.checklistLine).toBe('1'); dom.window.close();
   });
   it('focuses the beginning of the requested block after a split', () => {
     const { dom, second } = webview(2);

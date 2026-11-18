@@ -14,6 +14,13 @@ describe('split a simple paragraph at the selection', () => {
     expect(splitParagraph('# Heading', 'heading_open', 2, 2, '\n')).toBeUndefined();
     expect(splitParagraph('abc', 'paragraph_open', 4, 4, '\n')).toBeUndefined();
   });
+  it('never splits a surrogate pair or changes a new paragraph into a Markdown block', () => {
+    expect(splitParagraph('a😀b', 'paragraph_open', 2, 2, '\n')).toBeUndefined();
+    expect(splitParagraph('a😀b', 'paragraph_open', 1, 3, '\n')).toBe('a\n\nb');
+    expect(splitParagraph('plain - list', 'paragraph_open', 6, 6, '\n')).toBeUndefined();
+    expect(splitParagraph('plain # title', 'paragraph_open', 6, 6, '\n')).toBeUndefined();
+    expect(splitParagraph('hello', 'paragraph_open', 2, 2, '\r')).toBeUndefined();
+  });
 });
 
 describe('split a simple list item', () => {
@@ -24,5 +31,10 @@ describe('split a simple list item', () => {
     expect(splitParagraph('+ hello', 'list_item_inline', 5, 5, '\n')).toBe('+ hello\n+ ');
     expect(splitParagraph('- **hello**', 'list_item_inline', 1, 1, '\n')).toBeUndefined();
     expect(splitParagraph('- hello', 'list_item_inline', 6, 6, '\n')).toBeUndefined();
+  });
+  it('rejects a split that would create a nested list or split an emoji', () => {
+    expect(splitParagraph('- first - nested', 'list_item_inline', 6, 6, '\n')).toBeUndefined();
+    expect(splitParagraph('- a😀b', 'list_item_inline', 2, 2, '\n')).toBeUndefined();
+    expect(splitParagraph('- a😀b', 'list_item_inline', 1, 3, '\n')).toBe('- a\n- b');
   });
 });

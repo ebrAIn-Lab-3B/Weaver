@@ -18,3 +18,7 @@ SlashMD is a relevant reference, but its repository's README declares MIT while 
 ## Remaining decisions
 
 Nested block editing, rich inline formatting, drag-and-drop, and any external editor dependency need their own implementation and verification. TASK-124 covers supported multiline code and list editing; TASK-126 covers the route from requirement view to the authoring surface and back. Existing DEC-027 questions about templates and requirement ID allocation remain open.
+
+## Release scope decision (2026-11-19)
+
+The maintainer chose to finish direct editing in Weaver with Enter and simple top-level lists and checklists. Automatic draft recovery after close, restart, or crash is outside this release; remove its experimental implementation and configuration. Keep normal in-session input preservation, conflict detection, explicit copy/open-draft actions, source fallback, and Markdown round-trip verification. Previously stored recovery data must not be deleted as part of removing the feature.

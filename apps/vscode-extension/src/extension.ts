@@ -14,7 +14,6 @@ import { SidebarProvider } from './sidebar';
 import { processStore } from './processStore';
 import { rosterStore } from './rosterStore';
 import { RequirementView } from './requirementView';
-import { reviewAllRecoveryDrafts } from './recoveryCommands';
 import { Loaded, loadWorkspaceArtifacts, publishDiagnostics, requirementsOf } from './workspace';
 
 const SETUP_PROMPTED_KEY = 'weaver.setup.prompted';
@@ -24,7 +23,6 @@ const IGNORED_PATH = /[\\/](node_modules|\.git|dist|out|examples|\.claude[\\/]wo
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('weaver.reviewRecoveryDrafts', () => reviewAllRecoveryDrafts(context)),
     vscode.commands.registerCommand('weaver.createIdeation', () => createDocument('ideation')),
     vscode.commands.registerCommand('weaver.createRequirement', () => createDocument('requirement')),
     vscode.commands.registerCommand('weaver.linkIdeation', linkIdeation),

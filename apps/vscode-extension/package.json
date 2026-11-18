@@ -21,10 +21,6 @@
     ],
     "commands": [
       {
-        "command": "weaver.reviewRecoveryDrafts",
-        "title": "%weaver.command.reviewRecoveryDrafts.title%"
-      },
-      {
         "command": "weaver.createIdeation",
         "title": "%weaver.command.createIdeation.title%"
       },
@@ -101,12 +97,6 @@
     "configuration": {
       "title": "ebrAIn.lab Weaver",
       "properties": {
-        "weaver.experimentalRecovery": {
-          "type": "boolean",
-          "default": false,
-          "scope": "machine",
-          "markdownDescription": "%weaver.config.experimentalRecovery.description%"
-        },
         "weaver.language": {
           "type": "string",
           "enum": [

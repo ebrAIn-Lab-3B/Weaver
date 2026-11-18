@@ -4,7 +4,7 @@ import { inlinePrefix } from './inlineEditing';
 import { fenceBody } from './fenceEditing';
 
 /** Render without raw HTML and retain source lines for safe, targeted editing. */
-export function renderMarkdown(text: string, imageUri: (source: string) => string, insertLabel?: string): string {
+export function renderMarkdown(text: string, imageUri: (source: string) => string, insertLabel?: string, emptyChecklistLabel?: string): string {
   const md = new MarkdownIt({ html: false, linkify: true }).use(taskLists);
   const lines = text.split(/\r?\n/);
   const hasFrontMatter = lines[0] === '---';
@@ -53,7 +53,7 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
         const marker = /^( {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+\[)([ xX])(\])(?=[ \t]|$)/.exec(line);
         const checkbox = token.children?.[0];
         if (marker && checkbox?.type === 'html_inline' && /^<input class="task-list-item-checkbox"/.test(checkbox.content)) {
-          const label = line.slice(marker[0].length).trim();
+          const label = line.slice(marker[0].length).trim() || emptyChecklistLabel || insertLabel;
           checkbox.content = checkbox.content
             .replace(/\s+disabled(?:="[^"]*")?/, '')
             .replace('<input ', `<input data-checklist-line="${lineNumber}" data-checklist-expected="${escapeAttribute(line)}" aria-label="${escapeAttribute(label)}" `);
@@ -107,7 +107,7 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
           if (state.tokens[index + 1]?.type !== 'paragraph_open' || inline?.type !== 'inline') continue;
           const checked = /\[[xX]\]/.test(prefix) ? ' checked' : '';
           const markup = new state.Token('html_inline', '', 0);
-          markup.content = `<input type="checkbox" data-checklist-line="${item.map[0]}" data-checklist-expected="${escapeAttribute(line)}" aria-label=""${checked}> ${span}`;
+          markup.content = `<input type="checkbox" data-checklist-line="${item.map[0]}" data-checklist-expected="${escapeAttribute(line)}" aria-label="${escapeAttribute(emptyChecklistLabel || insertLabel)}"${checked}> ${span}`;
           inline.children = [markup];
         } else if (state.tokens[index + 1]?.type === 'list_item_close') {
           const markup = new state.Token('html_block', '', 0);

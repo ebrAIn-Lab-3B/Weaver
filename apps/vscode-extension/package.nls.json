@@ -1,6 +1,5 @@
 {
   "weaver.command.createIdeation.title": "Weaver: Create Ideation Document",
-  "weaver.command.reviewRecoveryDrafts.title": "Weaver: Review All Recovery Drafts",
   "weaver.command.createRequirement.title": "Weaver: Create Requirement",
   "weaver.command.linkIdeation.title": "Weaver: Link Ideation to Requirement",
   "weaver.command.previewMarkdown.title": "Weaver: Preview Markdown",
@@ -9,7 +8,6 @@
   "weaver.command.scanWorkspace.title": "Weaver: Scan Workspace",
   "weaver.command.openOverview.title": "Weaver: Open Overview",
   "weaver.command.setUp.title": "Weaver: Set Up",
-  "weaver.config.experimentalRecovery.description": "Experimental: write draft checkpoints to local extension storage. Unresolved drafts remain until explicitly discarded; close, crash, storage privacy, and cross-window behavior are not fully verified. Turn this on only for testing.",
   "weaver.config.language.description": "Language of Weaver messages inside the extension. Command titles follow the VS Code display language.",
   "weaver.config.language.auto": "Follow the VS Code display language; English if it is not supported.",
   "weaver.config.language.en": "English",

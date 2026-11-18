@@ -6,7 +6,7 @@ import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebvi
 describe('empty list item after splitting', () => {
   for (const item of ['- ', '- [ ] ']) {
     it(`focuses the editable text in ${JSON.stringify(item)}`, () => {
-      const html = renderMarkdown(`- first\n${item}`, (src) => src, 'Insert');
+      const html = renderMarkdown(`- first\n${item}`, (src) => src, 'Insert', 'Checklist');
       const dom = new JSDOM(`<button id="source"></button><main>${html}</main>`, { runScripts: 'outside-only' });
       Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage() {} }), editorConfig: { version: 1, focusTextLine: 1, labels: {} } });
       dom.window.eval(markdownClient);
@@ -14,7 +14,11 @@ describe('empty list item after splitting', () => {
       expect(editable).not.toBeNull();
       expect(dom.window.document.activeElement).toBe(editable);
       expect(dom.window.getSelection()?.anchorNode).toBe(editable);
-      if (item.includes('[ ]')) expect(dom.window.document.querySelector('input[data-checklist-line="1"]')).toHaveProperty('checked', false);
+      if (item.includes('[ ]')) {
+        const checkbox = dom.window.document.querySelector('input[data-checklist-line="1"]')!;
+        expect(checkbox).toHaveProperty('checked', false);
+        expect(checkbox.getAttribute('aria-label')).toBe('Checklist');
+      }
       dom.window.close();
     });
   }

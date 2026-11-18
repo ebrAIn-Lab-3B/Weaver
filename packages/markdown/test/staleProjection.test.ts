@@ -67,6 +67,63 @@ async function editorHost(initial: string) {
 }
 
 describe('pending edits after a structural change', () => {
+  it('applies a split and text typed immediately afterwards using the actual host handler', async () => {
+    const host = await editorHost('First\n\nSecond');
+    const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-end="1" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-end="3" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version:1, labels: { conflict:'Conflict', copyDraft:'Copy', openDraft:'Open' } } });
+    dom.window.eval(markdownClient);
+    const first = dom.window.document.querySelector('p') as HTMLElement;
+    first.focus(); const range = dom.window.document.createRange(); range.setStart(first.firstChild!, 2); range.collapse(true);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'typed rst'; right.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    await host.receive(sent[0]); await host.receive(sent[1]);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:host.replies.at(-1) }));
+    expect(sent.at(-1)).toMatchObject({ type:'split' });
+    await host.receive(sent.at(-1)!);
+    expect(host.source()).toBe('Fi\n\nrst\n\nSecond');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:host.replies.at(-1) }));
+    expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'typed rst' });
+    await host.receive(sent.at(-1)!);
+    expect(host.source()).toBe('Fi\n\ntyped rst\n\nSecond');
+    expect(dom.window.document.querySelectorAll('p')[2].dataset.sourceLine).toBe('4');
+    dom.window.close();
+  });
+  it('splits an inserted paragraph and preserves immediate input with the actual host', async () => {
+    const host = await editorHost('First\n\nFollowing');
+    const dom = new JSDOM('<button id="source"></button><main><p data-source-line="0">First</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p contenteditable="plaintext-only" data-inline-original="Following" data-source-line="2" data-source-type="paragraph_open">Following</p></main>', {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{conflict:'Conflict', copyDraft:'Copy', openDraft:'Open'}} });
+    dom.window.eval(markdownClient);
+    const field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
+    field.textContent = 'AlphaBeta'; field.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+    const range = dom.window.document.createRange(); range.setStart(field.firstChild!,5); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    const right = field.parentElement!.nextElementSibling as HTMLElement; right.textContent = 'typed Beta'; right.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    await host.receive(sent[0]); await host.receive(sent[1]); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
+    await host.receive(sent.at(-1)!); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
+    await host.receive(sent.at(-1)!); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
+    expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'typed Beta'}); await host.receive(sent.at(-1)!);
+    expect(host.source()).toBe('First\n\nAlpha\n\ntyped Beta\n\nFollowing');
+    expect((dom.window.document.querySelector('[data-inline-original="Following"]') as HTMLElement).dataset.sourceLine).toBe('6'); dom.window.close();
+  });
+  it('creates an editable paragraph after a heading through the host', async () => {
+    const host = await editorHost('## Title\n\nFollowing');
+    await host.receive({ type:'focus' });
+    await host.receive({ type:'split', line:0, blockType:'heading_open', version:1, expected:'## Title', caret:5, selectionEnd:5 });
+    expect(host.replies.at(-1)).toMatchObject({ type:'split-applied', nextLine:2, rightExpected:'' });
+    await host.receive({ type:'inline-change', line:2, blockType:'paragraph_open', version:2, expected:'', value:'Next' });
+    expect(host.source()).toBe('## Title\n\nNext\n\nFollowing');
+  });
+  it('does not change the document if a split would create Markdown syntax', async () => {
+    const host = await editorHost('text # heading');
+    await host.receive({ type:'focus' });
+    await host.receive({ type:'split', line:0, blockType:'paragraph_open', version:1, expected:'text # heading', caret:5, selectionEnd:5 });
+    expect(host.source()).toBe('text # heading');
+    expect(host.replies.at(-1)).toMatchObject({ type:'edit-failed' });
+  });
   it('splits a checklist item and rejects a split from a stale projection', async () => {
     const host = await editorHost('- [x] hello\n\nSame');
     await host.receive({ type: 'focus' });

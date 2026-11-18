@@ -1,8 +1,10 @@
 # DEC-029: Recovery of pending editor input
 
-- Status: proposed; implementation and human review pending
+- Status: deferred; automatic recovery is outside the current release scope
 - Date: 2026-11-19
 - Related: `REQ-022`, `TASK-125`, `TASK-127`, [DEC-028](./DEC-028-notion-like-markdown-editing.md)
+
+This document records a deferred proposal, not the current release design. The maintainer removed automatic draft recovery from this release in DEC-028; existing stored draft records are not deleted by that decision.
 
 ## Problem
 
@@ -52,8 +54,6 @@ Journal files can contain private document text and paths. Store them under the 
 - Verify the original document is never silently overwritten on conflict, that a journaled draft is not reported as saved, that retention and deletion match the documented policy, and that the interface is localized in English and Korean.
 
 ## Implementation work and decisions still needed
-
-An experimental implementation now records local-file block drafts when the machine-level `weaver.experimentalRecovery` setting is enabled; the setting defaults to off. Review and explicit discard are available for current and moved or deleted source files. Computer Use verified an earlier enabled test build could reopen a recorded draft after a window reload. The final default-off configuration and all-records UI still need extension-host verification. Interrupted or corrupt storage artifacts may remain and require a safe management policy; this implementation does not yet satisfy the release criteria above.
 
 1. Specify the per-document operation protocol, supported local/remote storage and crash-consistency capabilities, exact acknowledgement semantics, and the retention policy. Prototype the journal and fault-injection tests without connecting it to the live editor.
 2. Implement journal persistence, error reporting, sequencing, and recovery review UI; connect them to the `TextDocument` without weakening source-preservation checks. Decide the treatment of input before the journal acknowledgement and how unsaved composition is communicated.

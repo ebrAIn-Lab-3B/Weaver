@@ -5,8 +5,17 @@ export function splitParagraph(line: string, blockType: string, start: number, e
   const prefix = inlinePrefix(line, blockType);
   if (prefix === undefined || !['paragraph_open', 'list_item_inline'].includes(blockType)) return undefined;
   const value = line.slice(prefix.length);
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end > value.length) return undefined;
-  if (blockType === 'paragraph_open') return value.slice(0, start) + eol + eol + value.slice(end);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end > value.length || (eol !== '\n' && eol !== '\r\n')) return undefined;
+  const insideSurrogate = (offset: number): boolean => offset > 0 && offset < value.length && /[\uD800-\uDBFF]/.test(value[offset - 1]) && /[\uDC00-\uDFFF]/.test(value[offset]);
+  if (insideSurrogate(start) || insideSurrogate(end)) return undefined;
+  const left = value.slice(0, start), right = value.slice(end);
+  if (blockType === 'paragraph_open') {
+    // A split may move a Markdown marker to the start of the new paragraph.
+    // Refuse rather than silently convert the user's plain text into a heading or list.
+    if (inlinePrefix(left, blockType) === undefined || inlinePrefix(right, blockType) === undefined) return undefined;
+    return left + eol + eol + right;
+  }
   const nextPrefix = prefix.replace(/\[[xX]\]/, '[ ]');
-  return prefix + value.slice(0, start) + eol + nextPrefix + value.slice(end);
+  if (inlinePrefix(prefix + left, blockType) === undefined || inlinePrefix(nextPrefix + right, blockType) === undefined) return undefined;
+  return prefix + left + eol + nextPrefix + right;
 }

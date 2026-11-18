@@ -14,6 +14,8 @@ let locationsStale = false;
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
 
 function showDraftConflict(current, detail) {
+  if (current.conflictShown) return;
+  current.conflictShown = true;
   current.failed = true; current.inflight = false;
   const note = document.createElement('p'); note.setAttribute('role', 'alert');
   note.textContent = detail || editorConfig.labels.conflict;
@@ -21,7 +23,11 @@ function showDraftConflict(current, detail) {
   button.textContent = editorConfig.labels.copyDraft;
   button.addEventListener('mousedown', event => event.preventDefault());
   button.addEventListener('click', () => vscode.postMessage({ type: 'copy-draft', value: nodeValue(current.node) }));
-  note.append(' ', button); current.node.insertAdjacentElement('afterend', note);
+  const recover = document.createElement('button'); recover.type = 'button';
+  recover.textContent = editorConfig.labels.openDraft;
+  recover.addEventListener('mousedown', event => event.preventDefault());
+  recover.addEventListener('click', () => vscode.postMessage({ type: 'open-draft', value: nodeValue(current.node) }));
+  note.append(' ', button, ' ', recover); current.node.insertAdjacentElement('afterend', note);
 }
 
 function clearInvalid() {
@@ -113,7 +119,7 @@ main.addEventListener('focusin', event => {
 });
 main.addEventListener('input', event => {
   const queued = [...pending].reverse().find(item => event.target === item.node);
-  if (queued) { queued.dirty = true; return; }
+  if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
   if (!session || event.target !== session.node || event.isComposing) return;
   clearInvalid();
   // If Enter was pressed over a selection and a new edit arrives before the
@@ -124,7 +130,7 @@ main.addEventListener('input', event => {
 });
 main.addEventListener('compositionend', event => {
   const queued = [...pending].reverse().find(item => event.target === item.node);
-  if (queued) { queued.dirty = true; return; }
+  if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
   if (!session || event.target !== session.node) return;
   clearInvalid();
   if (session.type === 'inline' && session.finish && session.next && session.selectionEnd > session.caret) session.selectionEnd = session.caret;
@@ -192,6 +198,7 @@ window.addEventListener('message', event => {
       start(next.node);
       if (session) {
         showDraftConflict(session, event.data.detail);
+        for (const queued of pending) if (queued.dirty) showDraftConflict(queued, event.data.detail);
       }
     }
     return;
@@ -217,6 +224,7 @@ window.addEventListener('message', event => {
     if (session.dirty && nodeValue(session.node) !== session.sentValue) { clearInvalid(); pump(); }
   } else if (event.data?.type === 'edit-failed' || event.data?.type === 'conflict') {
     showDraftConflict(session, event.data.detail);
+    for (const queued of pending) if (queued.dirty) showDraftConflict(queued, event.data.detail);
   }
 });
 function sendAction(type) {

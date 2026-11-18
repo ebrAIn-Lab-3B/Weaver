@@ -71,7 +71,22 @@ describe('rendered editor synchronization', () => {
     expect(button).toBeTruthy();
     button.click();
     expect(sent.at(-1)).toMatchObject({ type: 'copy-draft', value: 'Draft with later typing' });
+    const open = dom.window.document.querySelectorAll<HTMLButtonElement>('[role=alert] button')[1];
+    open.click();
+    expect(sent.at(-1)).toMatchObject({ type: 'open-draft', value: 'Draft with later typing' });
     expect(first.textContent).toBe('Draft with later typing');
+    dom.window.close();
+  });
+  it('offers recovery for a second block queued when an external change conflicts', () => {
+    const { dom, sent, first, second } = webview();
+    first.focus(); first.textContent = 'First draft'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.focus(); second.textContent = 'Second draft'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'conflict', detail: 'Changed elsewhere' } }));
+    const alerts = dom.window.document.querySelectorAll('[role=alert]');
+    expect(alerts).toHaveLength(2);
+    alerts[1].querySelectorAll<HTMLButtonElement>('button')[1].click();
+    expect(sent.at(-1)).toMatchObject({ type: 'open-draft', value: 'Second draft' });
+    expect(second.textContent).toBe('Second draft');
     dom.window.close();
   });
   it('flushes an in-flight edit before opening source or requesting undo', () => {

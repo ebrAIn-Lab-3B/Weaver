@@ -35,7 +35,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, labels: {
       menu: message('ui.markdown.slash-menu'), heading: message('ui.markdown.heading'), bullet: message('ui.markdown.bullet'),
       checklist: message('ui.markdown.checklist'), code: message('ui.markdown.code'), conflict: message('ui.markdown.edit-conflict'),
-      codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'), copyDraft: message('ui.markdown.copy-draft'),
+      codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'), copyDraft: message('ui.markdown.copy-draft'), openDraft: message('ui.markdown.open-draft'),
     } }).replace(/</g, '\\u003c');
     focusAfter = undefined;
     focusTextLine = undefined;
@@ -63,6 +63,16 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         void vscode.window.showInformationMessage(message('ui.markdown.draft-copied'));
       } catch {
         void vscode.window.showErrorMessage(message('ui.markdown.copy-failed'));
+      }
+      return;
+    }
+    if (event.type === 'open-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
+      try {
+        const recovery = await vscode.workspace.openTextDocument({ language: 'markdown', content: event.value });
+        await vscode.window.showTextDocument(recovery, { preview: false });
+        void vscode.window.showInformationMessage(message('ui.markdown.open-draft-save'));
+      } catch {
+        void vscode.window.showErrorMessage(message('ui.markdown.open-draft-failed'));
       }
       return;
     }

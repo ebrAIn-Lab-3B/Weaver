@@ -4,13 +4,17 @@ type: task
 title: Make direct writing and slash menus flow naturally
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/326
-status: draft
+status: review
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-010, AC-011]
 ---
 
 # TASK-123 Make direct writing and slash menus flow naturally
+
+## Current card status (2026-11-20)
+
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; the exact beginning/middle/end and pending-operation combinations not observed in the host are unverified rather than known defects. Automated delayed-response tests are simulations.
 
 ## Context
 

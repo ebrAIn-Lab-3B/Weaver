@@ -4,13 +4,17 @@ type: task
 title: Verify the human-only authoring journey in VS Code
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/330
-status: draft
+status: in-progress
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009, AC-015]
 ---
 
 # TASK-127 Verify the human-only authoring journey in VS Code
+
+## Current card status (2026-11-20)
+
+The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. A deliberately rapid-focus pass on the integrated build and the remaining TASK-125 review are not established by the observed examples; this is incomplete verification, not a reproduced failure.
 
 ## Context
 

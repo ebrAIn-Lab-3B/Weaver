@@ -1,6 +1,7 @@
 ---
 id: TASK-121
 type: task
+status: in-progress
 title: Document and verify the human-only authoring journey
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/320
@@ -16,6 +17,10 @@ After TASK-117 through TASK-120, document and exercise the complete journey: cre
 The documentation must identify the actual product entry points and avoid assuming an organization-specific process. A named agent owner remains to be assigned.
 
 Manual verification reported by the maintainer on 2026-11-18: a task file renders and opens its linked requirement; an ideation document opens from its link in the requirement view; and document content is retained after editing, saving, and reopening. The report does not identify the exact constructs or cover every step of the journey and offline operation.
+
+## Current card status (2026-11-20)
+
+The local creation, linking, diagram, editing and reopening journey was exercised in the VS Code development host as recorded below. The requested disconnected local-workspace pass has not been run. This is missing evidence, not a reproduced defect; offline-to-online synchronization and remote providers are outside the baseline. See TASK-127 for the separate editor checks.
 
 ## 0.1.22 handover
 

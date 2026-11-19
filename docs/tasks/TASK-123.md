@@ -14,7 +14,7 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. Pending-operation combinations not observed in the host are unverified rather than known defects. Automated delayed-response tests are simulations.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. A false conflict during pending split undo was reproduced in a host with deliberately delayed acknowledgements, as recorded below; other unobserved combinations remain unverified. Automated delayed-response tests are simulations.
 
 ## Context
 
@@ -85,3 +85,7 @@ With the maintainer enabling the Korean IME, Computer Use exercised the current 
 ## Paragraph boundary check (2026-11-20)
 
 In a separate local Restricted Mode workspace on Windows, Computer Use used the VS Code 1.147.0 development host on current main to press Enter at the start, middle and end of an existing paragraph, then type into the new end block. Saving and reopening retained `Alpha mi`, `ddle omega.`, `Boundary continuation` and the untouched following paragraph. The empty visual block at the start did not persist on reopen, consistent with the documented Markdown behavior. The test did not deliberately delay host acknowledgements or exercise pending-operation undo.
+
+## Delayed split acknowledgement and undo (2026-11-20)
+
+A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. The trigger and the VS Code undo routing still need investigation and a fix, followed by automated and actual-host regression checks.

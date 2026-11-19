@@ -111,3 +111,10 @@ A later isolated-profile VS Code 1.147.0 development-host session succeeded; the
 ## Follow-up focus and undo check (2026-11-19)
 
 In the isolated VS Code 1.147.0 development host, Computer Use edited two existing paragraphs sequentially while switching focus, invoked undo and redo, and saved after restoring both additions; the saved source contained both. The screen observations were taken between actions and did not deliberately delay acknowledgements, so they do not establish rapid input under delay or pending-operation undo grouping. A request to send the `Hangul` key returned `unsupported key`; no new real-IME composition was claimed. The earlier real-IME observation remains recorded above.
+
+
+## Post-merge local smoke check (2026-11-20)
+
+After PR #337 was merged, Computer Use opened a separate local fixture in a Windows VS Code 1.147.0 development host with an isolated profile and Restricted Mode workspace. An existing paragraph was edited, focus was moved to a checklist and the checkbox was checked, then the document was saved, closed and reopened. The rendered document and saved Markdown contained both the paragraph edit and checked marker. On the merged commit, `npm.cmd run check`, the full `npm.cmd test` (616 Markdown, 122 GitHub, 248 CLI tests), and `npm.cmd run test:document-race` passed. The latter remains limited to the five VS Code model edit shapes described in TASK-125. GitHub CI for the merged commit also passed.
+
+The latest changes were not retested with a real Korean IME or a screen reader; the earlier real-IME example and the simulated composition and accessibility-tree checks are recorded above. This check does not treat remote providers or offline-to-online synchronization as blockers.

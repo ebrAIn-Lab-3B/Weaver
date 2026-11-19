@@ -10,8 +10,14 @@ describe('plan multiline plain text paste', () => {
     expect(planMultilinePaste('- [x] after', 'list_item_inline', 0, 0, 'one\ntwo ', '\n')).toBe('- [x] one\n- [ ] two after');
     expect(planMultilinePaste('2) item', 'list_item_inline', 4, 4, ' X\rY', '\r\n')).toBe('2) item X\r\n2) Y');
   });
+  it('accepts a single empty separator between plain paragraphs', () => {
+    expect(planMultilinePaste('safe', 'paragraph_open', 4, 4, 'a\n\nb', '\n')).toBe('safea\n\nb');
+    expect(planMultilinePaste('safe', 'paragraph_open', 4, 4, 'a\r\n\r\nb', '\r\n')).toBe('safea\r\n\r\nb');
+  });
   it('refuses ambiguous blank lines, markup and invalid selections', () => {
-    expect(planMultilinePaste('safe', 'paragraph_open', 4, 4, 'a\n\nb', '\n')).toBeUndefined();
+    expect(planMultilinePaste('safe', 'paragraph_open', 4, 4, 'a\n\n\nb', '\n')).toBeUndefined();
+    expect(planMultilinePaste('safe', 'paragraph_open', 4, 4, 'a\n \nb', '\n')).toBeUndefined();
+    expect(planMultilinePaste('- item', 'list_item_inline', 0, 0, 'a\n\nb', '\n')).toBeUndefined();
     expect(planMultilinePaste('safe', 'paragraph_open', 0, 0, '# heading\ntext', '\n')).toBeUndefined();
     expect(planMultilinePaste('safe', 'paragraph_open', 0, 0, '**bold**\ntext', '\n')).toBeUndefined();
     expect(planMultilinePaste('- item', 'list_item_inline', 0, 0, '- nested\ntext', '\n')).toBeUndefined();

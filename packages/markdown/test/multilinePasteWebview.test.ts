@@ -78,4 +78,12 @@ describe('multiline paste as queued, editable splits', () => {
     const {dom,node,sent}=fixture(); paste(dom,node,'text\n# title');
     expect(node.textContent).toBe('abcd'); expect(sent.at(-1)).toMatchObject({type:'multiline-paste'}); dom.window.close();
   });
+  it('accepts a single blank separator and rejects additional blank lines without changing the draft',()=>{
+    const first=fixture(); paste(first.dom,first.node,'ONE\n\nTWO');
+    expect([...first.dom.window.document.querySelectorAll('main p')].map(item=>item.textContent)).toEqual(['aONE','TWOd']);
+    first.dom.window.close();
+    const second=fixture(); paste(second.dom,second.node,'ONE\n\n\nTWO');
+    expect(second.node.textContent).toBe('abcd'); expect(second.sent.at(-1)).toMatchObject({type:'multiline-paste'});
+    second.dom.window.close();
+  });
 });

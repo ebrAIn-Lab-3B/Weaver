@@ -30,7 +30,7 @@ Verify insertion followed by editing, existing documents, multiple items and cod
 
 Supported plain paragraphs, headings, top-level list items, and simple nested child items can be edited in place. Enter splits supported headings and items; a newly selected empty bullet can return to a paragraph. Ordinary closed top-level fenced code can be edited. Computer Use exercised a simple nested child edit and Enter, then saved and reopened it. Plain nested list and checklist items are now editable and toggleable, including nonempty parents; splitting a parent with children and formatted nested items still require source mode; selecting an unsupported nested item offers source guidance.
 
-Pasting multiple nonempty plain lines into an existing supported paragraph is supported. Blank lines and formatted text still require source mode. Plain nonempty multiline paste into a new paragraph insertion field is implemented and has automated and extension-host coverage described below. Blank visual spacing created in an empty paragraph field does not survive reopening Markdown. Concurrent external changes not yet loaded into VS Code remain a limitation. The full task remains in progress.
+Pasting multiple nonempty plain lines into an existing supported paragraph is supported. A single empty separator between plain paragraphs is supported; other blank-line cases and formatted text still require source mode. Plain nonempty multiline paste into a new paragraph insertion field is implemented and has automated and extension-host coverage described below. Blank visual spacing created in an empty paragraph field does not survive reopening Markdown. Concurrent external changes not yet loaded into VS Code remain a limitation. The full task remains in progress.
 
 ## Scope and fallback decision
 
@@ -76,3 +76,13 @@ The successful host was launched with a separate profile and its stdout and stde
 ## Unsupported paste fallback (2026-11-19)
 
 In the Windows VS Code 1.147.0 development host, Computer Use copied `Alpha`, a blank line, and `Beta` from a temporary source file and pasted into a new rendered insertion field. Weaver displayed the source-mode guidance and did not change the existing target document; the saved Markdown remained unchanged. The English and Korean guidance was clarified to refer to the particular unsupported paste, since nonempty plain multiline paste is supported. `npm.cmd run check` and the focused i18n and multiline-paste tests passed. This is fallback verification, not implementation of blank-line paste.
+
+
+## Blank separator paste (2026-11-20)
+
+Plain paragraph paste now accepts a single empty line between nonempty lines, in an existing paragraph or a new paragraph field, and writes the normal Markdown paragraph separator. Multiple consecutive blank lines, whitespace-only blank lines, leading or trailing blank lines, blank lines in list items, and rich Markdown remain source-mode cases. In a separate local Restricted Mode workspace, Computer Use in the VS Code 1.147.0 development host copied `Alpha`, a blank line, and `Beta`, pasted into a new paragraph field, saved, closed, and reopened. Both paragraphs were visible and the saved Markdown contained the separating blank line. Automated planner, webview and host-handler tests cover the supported and rejected cases. `npm.cmd run check` and `npm.cmd test` passed (610 Markdown, 122 GitHub, 248 CLI tests). This does not verify deliberately delayed extension-host responses or real IME composition.
+
+
+## Baseline scope and deletion check (2026-11-20)
+
+The acceptance criteria cover supported block edits and an accessible source route for content that cannot safely be edited. DEC-028 explicitly allows nested or rich constructs to remain source-only; implementing every formatted nested construct or every whitespace pattern is not an additional condition for the current baseline. In the VS Code 1.147.0 development host, Computer Use switched between two paragraphs, removed the last character from the second, saved, closed, and reopened; the changed paragraph and first paragraph remained visible. This is a targeted ordinary-deletion check, not a claim about every editing timing.

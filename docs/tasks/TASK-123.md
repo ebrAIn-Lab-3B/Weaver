@@ -14,7 +14,7 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. A false conflict during pending split undo was reproduced in a host with deliberately delayed acknowledgements, as recorded below; other unobserved combinations remain unverified. Automated delayed-response tests are simulations.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed, but save-and-close during a delayed split lost a pending draft in a separate host test, as recorded below. The card remains open. Automated delayed-response tests are simulations.
 
 ## Context
 
@@ -89,3 +89,15 @@ In a separate local Restricted Mode workspace on Windows, Computer Use used the 
 ## Delayed split acknowledgement and undo (2026-11-20)
 
 A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. The trigger and the VS Code undo routing still need investigation and a fix, followed by automated and actual-host regression checks.
+
+## Delayed undo fix and recheck (2026-11-20)
+
+VS Code delivered Ctrl+Z to both the embedded webview and the workbench, allowing the document history to run while a split was still awaiting acknowledgement. The scoped editor shortcut now routes undo and redo through the webview's pending-edit queue; the webview prevents the same key event from enqueueing history twice. Shortcut handling is limited to the Weaver custom editors and excludes focused lists and other input fields.
+
+In the Windows VS Code 1.147.0 development host, Computer Use used a separate temporary copy of the fixed extension with its split acknowledgement deliberately delayed by 60 seconds. After splitting an existing paragraph and typing `Final draft`, Ctrl+Z left the draft visible while waiting, with no conflict. The instrumented host trace recorded one undo after the split and draft were applied. Ctrl+Y restored the draft; save, close and reopen preserved it and the untouched paragraph. The timing delay and trace existed only in the temporary copy. A second development host using the uninstrumented fixed extension verified ordinary paragraph editing, Ctrl+Z and Ctrl+Y. Tests cover the queued request and duplicate-key prevention; `npm.cmd test` passed (620 Markdown, 122 GitHub, 248 CLI) and `npm.cmd run test:document-race` passed the five representative local model cases. These checks cover Windows keyboard shortcuts; menu-driven undo and other operating systems were not separately tested.
+
+## Delayed save and close (2026-11-20)
+
+With the fixed extension copied to a Windows VS Code 1.147.0 development host and a split acknowledgement artificially delayed by 120 seconds, Computer Use typed `Waiting A` into the provisional paragraph, switched to an existing paragraph, typed `Waiting B`, and pressed Ctrl+S. VS Code retained the dirty indicator during the delay; after the acknowledgement, both additions appeared in the saved local file. This is a targeted queued-focus and keyboard-save observation with an instrumented extension, not a claim about every transition.
+
+A separate instrumented host with a 30-second acknowledgement delay exposed an unresolved data-loss case: after Enter and typing `Close pending draft`, Ctrl+W showed the VS Code unsaved-changes dialog. Choosing Save closed the editor, but the saved local file contained the split and did not contain the draft. The Ctrl+S routing fix does not intercept this VS Code save-and-close path. Keep the task open until the close path protects pending input and passes an actual-host regression.

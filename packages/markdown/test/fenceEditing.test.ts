@@ -62,7 +62,7 @@ describe('safe fenced-code editing', () => {
     input.value = 'first\nsecond\n';
     input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     expect(sent.find((event) => event.type === 'fence-change')).toMatchObject({ line: 0, endLine: 3, expected: 'first\n', value: 'first\nsecond\n', version: 1 });
-    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     expect(sent.some((event) => event.type === 'save')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'first\nsecond\n' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'save' });

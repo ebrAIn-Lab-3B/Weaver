@@ -13,8 +13,19 @@ import { planChecklistToggle } from './checklistEditing';
 import { markdownSlotStyles } from './markdownSlotStyles';
 import { submitDocumentEdit } from './submitDocumentEdit';
 
+const authorPanels = new Set<vscode.WebviewPanel>();
+
+/** Route workbench shortcuts through the active editor's pending-edit queue. */
+export function requestMarkdownAction(action: 'save' | 'undo' | 'redo'): boolean {
+  const panel = [...authorPanels].find((item) => item.active);
+  if (!panel) return false;
+  void panel.webview.postMessage({ type: 'editor-action-request', action });
+  return true;
+}
+
 /** Edits are targeted VS Code document changes; unsupported Markdown stays in source mode. */
 export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel, context: vscode.ExtensionContext, task = false): void {
+  authorPanels.add(panel);
   const localRoots = [context.extensionUri, vscode.Uri.joinPath(document.uri, '..'), ...(vscode.workspace.workspaceFolders ?? []).map((f) => f.uri)];
   panel.webview.options = { enableScripts: true, localResourceRoots: localRoots };
   let editing = false;
@@ -303,6 +314,6 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       } catch { void vscode.window.showErrorMessage(message('ui.markdown.link-error')); }
     }
   });
-  panel.onDidDispose(() => { change.dispose(); receive.dispose(); });
+  panel.onDidDispose(() => { authorPanels.delete(panel); change.dispose(); receive.dispose(); });
   render();
 }

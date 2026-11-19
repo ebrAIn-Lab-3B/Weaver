@@ -16,6 +16,31 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "keybindings": [
+      {
+        "command": "weaver.markdownSave",
+        "key": "ctrl+s",
+        "mac": "cmd+s",
+        "when": "(activeCustomEditorId == weaver.markdownAuthor || activeCustomEditorId == weaver.requirementEditor) && !listFocus && !inputFocus"
+      },
+      {
+        "command": "weaver.markdownUndo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "(activeCustomEditorId == weaver.markdownAuthor || activeCustomEditorId == weaver.requirementEditor) && !listFocus && !inputFocus"
+      },
+      {
+        "command": "weaver.markdownRedo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "(activeCustomEditorId == weaver.markdownAuthor || activeCustomEditorId == weaver.requirementEditor) && !listFocus && !inputFocus"
+      },
+      {
+        "command": "weaver.markdownRedo",
+        "key": "ctrl+shift+z",
+        "when": "(activeCustomEditorId == weaver.markdownAuthor || activeCustomEditorId == weaver.requirementEditor) && !listFocus && !inputFocus"
+      }
+    ],
     "markdown.previewScripts": [
       "./dist/markdownPreview.js"
     ],

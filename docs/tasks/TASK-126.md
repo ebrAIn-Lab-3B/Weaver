@@ -23,3 +23,7 @@ Requirement files currently open the Weaver requirement view, while the trial re
 - Unsaved changes, mode changes, and external modifications follow the safeguards of TASK-125. Requirement/task/evidence navigation and ordinary Markdown editing remain functional.
 
 Verify a schema-valid requirement with links, criteria, a task and a Mermaid block in the VS Code extension host, including save, reopening, and navigation. Record tests and a Computer Use result before completion.
+
+## 0.1.22 handover
+
+Requirement view to rendered editor and back shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). A development-host pass edited a generated requirement and followed its ideation link. Remaining: verify a schema-valid requirement combining metadata, task links, criteria, Mermaid, and unsupported Markdown through edit, save, reopen, and navigation.

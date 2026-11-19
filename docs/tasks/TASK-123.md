@@ -40,3 +40,7 @@ Integration verification must include beginning/middle/end splits, selected text
 ## Priority and interaction decision
 
 After concurrent-change protection in TASK-125, complete ordinary Enter behavior for existing paragraphs, headings, and simple top-level lists as well as empty and nonempty insertion fields. A supported flow should not require an Apply action. Preserve input and focus through immediate typing and consecutive Enter; unsupported or unproven cases use a clear source-mode route instead of risking a source rewrite. Extension-host checks must distinguish ordinary input from actual Korean IME composition and exercise delayed acknowledgements.
+
+## 0.1.22 handover
+
+The supported direct-writing and slash-menu slice shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). Remaining: verify complete caret/selection, delayed-acknowledgement, undo/redo, and input-boundary behavior against the criteria above.

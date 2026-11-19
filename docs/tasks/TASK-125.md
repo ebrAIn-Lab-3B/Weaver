@@ -46,3 +46,7 @@ All rendered edit paths submit through a common synchronous version check and ha
 A further local-file development-host test left a Weaver edit unsaved, changed the same file externally, and invoked save. VS Code refused the save and offered Compare/Overwrite while the local text remained visible and the external marker remained on disk. This observation uses the tested VS Code configuration; `files.saveConflictResolution` can change that behavior and other file providers may differ.
 
 A separate two-process VS Code test left a Weaver edit dirty while a second VS Code window saved a different version of the same local file. The first window refused its subsequent save and offered Compare/Overwrite; its unsaved text remained visible and the other version was on disk. This result is specific to the tested local provider and VS Code conflict settings.
+
+## 0.1.22 handover
+
+In-session conflict reporting, draft copy/open, version checks, and local two-window save-conflict observations shipped or were recorded with [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22). Remaining: clarify and verify the supported file-provider and VS Code configuration boundary and pending-input transitions; automatic recovery after close, restart, or crash remains deferred.

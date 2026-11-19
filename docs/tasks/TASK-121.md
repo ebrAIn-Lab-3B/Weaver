@@ -16,3 +16,7 @@ After TASK-117 through TASK-120, document and exercise the complete journey: cre
 The documentation must identify the actual product entry points and avoid assuming an organization-specific process. A named agent owner remains to be assigned.
 
 Manual verification reported by the maintainer on 2026-11-18: a task file renders and opens its linked requirement; an ideation document opens from its link in the requirement view; and document content is retained after editing, saving, and reopening. The report does not identify the exact constructs or cover every step of the journey and offline operation.
+
+## 0.1.22 handover
+
+The documented create, link, edit, and link-navigation flow was exercised in a temporary VS Code development workspace. Remaining: run the complete journey including a diagram, reopen outside Weaver, and check offline behavior; TASK-127 records the detailed pass and evidence.

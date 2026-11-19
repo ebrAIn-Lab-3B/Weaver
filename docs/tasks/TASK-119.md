@@ -28,3 +28,7 @@ Verify insertion at more than one position, all commands, cancellation, source p
 Development-host check on 2026-11-18: an existing plain paragraph was edited in place, Enter opened an empty line, and `/` opened a menu from which a heading was inserted and saved. The saved Markdown retained the existing Mermaid source. This is a partial check; other commands, IME, undo, external changes, and the complete document round trip remain to be verified.
 
 Maintainer feedback on 2026-11-18: editing selected existing content produced a spurious document-change warning. The editor now keeps edits queued across a rapid focus change and recognizes its own delayed document-change events; a development-host check replaced existing text with Korean and saved it without the warning. Automated tests simulate Korean composition and delayed acknowledgements. Real Korean IME input and genuine concurrent file changes still need extension-host verification.
+
+## 0.1.22 handover
+
+The supported rendered editor and source fallback shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). Follow-up work is tracked by TASK-123 through TASK-127. Remaining: complete the broader document-preservation and mode-switch criteria; see the child tasks for specific limits and verification.

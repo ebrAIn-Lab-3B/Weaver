@@ -14,7 +14,7 @@ criteria: [AC-004, AC-006, AC-013, AC-014]
 
 ## Current card status (2026-11-20)
 
-Local in-session conflict reporting, draft recovery controls and VS Code save conflict handling are implemented. A local two-window conflict, representative model application races, mode transitions, undo/redo and a real Korean IME example were exercised as recorded below. Deliberately delayed host responses and rapid transitions in all combinations remain unverified; no defect is inferred from those gaps. Automatic recovery after close, restart or crash is explicitly deferred.
+Local in-session conflict reporting, draft recovery controls and VS Code save conflict handling are implemented. A local two-window conflict, representative model application races, mode transitions, undo/redo and a real Korean IME example were exercised as recorded below. A false conflict during pending split undo was reproduced with a deliberately delayed host acknowledgement, as recorded below. Rapid transitions in all combinations remain unverified. Automatic recovery after close, restart or crash is explicitly deferred.
 
 ## Context
 
@@ -105,3 +105,7 @@ With the maintainer enabling the Korean IME, Computer Use exercised the current 
 ## Three-block transition check (2026-11-20)
 
 In a separate local Restricted Mode workspace, Computer Use in the Windows VS Code 1.147.0 development host edited three existing paragraphs in succession, moving focus between them. Undo and redo were invoked; after restoring the edits, save, close and reopen preserved `ONE`, `TWO` and `THREE` in their respective paragraphs without a conflict warning. The automation observed the screen between actions; this was not a deliberately rapid or delayed-acknowledgement host test. On the same checkout, `npm.cmd run test -w @ebrain-lab/weaver-markdown -- markdownWebview.test.ts staleProjection.test.ts splitTransaction.test.ts` passed 74 tests; delayed acknowledgements in those tests are simulated.
+
+## Delayed split acknowledgement and undo (2026-11-20)
+
+A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. The trigger and the VS Code undo routing still need investigation and a fix, followed by automated and actual-host regression checks.

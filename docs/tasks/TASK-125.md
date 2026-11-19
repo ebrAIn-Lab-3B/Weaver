@@ -92,3 +92,8 @@ After the fix, `npm.cmd run check` and `npm.cmd test` passed: 594 Markdown, 122 
 Subsequent simulated delayed-acknowledgement tests found and addressed queued slash-menu input and queued IME composition state; see TASK-123. The tests use simulated composition, not a fresh real-IME pass. After these changes `npm.cmd run check` and the full `npm.cmd test` passed (599 Markdown, 122 GitHub, 248 CLI tests).
 
 On 2026-11-20, `npm.cmd run test:document-race` passed again in VS Code 1.147.0 for inline, insertion, split, fenced-code, and checklist model edits. The scope and limitation of this test remain those described in the application-boundary section above.
+
+
+## Current main Korean IME check (2026-11-20)
+
+With the maintainer enabling the Korean IME, Computer Use exercised the current main implementation in a separate local Restricted Mode workspace in the Windows VS Code 1.147.0 development host. Physical key events composed `한글` in an existing paragraph, then focus moved to another paragraph immediately after composition. The second paragraph received `가`; save, close and reopen preserved both additions. In a new insertion field, physical IME composition of `/체크` filtered the Korean slash menu to Checklist. Enter selected it, physical key events composed `가` in the new checklist item, and saving, closing and reopening preserved both paragraphs and `- [ ] 가` in the Markdown file. No conflict or dropped text appeared in these observed cases. This is a targeted real-IME pass; delayed acknowledgements were not artificially introduced.

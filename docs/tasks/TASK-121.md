@@ -19,4 +19,4 @@ Manual verification reported by the maintainer on 2026-11-18: a task file render
 
 ## 0.1.22 handover
 
-The documented create, link, edit, and link-navigation flow was exercised in a temporary VS Code development workspace. Remaining: run the complete journey including a diagram, reopen outside Weaver, and check offline behavior; TASK-127 records the detailed pass and evidence.
+The documented create, link, edit, and link-navigation flow was exercised in a temporary VS Code development workspace. A later diagram-bearing requirement fixture was edited, saved, reopened, and inspected in the VS Code text editor; creation and linking were tested separately. TASK-127 records the detailed evidence. The complete local journey and the specified local offline operation still need an integrated check. Remote-provider synchronization is outside this check.

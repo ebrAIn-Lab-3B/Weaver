@@ -19,4 +19,3 @@ describe('plan multiline plain text paste', () => {
     expect(planMultilinePaste('# heading', 'heading_open', 0, 0, 'x\ny', '\n')).toBeUndefined();
   });
 });
-

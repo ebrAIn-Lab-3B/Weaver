@@ -48,4 +48,3 @@ describe('multiline paste as queued, editable splits', () => {
     expect(node.textContent).toBe('abcd'); expect(sent.at(-1)).toMatchObject({type:'multiline-paste'}); dom.window.close();
   });
 });
-

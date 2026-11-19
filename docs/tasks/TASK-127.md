@@ -70,3 +70,9 @@ A further human-only pass used the extension to create an ideation file and a re
 ## 0.1.22 handover
 
 Partial extension-host checks, automated checks, and the released scope are recorded above and in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22). Remaining: complete the combined diagram-bearing requirement journey, reopening outside Weaver, and the remaining timing and environment checks. Do not mark verified on the partial passes alone.
+
+## Diagram-bearing requirement round trip (2026-11-19)
+
+In a separate temporary workspace, Computer Use exercised the 0.1.22 development extension with a schema-valid `REQ-991` containing front matter, a story ID, two acceptance criteria, a `TASK-991` reference and local task link, an ideation link, a Mermaid flowchart, and a Markdown table with bold text. The requirement view showed its metadata, criteria and task. The editor displayed the Mermaid diagram; an existing outcome paragraph was edited and saved. Returning to the requirement view, the task details link opened the task, its requirement action returned to the requirement, and the ideation link opened the ideation document. The VS Code text editor showed the edited body and metadata; the saved file retained both links, task and criteria, Mermaid source, table, and bold text. The requirement was reopened in Weaver.
+
+The fixture intentionally has no GitHub Issue link for the task, so Weaver reported that expected warning. This was a targeted local-file test using a development host, not an installed-VSIX test or a complete test of pending changes, remote file providers, offline mode, or all input and conflict timings.

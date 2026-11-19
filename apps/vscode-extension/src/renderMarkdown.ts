@@ -52,13 +52,14 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
       // The checkbox remains outside the editable element and the original list marker stays in source.
       const paragraph = state.tokens[index - 1];
       const item = state.tokens[index - 2];
-      // Enable only top-level checkbox markers that can be traced to a source
-      // line. Nested lists, quoted examples, and front matter stay read-only.
+      // Enable checkbox markers traceable to a supported list item.
       if (insertLabel !== undefined && token.type === 'inline' && token.map && paragraph?.type === 'paragraph_open' &&
-          item?.type === 'list_item_open' && item.level === 1 && (!hasFrontMatter || (frontMatterEnd >= 0 && token.map[0] > frontMatterEnd))) {
+          item?.type === 'list_item_open' && item.level >= 1 && item.map &&
+          (item.level === 1 || inlinePrefix(lines[token.map[0]], 'list_item_inline') !== undefined) &&
+          (!hasFrontMatter || (frontMatterEnd >= 0 && token.map[0] > frontMatterEnd))) {
         const lineNumber = token.map[0];
         const line = lines[lineNumber];
-        const marker = /^( {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+\[)([ xX])(\])(?=[ \t]|$)/.exec(line);
+        const marker = /^([ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[)([ xX])(\])(?=[ \t]|$)/.exec(line);
         const checkbox = token.children?.[0];
         if (marker && checkbox?.type === 'html_inline' && /^<input class="task-list-item-checkbox"/.test(checkbox.content)) {
           const label = line.slice(marker[0].length).trim() || emptyChecklistLabel || insertLabel;
@@ -77,11 +78,9 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
         const contentIndex = checkbox ? 1 : 0;
         const content = children[contentIndex];
         const visible = content?.type === 'text' ? (checkbox ? content.content.replace(/^[ \t]+/, '') : content.content) : undefined;
-        // Simple nested leaf items can be edited without rebuilding their parent
-        // list. Keep nested checkboxes, rich content, and items with children in
-        // source mode until their structure can be addressed safely.
-        const safeNested = item.level > 1 && !checkbox && item.map &&
-          lines.slice(item.map[0] + 1, item.map[1]).every(value => !value.trim());
+        // Edit the exact line of a simple nested item without rebuilding its
+        // descendants. Splitting an item with children remains unavailable.
+        const safeNested = item.level > 1 && item.map;
         if (prefix !== undefined && children.length === contentIndex + 1 && visible === line.slice(prefix.length) && (item.level === 1 || safeNested)) {
           if (safeNested) {
             for (const name of ['data-nested-source', 'tabindex', 'aria-description', 'title']) {
@@ -119,7 +118,6 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
         const prefix = inlinePrefix(line, 'list_item_inline');
         if (prefix === undefined || line !== prefix) continue;
         const isChecklist = /\[[ xX]\][ \t]+$/.test(prefix);
-        if (item.level > 1 && isChecklist) continue;
         if (item.level > 1) {
           for (const name of ['data-nested-source', 'tabindex', 'aria-description', 'title']) {
             const attr = item.attrIndex(name); if (attr >= 0) item.attrs?.splice(attr, 1);

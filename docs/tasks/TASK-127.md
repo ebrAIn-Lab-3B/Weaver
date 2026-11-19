@@ -80,3 +80,34 @@ The fixture intentionally has no GitHub Issue link for the task, so Weaver repor
 ## Card review: remaining local evidence (2026-11-19)
 
 The combined diagram-bearing fixture and the local two-window save-conflict behavior have been exercised in separate tests. Remaining evidence includes a complete local creation-to-reopen journey, the English UI, and the relevant pending-input and focus transitions. Retain the exact tested boundaries rather than requiring exhaustive timing or provider coverage. Remote providers, offline-to-online synchronization, and alternate VS Code settings are not blockers solely because they are untested; record a reproducible defect if one arises.
+
+## Additional local checks (2026-11-19)
+
+Computer Use checked the English requirement view and editor, filtered `/head` to Heading, selected it with Enter, and saved the resulting heading. A requirement paragraph edit was saved, undone and redone in VS Code source, and seen again after closing source and reopening the rendered editor. Front matter, links, Mermaid and the formatted table remained in source. TASK-125 records a false conflict discovered during this pass, its fix, the successful targeted retest, and a separate local disk save conflict viewed in VS Code Compare. These targeted checks do not replace the integrated creation-to-reopen journey or the remaining pending-input and timing evidence.
+
+The deterministic model-level application-boundary test subsequently passed in VS Code 1.147.0 for five representative edit types; its exact scope and limitations are recorded in TASK-125. The integrated user journey and pending-input checks remain open.
+
+The VS Code debug configurations now temporarily disable installed extensions in the development host, avoiding duplicate Weaver registration with the development copy. A follow-up Computer Use pass reached a workspace-trust prompt when opening a temporary fixture from the trusted sample workspace and did not proceed past it. No new extension-host input result was obtained in that pass. The separate jsdom slash-menu checks in TASK-123 are automated simulations.
+
+After the prompt was handled, a later development-host pass edited two existing paragraphs in sequence and saved them, exercised Escape and literal slash input, and reproduced then retested a false conflict when inserting an earlier checklist after a later saved paragraph. The corrected sequence and its limits are recorded in TASK-125. These observations do not establish deliberately rapid focus changes, Korean composition, or the integrated creation journey.
+
+After the queued slash-input fix in TASK-123, Computer Use also saved an unmatched slash string as literal Markdown in VS Code 1.147.0. The delayed-acknowledgement and IME cases for that fix were automated simulations; the integrated journey remains unverified.
+
+
+## Integrated local journey and split follow-up (2026-11-19)
+
+Computer Use completed the local create, edit, link, Mermaid display, save, close, reopen, link navigation, and VS Code source inspection journey described in TASK-121, using VS Code 1.147.0 on Windows in a separate Restricted Mode workspace. Network connectivity was not disabled. The current build also passed one actual existing-paragraph end split followed by immediate typing and save; transaction identity and stale/replayed acknowledgements have automated coverage as described in TASK-123. Delayed extension-host responses, real Korean IME after the latest changes, and the remaining transition/undo matrix are not established by these checks. The card remains open.
+
+
+## Debug console and development-host interruption (2026-11-19)
+
+The VS Code Debug Console showed repeated Node `[DEP0169]` warnings about the legacy `url.parse()` API. No direct call was found in Weaver's extension or Markdown source. The same warning appeared in logs from the separate VS Code 1.147.0 application-boundary test, including a main/AgentHost process, but that does not identify every emitter or establish the call stack. An attempt to use `NODE_OPTIONS=--trace-deprecation` was rejected by packaged Electron, so the source of the console warnings remains unconfirmed; they have not been suppressed. The application-boundary test still passed all five cases.
+
+After rebuilding for a new insertion-field multiline paste check, reloading the development host ended its window. Subsequent Computer Use input failed with `foreground window did not report a process id`, including after selecting the main VS Code window again. Consequently the latest paste change has automated coverage but no new actual extension-host result.
+
+A later isolated-profile VS Code 1.147.0 development-host session succeeded; the new nested checklist and insertion-field paste save/reopen results are recorded in TASK-124. The remaining IME and pending-operation timing cases are not implied by that pass.
+
+
+## Follow-up focus and undo check (2026-11-19)
+
+In the isolated VS Code 1.147.0 development host, Computer Use edited two existing paragraphs sequentially while switching focus, invoked undo and redo, and saved after restoring both additions; the saved source contained both. The screen observations were taken between actions and did not deliberately delay acknowledgements, so they do not establish rapid input under delay or pending-operation undo grouping. A request to send the `Hangul` key returned `unsupported key`; no new real-IME composition was claimed. The earlier real-IME observation remains recorded above.

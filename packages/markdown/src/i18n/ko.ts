@@ -35,7 +35,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.markdown.draft-copied': '초안을 클립보드에 복사했습니다.',
   'ui.markdown.copy-failed': '초안을 복사하지 못했습니다. 화면을 닫기 전에 내용을 선택해 복사하세요.',
   'ui.markdown.edit-failed': '수정 내용을 적용할 수 없습니다.',
-  'ui.markdown.multiline-paste': '여러 줄 붙여넣기는 아직 지원하지 않습니다. 원문을 열어 붙여넣으세요. 복사한 내용은 그대로 있습니다.',
+  'ui.markdown.multiline-paste': '이 내용은 여기에 붙여넣을 수 없습니다. 원문을 열어 붙여넣으세요. 복사한 내용은 그대로 있습니다.',
   'ui.markdown.nested-source-hint': '중첩 목록은 원문에서 편집하세요.',
   'ui.markdown.split-unavailable': '여기서 새 줄을 만드는 기능은 잠시 사용할 수 없습니다. 원문을 열어 줄을 추가하세요. 현재 입력한 내용은 유지됩니다.',
   'ui.markdown.insert': '+ 블록 추가',

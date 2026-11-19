@@ -56,7 +56,7 @@ describe('rendered Markdown editor', () => {
     expect(frontMatterOnly).toContain('data-insert-line="3"');
   });
 
-  it('enables traceable top-level checkboxes only in the authoring view', () => {
+  it('enables traceable top-level and nested leaf checkboxes only in the authoring view', () => {
     const source = '---\nid: REQ-001\n---\n\n- [ ] Plain & "quoted"\n- [x] **Rich**\n- parent\n  - [ ] nested\n\n> - [ ] quoted\n\n```md\n- [ ] code\n```';
     const html = renderMarkdown(source, (src) => src, 'Write');
     const dom = new JSDOM(html);
@@ -69,7 +69,8 @@ describe('rendered Markdown editor', () => {
     expect(boxes[1].disabled).toBe(false);
     expect(boxes[1].checked).toBe(true);
     expect(boxes[1].dataset.checklistLine).toBe('5');
-    expect(boxes[2].disabled).toBe(true);
+    expect(boxes[2].disabled).toBe(false);
+    expect(boxes[2].dataset.checklistLine).toBe('7');
     expect(boxes[3].disabled).toBe(true);
     const readOnly = new JSDOM(renderMarkdown('- [ ] Read only', (src) => src));
     expect(readOnly.window.document.querySelector<HTMLInputElement>('input')?.disabled).toBe(true);

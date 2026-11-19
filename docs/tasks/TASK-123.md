@@ -44,3 +44,22 @@ After concurrent-change protection in TASK-125, complete ordinary Enter behavior
 ## 0.1.22 handover
 
 The supported direct-writing and slash-menu slice shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). Remaining: verify complete caret/selection, delayed-acknowledgement, undo/redo, and input-boundary behavior against the criteria above.
+
+## English menu check (2026-11-19)
+
+In the VS Code 1.146.0 development host, with `weaver.language` set to `en` in a temporary workspace, Computer Use entered `/head`, observed the filtered Heading option, selected it with Enter, typed a heading, and saved it as `##` Markdown. The English requirement view, editor buttons, and insertion prompt were also visible. This checks one keyboard selection, not all choices, mouse selection, Escape, or literal slash behavior. A false conflict found when returning to a preceding paragraph was fixed and retested as recorded in TASK-125.
+
+Additional jsdom webview tests exercise heading filtering and keyboard selection, arrow-key checklist selection, mouse selection of code, and Escape followed by a literal slash. They simulate edit acknowledgements and are not an extension-host interaction test. `npm.cmd test` passed with 593 Markdown, 122 GitHub, and 248 CLI tests; `npm.cmd run check` passed. A VS Code 1.147.0 development-host pass was prepared with installed extensions disabled to avoid duplicate Weaver registration, but opening the separate temporary fixture displayed a workspace-trust prompt and the pass stopped there. The remaining real interaction and focus checks are not verified by these tests.
+
+After the trust prompt was handled, Computer Use in the VS Code 1.147.0 development host opened the slash menu, used Escape, continued with `/literal path`, and saved it unchanged. It also chose Checklist with the mouse and saved a new item after the false-conflict fix described in TASK-125. This does not cover every menu choice or delayed acknowledgement.
+
+## Queued slash input (2026-11-19)
+
+A delayed-acknowledgement webview test exposed that a newly focused queued insertion field did not show the slash menu and did not handle Enter before the preceding edit completed. The client now displays and handles the menu for that queued field and retains its chosen kind and subsequent text until the field is activated. Queued IME composition state is carried across activation. Another fix submits unmatched slash strings as literal text instead of leaving them uncommitted. Tests exercise queued selection and typing through the webview and host message handler, Escape with a literal slash, and simulated composition.
+
+After rebuilding, Computer Use in the VS Code 1.147.0 development host typed `/not-a-command` in a new field and saved; the literal string appeared in the local Markdown file. The deliberately delayed response and composition cases were simulated, not verified with real IME or an artificially delayed extension host. The task remains open for its remaining integrated interaction criteria.
+
+
+## Split acknowledgement identity (2026-11-19)
+
+Split requests now carry a document identity, projection generation, and unique transaction ID; the host rejects stale projections and repeated IDs. The webview accepts only a matching acknowledgement with the expected version and resulting split text, and keeps its draft on mismatches. Split failure messages are associated with the originating transaction. Automated regression tests cover unrelated acknowledgements, incorrect resulting text, stale projections, and replay. In the VS Code 1.147.0 development host on Windows, Computer Use split an existing paragraph at its end, immediately typed in the new paragraph, and saved both paragraphs. `npm.cmd run check` and the full `npm.cmd test` passed after the changes. This is one actual split case, not completion of the selection, undo-barrier, delayed host response, or real-IME matrix above.

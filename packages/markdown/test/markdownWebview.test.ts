@@ -3,10 +3,15 @@ import { JSDOM } from 'jsdom';
 import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebview';
 import { matchesOwnDocumentChange } from '../../../apps/vscode-extension/src/ownDocumentChange';
 
+function splitAck(sent: Record<string, unknown>[]) {
+  const request = [...sent].reverse().find(event => event.type === 'split' || event.type === 'split-slot')!;
+  return { transactionId: request.transactionId, documentId: request.documentId, projectionId: request.projectionId };
+}
+
 function webview(focusTextLine?: number) {
   const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
   const sent: Record<string, unknown>[] = [];
-  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, focusTextLine, labels: { conflict: 'Conflict' } } });
+  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { documentId: 'doc', projectionId: 'projection', version: 1, focusTextLine, labels: { conflict: 'Conflict' } } });
   dom.window.eval(markdownClient);
   const [first, second] = [...dom.window.document.querySelectorAll('p')];
   return { dom, sent, first, second };
@@ -15,12 +20,54 @@ function webview(focusTextLine?: number) {
 function checklistWebview() {
   const dom = new JSDOM('<button id="source"></button><main><ul><li><input type="checkbox" data-checklist-line="0" data-checklist-expected="- [ ] First"><span contenteditable="plaintext-only" data-inline-original="- [ ] First" data-source-line="0" data-source-type="list_item_inline">First</span></li></ul></main>', { runScripts: 'outside-only' });
   const sent: Record<string, unknown>[] = [];
-  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, labels: { conflict: 'Conflict' } } });
+  Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { documentId: 'doc', projectionId: 'projection', version: 1, labels: { conflict: 'Conflict' } } });
   dom.window.eval(markdownClient);
   return { dom, sent, checkbox: dom.window.document.querySelector('input')!, text: dom.window.document.querySelector('span')! };
 }
 
 describe('rendered editor synchronization', () => {
+  it('retains a slash selection and subsequent typing while the preceding edit is pending', () => {
+    const { dom, sent, first, second } = webview();
+    const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '2';
+    slot.innerHTML = '<div class="insert-field" contenteditable="plaintext-only"></div>'; second.before(slot);
+    const field = slot.firstElementChild as HTMLElement;
+    Object.assign((dom.window as any).editorConfig.labels, { menu: 'Blocks', heading: 'Heading', bullet: 'Bullet', checklist: 'Checklist', code: 'Code' });
+    first.focus(); first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.focus(); field.textContent = '/check'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    expect(dom.window.document.querySelector('[role=option]')?.textContent).toBe('Checklist');
+    const enter = new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    field.dispatchEvent(enter); expect(enter.defaultPrevented).toBe(true);
+    field.textContent = 'New task'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'slot-change', kind: 'checklist', value: 'New task', version: 2 });
+    expect(field.textContent).toBe('New task');
+    dom.window.close();
+  });
+  it('keeps queued IME composition pending when the previous acknowledgement arrives', () => {
+    const { dom, sent, first, second } = webview();
+    first.focus(); first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.focus(); second.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
+    second.textContent = '한글'; second.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
+    expect(sent.filter(event => event.type === 'inline-change')).toHaveLength(1);
+    second.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '한글' }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', line: 2, value: '한글', version: 2 });
+    dom.window.close();
+  });
+  it('retains a dismissed literal slash while a previous edit is pending', () => {
+    const { dom, sent, first, second } = webview();
+    const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '2';
+    slot.innerHTML = '<div class="insert-field" contenteditable="plaintext-only"></div>'; second.before(slot);
+    const field = slot.firstElementChild as HTMLElement;
+    Object.assign((dom.window as any).editorConfig.labels, { menu: 'Blocks', heading: 'Heading', bullet: 'Bullet', checklist: 'Checklist', code: 'Code' });
+    first.focus(); first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.focus(); field.textContent = '/'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    field.textContent = '/path'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'slot-change', kind: 'paragraph', value: '/path', version: 2 });
+    dom.window.close();
+  });
   it('flushes save without finishing or losing focus, then continues editing', () => {
     const { dom, sent, first } = webview(); first.focus();
     first.textContent = 'Before save'; first.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
@@ -182,7 +229,7 @@ describe('rendered editor synchronization', () => {
     right.textContent = 'After split'; right.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
     right.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'s', ctrlKey:true, bubbles:true, cancelable:true}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:1, expected:'First'}}));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:''}}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:''}}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:3, expected:'After split'}}));
     expect(sent.at(-1)).toMatchObject({type:'save'}); expect(sent.some(event => event.type === 'finish')).toBe(false);
     expect(dom.window.document.activeElement).toBe(right); dom.window.close();
@@ -199,9 +246,27 @@ describe('rendered editor synchronization', () => {
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'First' });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'split', line: 0, caret: 2, selectionEnd: 2, expected: 'First', version: 1 });
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', line: 2, expected: 'rst', value: 'typed rst', version: 2 });
     expect(right.textContent).toBe('typed rst');
+    dom.window.close();
+  });
+  it('ignores an unrelated split acknowledgement and rejects a mismatched matching response', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.setStart(first.firstChild!, 2); range.collapse(true);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement; right.textContent = 'typed'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
+    const identity = splitAck(sent);
+    const ack = { ...identity, type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' };
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...ack, transactionId: 'other' } }));
+    expect(sent.at(-1)?.type).toBe('split'); expect(right.textContent).toBe('typed');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', transactionId: 'other' } }));
+    expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(0);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...ack, rightExpected: 'wrong' } }));
+    expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(2);
+    expect(sent.at(-1)?.type).toBe('split'); expect(right.textContent).toBe('typed');
     dom.window.close();
   });
   it('queues successive Enter presses and preserves immediate typing in each new block', () => {
@@ -215,11 +280,11 @@ describe('rendered editor synchronization', () => {
     const third = second.nextElementSibling as HTMLElement;
     third.textContent = 'Third'; third.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'Second', expected:'' });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:3, expected:'Second' } }));
     expect(sent.at(-1)).toMatchObject({ type:'split', line:2, caret:6, version:3 });
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:2, nextLine:4, version:4, leftExpected:'Second', rightExpected:'' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:2, nextLine:4, version:4, leftExpected:'Second', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:4, value:'Third', expected:'' });
     expect([first.textContent, second.textContent, third.textContent]).toEqual(['First', 'Second', 'Third']);
     dom.window.close();
@@ -256,7 +321,7 @@ describe('rendered editor synchronization', () => {
     right.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
     right.textContent = '한'; right.dispatchEvent(new dom.window.InputEvent('input', { bubbles:true, isComposing:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'split' });
     right.textContent = '한글'; right.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles:true, data:'한글' }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'한글', version:2 }); dom.window.close();
@@ -285,7 +350,7 @@ describe('rendered editor synchronization', () => {
     right.textContent = 'Next'; right.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'## First' } }));
     expect(sent.at(-1)).toMatchObject({ type:'split', blockType:'heading_open', caret:5 });
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'## First', rightExpected:'' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'## First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', blockType:'paragraph_open', value:'Next' }); dom.window.close();
   });
   it('refuses to clone a list item containing nested lists', () => {
@@ -317,7 +382,7 @@ describe('rendered editor synchronization', () => {
     nextText.textContent = 'Next'; nextText.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type:'edit-applied', version:1, expected:'- [ ] First' } }));
     expect(sent.at(-1)).toMatchObject({ type:'split', caret:5 });
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type:'split-applied', line:0, nextLine:1, version:2, leftExpected:'- [ ] First', rightExpected:'- [ ] ' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type:'split-applied', line:0, nextLine:1, version:2, leftExpected:'- [ ] First', rightExpected:'- [ ] ' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:1, value:'Next', expected:'- [ ] ' });
     expect(nextBox.dataset.checklistLine).toBe('1'); dom.window.close();
   });

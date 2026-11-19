@@ -14,7 +14,7 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; the exact beginning/middle/end and pending-operation combinations not observed in the host are unverified rather than known defects. Automated delayed-response tests are simulations.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. Pending-operation combinations not observed in the host are unverified rather than known defects. Automated delayed-response tests are simulations.
 
 ## Context
 
@@ -81,3 +81,7 @@ In the same Korean-interface session, reopening retained the checklist; Escape d
 ## Current main Korean IME check (2026-11-20)
 
 With the maintainer enabling the Korean IME, Computer Use exercised the current main implementation in a separate local Restricted Mode workspace in the Windows VS Code 1.147.0 development host. Physical key events composed `한글` in an existing paragraph, then focus moved to another paragraph immediately after composition. The second paragraph received `가`; save, close and reopen preserved both additions. In a new insertion field, physical IME composition of `/체크` filtered the Korean slash menu to Checklist. Enter selected it, physical key events composed `가` in the new checklist item, and saving, closing and reopening preserved both paragraphs and `- [ ] 가` in the Markdown file. No conflict or dropped text appeared in these observed cases. This is a targeted real-IME pass; delayed acknowledgements were not artificially introduced.
+
+## Paragraph boundary check (2026-11-20)
+
+In a separate local Restricted Mode workspace on Windows, Computer Use used the VS Code 1.147.0 development host on current main to press Enter at the start, middle and end of an existing paragraph, then type into the new end block. Saving and reopening retained `Alpha mi`, `ddle omega.`, `Boundary continuation` and the untouched following paragraph. The empty visual block at the start did not persist on reopen, consistent with the documented Markdown behavior. The test did not deliberately delay host acknowledgements or exercise pending-operation undo.

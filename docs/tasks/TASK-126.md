@@ -4,7 +4,7 @@ type: task
 title: Edit requirement documents from their Weaver view
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/329
-status: review
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-002, AC-004, AC-014]
@@ -14,7 +14,7 @@ criteria: [AC-002, AC-004, AC-014]
 
 ## Current card status (2026-11-20)
 
-The requirement-view route, local editing, save/reopen and navigation with front matter, task and ideation links, Mermaid and unsupported Markdown were exercised in the development host. The remaining review is the requirement-specific application of TASK-125's in-session protection; remote providers and offline-to-online sync are not blockers solely because they were not tested.
+The requirement-view route, local editing, save/reopen and navigation with front matter, task and ideation links, Mermaid and unsupported Markdown were exercised in the development host. A further requirement-specific unsaved view transition and local disk save conflict were verified below. The broader timing and protection review remains tracked in TASK-125; remote providers and offline-to-online sync are not blockers solely because they were not tested.
 
 ## Context
 
@@ -47,3 +47,7 @@ The combined metadata, criteria, task links, Mermaid, source preservation, save,
 Computer Use in the VS Code 1.146.0 extension development host edited the existing `REQ-991` outcome paragraph, moved focus away, opened the requirement view, then opened source. The addition appeared in source alongside the unchanged front matter, links, Mermaid and formatted table. Ctrl+S saved it; Ctrl+Z and Ctrl+Y in source removed and restored the addition. Closing the source editor and reopening the rendered editor showed the saved addition. This check did not exercise a delayed acknowledgement or rapid transition. Keep the card open for the remaining TASK-125 safeguards.
 
 The same fixture exposed and retested a false conflict after inserting a heading and returning to a preceding paragraph; see TASK-125. A local disk save conflict was also compared in VS Code after the fix. These checks do not establish every pending-input transition.
+
+## Requirement transition and conflict check (2026-11-20)
+
+In a separate local Restricted Mode workspace using the Windows VS Code 1.147.0 development host and current main, Computer Use edited the outcome paragraph of the locally created `REQ-001`, switched to the requirement view before saving, and opened the VS Code text editor. The unsaved addition was present alongside its front matter, acceptance criterion, ideation link and Mermaid source; it was then saved. In the rendered editor, a further local addition was left unsaved while the temporary file was changed externally. VS Code refused the save and offered Compare/Overwrite. Compare showed the local addition and the external marker as separate changes, with neither silently overwritten. This verifies the tested local configuration; it does not simulate delayed acknowledgements or establish behavior for other providers or conflict settings. Earlier `REQ-991` evidence above covers task links, unsupported formatted Markdown, navigation, and reopening.

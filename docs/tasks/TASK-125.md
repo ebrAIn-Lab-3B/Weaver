@@ -90,3 +90,5 @@ After rebuilding, Computer Use repeated the sequence in the local temporary `not
 After the fix, `npm.cmd run check` and `npm.cmd test` passed: 594 Markdown, 122 GitHub, and 248 CLI tests.
 
 Subsequent simulated delayed-acknowledgement tests found and addressed queued slash-menu input and queued IME composition state; see TASK-123. The tests use simulated composition, not a fresh real-IME pass. After these changes `npm.cmd run check` and the full `npm.cmd test` passed (599 Markdown, 122 GitHub, 248 CLI tests).
+
+On 2026-11-20, `npm.cmd run test:document-race` passed again in VS Code 1.147.0 for inline, insertion, split, fenced-code, and checklist model edits. The scope and limitation of this test remain those described in the application-boundary section above.

@@ -90,6 +90,18 @@ describe('pending edits after a structural change', () => {
     expect(host.replies.some(event=>event.type==='edit-failed')).toBe(false);
     dom.window.close();
   });
+  it('preserves a blank paragraph separator when pasting into a new slot', async () => {
+    const host=await editorHost('Before\n\nAfter');
+    const dom=new JSDOM('<button id="source"></button><main><p data-source-line="0">Before</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">After</p></main>',{runScripts:'outside-only'});
+    const sent:Record<string,unknown>[]=[];
+    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}}}); dom.window.eval(markdownClient);
+    const node=dom.window.document.querySelector<HTMLElement>('.insert-field')!; node.focus();
+    const range=dom.window.document.createRange(); range.selectNodeContents(node); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true}); Object.defineProperty(paste,'clipboardData',{value:{getData:()=> 'Alpha\n\nBeta'}}); node.dispatchEvent(paste);
+    let cursor=0,reply=0; while(cursor<sent.length && cursor<30) { await host.receive(sent[cursor++]); while(reply<host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[reply++]})); }
+    expect(host.source()).toBe('Before\n\nAlpha\n\nBeta\n\nAfter');
+    expect(host.replies.some(event=>event.type==='edit-failed')).toBe(false); dom.window.close();
+  });
   it('refuses a split from a different projection or a reused transaction', async () => {
     const host = await editorHost('First');
     await host.receive({ type: 'focus' });

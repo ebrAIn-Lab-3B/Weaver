@@ -1,15 +1,17 @@
 import { inlinePrefix } from './inlineEditing';
-import { createPastePlanner } from './multilinePaste';
+import { createPastePlanner, pasteParts } from './multilinePaste';
 
 /** Client-side interaction runs inside the isolated webview. */
 export const markdownClient = String.raw`
 const inlinePrefix = ${inlinePrefix.toString()};
-const planMultilinePaste = (${createPastePlanner.toString()})(inlinePrefix);
+const pasteParts = ${pasteParts.toString()};
+const planMultilinePaste = (${createPastePlanner.toString()})(inlinePrefix, pasteParts);
 const vscode = acquireVsCodeApi();
 const main = document.querySelector('main');
 const choices = ['heading', 'bullet', 'checklist', 'code'];
 let session;
 let menu;
+let menuOwner;
 let selected = 0;
 let filtered = [];
 const pending = [];
@@ -47,22 +49,33 @@ function clearInvalid() {
   session.invalidNote = undefined;
 }
 
-function hideMenu() { if (menu) menu.remove(); menu = undefined; filtered = []; }
+function hideMenu() {
+  if (menu) menu.remove();
+  if (menuOwner) {
+    menuOwner.setAttribute('role', 'textbox');
+    for (const name of ['aria-expanded', 'aria-controls', 'aria-activedescendant', 'aria-autocomplete', 'aria-haspopup']) menuOwner.removeAttribute(name);
+  }
+  menu = undefined; menuOwner = undefined; filtered = [];
+}
 function showMenu(node, owner = session) {
   const value = node.textContent || '';
   if (!owner || !node.classList.contains('insert-field') || (owner.kind || 'paragraph') !== 'paragraph' || !value.startsWith('/')) { hideMenu(); return false; }
+  if (menu && menuOwner !== node) hideMenu();
   const query = value.slice(1).toLocaleLowerCase();
   filtered = choices.filter(k => k.includes(query) || editorConfig.labels[k].toLocaleLowerCase().includes(query));
   if (!filtered.length) { hideMenu(); return false; }
   selected = Math.min(selected, filtered.length - 1);
-  if (!menu) { menu = document.createElement('div'); menu.className = 'slash-menu'; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', editorConfig.labels.menu); node.parentElement.append(menu); }
+  if (!menu) { menu = document.createElement('div'); menu.id = 'slash-menu'; menu.className = 'slash-menu'; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', editorConfig.labels.menu); node.parentElement.append(menu); menuOwner = node; }
+  node.setAttribute('role', 'combobox'); node.setAttribute('aria-expanded', 'true'); node.setAttribute('aria-controls', menu.id);
+  node.setAttribute('aria-autocomplete', 'list'); node.setAttribute('aria-haspopup', 'listbox');
   menu.textContent = '';
   filtered.forEach((kind, index) => {
-    const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'option');
+    const button = document.createElement('button'); button.id = 'slash-option-' + kind; button.type = 'button'; button.setAttribute('role', 'option');
     button.setAttribute('aria-selected', String(index === selected)); button.textContent = editorConfig.labels[kind];
     button.addEventListener('mousedown', event => event.preventDefault());
     button.addEventListener('click', () => choose(kind, node)); menu.append(button);
   });
+  node.setAttribute('aria-activedescendant', 'slash-option-' + filtered[selected]);
   return true;
 }
 function choose(kind, node = session?.node) {
@@ -316,12 +329,12 @@ main.addEventListener('paste', event => {
     const slot = node?.classList.contains('insert-field');
     const blockType = slot && session?.kind === 'paragraph' ? 'paragraph_open' : node?.dataset.sourceType;
     const prefix = slot && blockType === 'paragraph_open' ? '' : node && session?.expected && inlinePrefix(session.expected, blockType);
-    const parts = text.replace(/\r\n?/g, '\n').split('\n');
+    const parts = pasteParts(text, blockType);
     const value = node && nodeValue(node);
     // Queue the same acknowledged split operations used by Enter, retaining a
     // visible editable provisional block for every line while the host catches up.
     if (!node || !session || session.node !== node || !(session.type === 'inline' || (session.type === 'slot' && session.kind === 'paragraph')) || session.failed || session.invalid || session.composing ||
-        session.split || pending.length || !offsets || prefix === undefined || parts.length > 50 ||
+        session.split || pending.length || !offsets || prefix === undefined || !parts || text.replace(/\r\n?/g, '\n').split('\n').length > 50 ||
         !planMultilinePaste(prefix + value, blockType, offsets.caret, offsets.selectionEnd, text, '\n') ||
         (blockType === 'list_item_inline' && (node.closest('li')?.querySelector('ul,ol') || node.closest('li')?.querySelectorAll('[data-inline-original]').length !== 1))) {
       vscode.postMessage({ type: 'multiline-paste' }); return;

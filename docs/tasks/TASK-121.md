@@ -20,3 +20,10 @@ Manual verification reported by the maintainer on 2026-11-18: a task file render
 ## 0.1.22 handover
 
 The documented create, link, edit, and link-navigation flow was exercised in a temporary VS Code development workspace. A later diagram-bearing requirement fixture was edited, saved, reopened, and inspected in the VS Code text editor; creation and linking were tested separately. TASK-127 records the detailed evidence. The complete local journey and the specified local offline operation still need an integrated check. Remote-provider synchronization is outside this check.
+
+The documented entry points and individual local operations exist; an integrated creation-through-reopening run with the diagram and the specified offline operation remain unverified. TASK-125's application-boundary safety work is also still open.
+
+
+## Integrated local journey (2026-11-19)
+
+On Windows in the VS Code 1.147.0 development host, Computer Use used a separate local temporary workspace in Restricted Mode to create an ideation document, edit and save it, create a requirement, and link the ideation file from the requirement. In the VS Code text editor it added a Mermaid flowchart; Weaver displayed the diagram. An existing outcome paragraph was edited in Weaver, saved, closed, and reopened with the new text and diagram intact. The link opened the ideation document, and the VS Code text editor showed the edited content, front matter, relative link, and Mermaid source. This combines creation through reopening in one local run. The network was not disconnected, so actual offline operation remains unverified. The remaining editor timing and conflict evidence is tracked by TASK-123 through TASK-127.

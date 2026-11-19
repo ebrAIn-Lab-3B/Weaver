@@ -10,7 +10,7 @@ export interface ChecklistToggle {
 }
 
 /**
- * Plan a one-character checkbox change on a top-level task-list item. A rendered
+ * Plan a one-character checkbox change on a task-list item. A rendered
  * checkbox is only a hint: reparse the current source and compare the exact line
  * before applying any edit. The caller must additionally check document version.
  */
@@ -26,19 +26,20 @@ export function planChecklistToggle(source: string, line: number, expectedLine: 
   }
 
   // Only marker syntax that can be located unambiguously is editable. Do not
-  // change a lookalike inside a fenced block, blockquote, or nested list.
-  const marker = /^( {0,3}(?:[-+*]|\d{1,9}[.)])[ \t]+\[)([ xX])(\])(?=[ \t]|$)/.exec(expectedLine);
+  // change a lookalike inside a fenced block or blockquote. The parser must
+  // still identify this exact line as a list item.
+  const marker = /^([ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[)([ xX])(\])(?=[ \t]|$)/.exec(expectedLine);
   if (!marker) return undefined;
   const tokens = new MarkdownIt({ html: false, linkify: true }).use(taskLists).parse(source, {});
-  const isTopLevelTask = tokens.some((token, index) => {
+  const isTask = tokens.some((token, index) => {
     const paragraph = tokens[index - 1];
     const item = tokens[index - 2];
     return token.type === 'inline' && token.map?.[0] === line && paragraph?.type === 'paragraph_open' &&
-      item?.type === 'list_item_open' && item.level === 1 &&
+      item?.type === 'list_item_open' && item.level >= 1 && item.map &&
       ((token.children?.[0]?.type === 'html_inline' && /^<input class="task-list-item-checkbox"/.test(token.children[0].content)) ||
        (/^[ \t]+$/.test(expectedLine.slice(marker[0].length)) && token.children?.length === 1 && token.children[0].type === 'text' && /^\[[ xX]\]$/.test(token.children[0].content)));
   });
-  if (!isTopLevelTask || (marker[2].toLowerCase() === 'x') === checked) return undefined;
+  if (!isTask || (marker[2].toLowerCase() === 'x') === checked) return undefined;
 
   let start = 0;
   for (let i = 0; i < line; i++) {

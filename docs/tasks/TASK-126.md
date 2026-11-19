@@ -37,3 +37,9 @@ The fixture intentionally has no GitHub Issue link for the task, so Weaver repor
 ## Card review: remaining local evidence (2026-11-19)
 
 The combined metadata, criteria, task links, Mermaid, source preservation, save, reopen, and navigation fixture has been exercised as recorded above. Keep this card open until requirement-specific pending input and mode transitions are checked against TASK-125. Untested remote providers and offline-to-online synchronization alone are not defects or completion blockers.
+
+## Additional mode transition check (2026-11-19)
+
+Computer Use in the VS Code 1.146.0 extension development host edited the existing `REQ-991` outcome paragraph, moved focus away, opened the requirement view, then opened source. The addition appeared in source alongside the unchanged front matter, links, Mermaid and formatted table. Ctrl+S saved it; Ctrl+Z and Ctrl+Y in source removed and restored the addition. Closing the source editor and reopening the rendered editor showed the saved addition. This check did not exercise a delayed acknowledgement or rapid transition. Keep the card open for the remaining TASK-125 safeguards.
+
+The same fixture exposed and retested a false conflict after inserting a heading and returning to a preceding paragraph; see TASK-125. A local disk save conflict was also compared in VS Code after the fix. These checks do not establish every pending-input transition.

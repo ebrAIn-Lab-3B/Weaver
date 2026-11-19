@@ -64,15 +64,111 @@ async function editorHost(initial: string) {
   const load = (id: string) => id === 'vscode' ? mock : nodeRequire(id);
   new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(load, module, module.exports);
   module.exports.attachMarkdownEditor(document, panel, { extensionUri: uri });
-  return { receive: (event: Record<string, unknown>) => onMessage(event), replies, source: () => text, html: () => panel.webview.html };
+  const identity = () => {
+    const config = JSON.parse(panel.webview.html.match(/const editorConfig=(.*?);\s*const inlinePrefix/s)![1]);
+    return { documentId: config.documentId as string, projectionId: config.projectionId as string };
+  };
+  let directSplitId = 0;
+  return { receive: (event: Record<string, unknown>) => onMessage(event.type === 'split' && event.transactionId === undefined
+    ? { ...event, ...identity(), transactionId: `${identity().projectionId}:direct-${++directSplitId}` } : event),
+    identity, replies, source: () => text, html: () => panel.webview.html };
 }
 
 describe('pending edits after a structural change', () => {
+  it('applies multiline paste into a new slot through the host', async () => {
+    const host = await editorHost('Before\n\nAfter');
+    const dom = new JSDOM('<button id="source"></button><main><p data-source-line="0">Before</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">After</p></main>', {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}), editorConfig:{...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}} });
+    dom.window.eval(markdownClient);
+    const node=dom.window.document.querySelector<HTMLElement>('.insert-field')!; node.focus();
+    const range=dom.window.document.createRange(); range.selectNodeContents(node); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true}); Object.defineProperty(paste,'clipboardData',{value:{getData:()=> 'ONE\nTWO\nTHREE'}}); node.dispatchEvent(paste);
+    let cursor=0, reply=0;
+    while (cursor < sent.length && cursor < 30) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[reply++]})); }
+    expect(host.source()).toBe('Before\n\nONE\n\nTWO\n\nTHREE\n\nAfter');
+    expect(host.replies.some(event=>event.type==='edit-failed')).toBe(false);
+    dom.window.close();
+  });
+  it('refuses a split from a different projection or a reused transaction', async () => {
+    const host = await editorHost('First');
+    await host.receive({ type: 'focus' });
+    const base = { type: 'split', line: 0, blockType: 'paragraph_open', version: 1, expected: 'First', caret: 2, selectionEnd: 2, ...host.identity() };
+    await host.receive({ ...base, projectionId: 'stale', transactionId: 'stale:1' });
+    expect(host.source()).toBe('First'); expect(host.replies.at(-1)?.type).toBe('edit-failed');
+    const id = `${host.identity().projectionId}:unique`;
+    await host.receive({ ...base, transactionId: id });
+    expect(host.source()).toBe('Fi\n\nrst'); expect(host.replies.at(-1)).toMatchObject({ type: 'split-applied', transactionId: id });
+    await host.receive({ ...base, version: 2, expected: 'Fi', transactionId: id });
+    expect(host.source()).toBe('Fi\n\nrst'); expect(host.replies.at(-1)?.type).toBe('edit-failed');
+  });
+  it('applies a slash selection typed before the preceding block is acknowledged', async () => {
+    const host = await editorHost('First\n\nSecond');
+    const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">Second</p></main>', { runScripts: 'outside-only' });
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { ...host.identity(), version: 1, labels: { heading: 'Heading', bullet: 'Bullet', checklist: 'Checklist', code: 'Code', menu: 'Menu', conflict: 'Conflict' } } });
+    dom.window.eval(markdownClient);
+    const first = dom.window.document.querySelector('p') as HTMLElement;
+    const field = dom.window.document.querySelector<HTMLElement>('.insert-field')!;
+    first.focus(); first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.focus(); field.textContent = '/check'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    field.textContent = 'Task'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    let cursor = 0, reply = 0;
+    while (cursor < sent.length && cursor < 20) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: host.replies[reply++] })); }
+    expect(host.source()).toBe('Changed\n\n- [ ] Task\n\nSecond');
+    expect(host.replies.some(event => event.type === 'edit-failed')).toBe(false);
+    dom.window.close();
+  });
+  it('inserts a checklist in an earlier slot after saving a later paragraph', async () => {
+    const host = await editorHost('First\n\nSecond');
+    const dom = new JSDOM('<button id="source"></button><main><p data-source-line="0">First</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">Second</p><div class="insert-slot" data-insert-line="3"><div class="insert-field" contenteditable="plaintext-only"></div></div></main>', { runScripts: 'outside-only' });
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { ...host.identity(), version: 1, labels: { heading: 'Heading', bullet: 'Bullet', checklist: 'Checklist', code: 'Code', menu: 'Menu', conflict: 'Conflict' } } });
+    dom.window.eval(markdownClient);
+    const [earlier, later] = [...dom.window.document.querySelectorAll<HTMLElement>('.insert-field')];
+    let cursor = 0, reply = 0;
+    const drain = async () => { while (cursor < sent.length && cursor < 20) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: host.replies[reply++] })); } };
+    later.focus(); later.textContent = 'Last'; later.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await drain();
+    later.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    await drain();
+    earlier.focus(); await new Promise(resolve => setTimeout(resolve, 5)); await drain();
+    earlier.textContent = '/check'; earlier.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    earlier.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    earlier.textContent = 'Task'; earlier.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 5)); await drain();
+    expect(host.source()).toBe('First\n\n- [ ] Task\n\nSecond\n\nLast\n');
+    expect(host.replies.some(event => event.type === 'edit-failed')).toBe(false);
+    dom.window.close();
+  });
+  it('edits a preceding block after saving a newly inserted heading', async () => {
+    const host = await editorHost('First\n\nFollowing');
+    const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-type="paragraph_open">First</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">Following</p></main>', { runScripts: 'outside-only' });
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { ...host.identity(), version: 1, labels: { heading: 'Heading', bullet: 'Bullet', checklist: 'Checklist', code: 'Code', menu: 'Menu', conflict: 'Conflict', copyDraft: 'Copy', openDraft: 'Open' } } });
+    dom.window.eval(markdownClient);
+    const field = dom.window.document.querySelector('.insert-field') as HTMLElement;
+    const first = dom.window.document.querySelector('p') as HTMLElement;
+    field.focus(); field.textContent = '/head'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    field.textContent = 'New heading'; field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    let cursor = 0, reply = 0;
+    const drain = async () => { while (cursor < sent.length && cursor < 20) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: host.replies[reply++] })); } };
+    await drain();
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    await drain();
+    first.focus(); first.textContent = 'First edited'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise(resolve => setTimeout(resolve, 5)); await drain();
+    expect(host.source()).toBe('First edited\n\n## New heading\n\nFollowing');
+    expect(host.replies.some(event => event.type === 'edit-failed')).toBe(false);
+    dom.window.close();
+  });
   it('applies multiline paste with immediate typing through the actual host', async () => {
     const host = await editorHost('abcd\n\nFollowing');
     const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="abcd" data-source-line="0" data-source-end="1" data-source-type="paragraph_open">abcd</p><p contenteditable="plaintext-only" data-inline-original="Following" data-source-line="2" data-source-end="3" data-source-type="paragraph_open">Following</p></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}), editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}} });
+    Object.assign(dom.window, { acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}), editorConfig:{ ...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}} });
     dom.window.eval(markdownClient);
     const node=dom.window.document.querySelector('p') as HTMLElement; node.focus();
     const range=dom.window.document.createRange(); range.setStart(node.firstChild!,1); range.setEnd(node.firstChild!,3); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
@@ -87,18 +183,49 @@ describe('pending edits after a structural change', () => {
   it('keeps checklist markers while pasting multiple lines through the host', async () => {
     const host=await editorHost('- [x] abcd\n\nFollowing');
     const dom=new JSDOM('<button id="source"></button><main><ul><li><input type="checkbox" checked data-checklist-line="0" data-checklist-expected="- [x] abcd"><span contenteditable="plaintext-only" data-inline-original="- [x] abcd" data-source-line="0" data-source-end="1" data-source-type="list_item_inline">abcd</span></li></ul><p data-source-line="2">Following</p></main>',{runScripts:'outside-only'});
-    const sent:Record<string,unknown>[]=[]; Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}}}); dom.window.eval(markdownClient);
+    const sent:Record<string,unknown>[]=[]; Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{ ...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}}}); dom.window.eval(markdownClient);
     const node=dom.window.document.querySelector('span') as HTMLElement; node.focus(); const range=dom.window.document.createRange(); range.setStart(node.firstChild!,1); range.setEnd(node.firstChild!,3); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
     const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true}); Object.defineProperty(paste,'clipboardData',{value:{getData:()=> 'ONE\nTWO\nTHREE'}}); node.dispatchEvent(paste);
     let index=0, replyIndex=0; while(index < sent.length && index < 20) { await host.receive(sent[index++]); while(replyIndex < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }
     expect(host.source()).toBe('- [x] aONE\n- [ ] TWO\n- [ ] THREEd\n\nFollowing');
     expect([...dom.window.document.querySelectorAll('input')].map(box=>box.checked)).toEqual([true,false,false]); dom.window.close();
   });
+  it('toggles and edits a nested checklist leaf without changing its parent or peers', async () => {
+    const source='- Parent\n  - [ ] Child\n  - [x] Peer\n- Outside\n';
+    const host=await editorHost(source); const html=renderMarkdown(source,value=>value,'Write','Checklist','Open source');
+    const dom=new JSDOM('<button id="source"></button><main>'+html+'</main>',{runScripts:'outside-only'}); const sent:Record<string,unknown>[]=[];
+    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open',nestedHint:'Open source',source:'Source'}}}); dom.window.eval(markdownClient);
+    const box=dom.window.document.querySelector<HTMLInputElement>('input[data-checklist-line="1"]')!; expect(box).toBeTruthy(); box.click();
+    let index=0,replyIndex=0;
+    const drain=async()=>{while(index<sent.length && index<30) { await host.receive(sent[index++]); while(replyIndex<host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }};
+    await drain();
+    expect(host.source()).toBe('- Parent\n  - [x] Child\n  - [x] Peer\n- Outside\n');
+    const node=box.closest('li')!.querySelector<HTMLElement>('[data-inline-original]')!; node.focus(); node.textContent='Edited'; node.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    await drain();
+    expect(host.source()).toBe('- Parent\n  - [x] Edited\n  - [x] Peer\n- Outside\n');
+    expect(host.replies.some(event=>event.type==='edit-failed')).toBe(false); dom.window.close();
+  });
+  it('edits a nested checklist parent and refuses splitting its children', async () => {
+    const source='- Root\n  - [ ] Parent\n    - Child\n  - Peer\n';
+    const host=await editorHost(source); const html=renderMarkdown(source,value=>value,'Write','Checklist','Open source');
+    const dom=new JSDOM('<button id="source"></button><main>'+html+'</main>',{runScripts:'outside-only'}); const sent:Record<string,unknown>[]=[];
+    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open',nestedHint:'Open source',source:'Source'}}}); dom.window.eval(markdownClient);
+    const box=dom.window.document.querySelector<HTMLInputElement>('input[data-checklist-line="1"]')!; expect(box).toBeTruthy(); box.click();
+    let index=0,replyIndex=0;
+    const drain=async()=>{while(index<sent.length && index<30) { await host.receive(sent[index++]); while(replyIndex<host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }};
+    await drain();
+    const node=box.closest('li')!.querySelector<HTMLElement>('[data-inline-original]')!; node.focus(); node.textContent='Edited'; node.dispatchEvent(new dom.window.Event('input',{bubbles:true})); await drain();
+    const range=dom.window.document.createRange(); range.selectNodeContents(node); range.collapse(false); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    node.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); await drain();
+    expect(sent.some(event=>event.type==='split-unavailable')).toBe(true);
+    expect(host.source()).toBe('- Root\n  - [x] Edited\n    - Child\n  - Peer\n');
+    expect(host.replies.some(event=>event.type==='edit-failed')).toBe(false); dom.window.close();
+  });
   it('edits and splits a simple nested leaf without changing its ancestors or peers', async () => {
     const source='- Parent\n  - Child\n    - Grandchild\n- Peer\n';
     const host=await editorHost(source); const html=renderMarkdown(source, value=>value, 'Write', 'Checklist', 'Open source');
     const dom=new JSDOM('<button id="source"></button><main>'+html+'</main>',{runScripts:'outside-only'}); const sent:Record<string,unknown>[]=[];
-    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open',nestedHint:'Open source',source:'Source'}}}); dom.window.eval(markdownClient);
+    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{ ...host.identity(),version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open',nestedHint:'Open source',source:'Source'}}}); dom.window.eval(markdownClient);
     const node=dom.window.document.querySelector('[data-inline-original="    - Grandchild"]') as HTMLElement; expect(node).toBeTruthy();
     node.focus(); node.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})); expect(dom.window.document.querySelector('[data-nested-hint]')).toBeNull();
     const range=dom.window.document.createRange(); range.setStart(node.firstChild!,5); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
@@ -121,7 +248,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('First\n\nSecond');
     const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="First" data-source-line="0" data-source-end="1" data-source-type="paragraph_open">First</p><p contenteditable="plaintext-only" data-inline-original="Second" data-source-line="2" data-source-end="3" data-source-type="paragraph_open">Second</p></main>', { runScripts: 'outside-only' });
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version:1, labels: { conflict:'Conflict', copyDraft:'Copy', openDraft:'Open' } } });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { ...host.identity(), version:1, labels: { conflict:'Conflict', copyDraft:'Copy', openDraft:'Open' } } });
     dom.window.eval(markdownClient);
     const first = dom.window.document.querySelector('p') as HTMLElement;
     first.focus(); const range = dom.window.document.createRange(); range.setStart(first.firstChild!, 2); range.collapse(true);
@@ -145,7 +272,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('First\n\nFollowing');
     const dom = new JSDOM('<button id="source"></button><main><p data-source-line="0">First</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p contenteditable="plaintext-only" data-inline-original="Following" data-source-line="2" data-source-type="paragraph_open">Following</p></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{conflict:'Conflict', copyDraft:'Copy', openDraft:'Open'}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{conflict:'Conflict', copyDraft:'Copy', openDraft:'Open'}} });
     dom.window.eval(markdownClient);
     const field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
     field.textContent = 'AlphaBeta'; field.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
@@ -163,7 +290,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('Following');
     const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="0">Following</p></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{}} });
     dom.window.eval(markdownClient);
     let field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
     for (let i = 0; i < 2; i++) { field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); field = dom.window.document.activeElement as HTMLElement; }
@@ -176,7 +303,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('Following');
     const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="0">Following</p></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu',conflict:'Conflict'}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu',conflict:'Conflict'}} });
     dom.window.eval(markdownClient);
     const field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
     field.textContent = '/' + kind; field.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
@@ -207,7 +334,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('## Title\n\nFollowing');
     const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><h2 contenteditable="plaintext-only" data-inline-original="## Title" data-source-line="0" data-source-type="heading_open">Title</h2></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{}} });
     dom.window.eval(markdownClient);
     const heading=dom.window.document.querySelector('h2')!; heading.focus();
     const range=dom.window.document.createRange(); range.setStart(heading.firstChild!,0); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
@@ -223,7 +350,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost(source);
     const dom = new JSDOM(`<button id="source"></button><main><div class="insert-slot" data-insert-line="${line}"><div class="insert-field" contenteditable="plaintext-only"></div></div></main>`, {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu',conflict:'conflict'}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu',conflict:'conflict'}} });
     dom.window.eval(markdownClient);
     const title=dom.window.document.querySelector('.insert-field') as HTMLElement; title.focus();
     title.textContent='/heading'; title.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
@@ -250,7 +377,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('Following');
     const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="0">Following</p></main>', {runScripts:'outside-only'});
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu'}} });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{ ...host.identity(),version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu'}} });
     dom.window.eval(markdownClient);
     const field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
     field.textContent = '/' + kind; field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
@@ -292,7 +419,7 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('A\n\nSame');
     const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p contenteditable="plaintext-only" data-inline-original="Same" data-source-line="2" data-source-type="paragraph_open">Same</p></main>', { runScripts: 'outside-only' });
     const sent: Record<string, unknown>[] = [];
-    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { version: 1, labels: { conflict: 'Conflict' } } });
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({ postMessage: (event: Record<string, unknown>) => sent.push(event) }), editorConfig: { ...host.identity(), version: 1, labels: { conflict: 'Conflict' } } });
     dom.window.eval(markdownClient);
     const inserted = dom.window.document.querySelector('.insert-field') as HTMLElement;
     const original = dom.window.document.querySelector('p') as HTMLElement;

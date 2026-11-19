@@ -129,6 +129,10 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-066` — As a team member looking at the Overview, I can distinguish a repository's backlog from its unfinished work in the active stages without finished cards inflating the count, so I can see where attention is needed. (Belongs to `REQ-006`; tracked in `TASK-122`.)
 - `US-067` — As a person writing an ordinary Markdown or task document, I can insert a heading, list, checklist, or code block at a block boundary through a slash menu, so I can add structure while reading the rendered document. (Belongs to `REQ-022`; the first slice is tracked in `TASK-119`.)
 
+The local authoring follow-up in [TASK-125](../tasks/TASK-125.md) fixes false conflicts when returning from a saved insertion to an earlier block or insertion field. Other pending-input and concurrent-change boundaries remain under verification.
+
+The follow-up in [TASK-123](../tasks/TASK-123.md) retains slash-menu selections and text entered in a queued block while an earlier edit is awaiting acknowledgement; unmatched slash text is saved as ordinary text.
+
 ### PALab project adoption
 
 - As a PALab maintainer, I can register another project repository without moving it first.

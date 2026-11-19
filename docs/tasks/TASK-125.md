@@ -54,3 +54,39 @@ In-session conflict reporting, draft copy/open, version checks, and local two-wi
 ## Card review: local baseline (2026-11-19)
 
 The observed local two-window save conflict is evidence for the tested VS Code configuration. Do not treat untested remote providers, offline-to-online synchronization, or alternative conflict settings as defects or release blockers by themselves. Git synchronization and merge conflicts follow the normal Git workflow. This does not prove every change/application race or a universal atomicity guarantee. Keep this card open for the remaining local in-session transition and conflict evidence; investigate other providers only for a concrete reproduced issue or separate requirement.
+
+## Additional local transition check (2026-11-19)
+
+In the existing separate `weaver-req-journey-verify-20261119` local workspace, Computer Use edited the existing outcome paragraph of `REQ-991` in the VS Code 1.146.0 extension development host. After the paragraph lost focus, its added text remained visible. The requirement view and then the VS Code text editor showed the added text; Ctrl+S saved it. Ctrl+Z in the text editor removed that addition, and Ctrl+Y restored it. Front matter, task and ideation links, Mermaid source, and the table with bold text remained visible in the source. This was a single transition, not a rapid-focus or pending-acknowledgement stress test, and it did not repeat the external-change or IME checks.
+
+On the same checkout, `npm.cmd run check` passed and `npm.cmd test` passed (588 Markdown, 122 GitHub, and 248 CLI tests). The application-boundary race injection and the remaining local timing and lifecycle cases still need evidence; this task remains open.
+
+## False conflict on a preceding block (2026-11-19)
+
+Computer Use reproduced a false conflict in the development host: insert a heading through `/head`, save while the insertion field is focused, then edit an existing paragraph before it. No external edit occurred, but Weaver reported a conflict and left the input unsaved. Open draft displayed the input in a separate untitled document. The insertion had marked the whole projection stale even though the preceding block's source line had not moved.
+
+The client now identifies a queued existing editable block strictly before the insertion position; the host still validates the insertion revision and exact text before accepting that transition. Later blocks remain protected by the stale-projection fallback. The host/webview regression test covers insertion, save, focus change, and the preceding edit. After rebuilding and reloading the VS Code 1.146.0 development host, Computer Use repeated the sequence without a warning and verified both changes in the saved Markdown.
+
+In the rebuilt host, a further test left a paragraph edit dirty and appended a marker to the same local file externally. VS Code refused Ctrl+S, offered Compare/Overwrite, and its comparison displayed the local paragraph against the disk version; the disk marker remained on disk. This is a save-conflict check under the tested local settings, not an injected check/apply race. That race, other pending transitions, and broader rapid-input coverage remain unverified.
+
+After the fix, `npm.cmd run check` passed and `npm.cmd test` passed: 589 Markdown, 122 GitHub, and 248 CLI tests. At that point the deterministic application-boundary race harness had not yet been implemented. Automatic recovery after close, restart, or crash is intentionally deferred.
+
+An attempt to launch an isolated VS Code extension-test process for this race did not produce a test result. The launched Electron process inherited an output pipe that closed when its launcher exited, producing an `EPIPE` main-process error dialog. The test process ended and the existing development window was left open. Do not count this attempt as application-boundary evidence. A future runner must keep the launcher alive or redirect the child process output to durable streams and wait for a definitive test result before reporting success.
+
+A retry redirected output to files and kept the launcher alive, avoiding that pipe error. VS Code 1.146.0 reported that its update mutex was held for 30 seconds and exited with code 1 before the test host started. No race assertion ran. The existing VS Code windows and update state were left untouched; this is an environment limitation, not a passing or failing editor test.
+
+## VS Code application-boundary race (2026-11-19)
+
+After VS Code was updated and restarted, `npm.cmd run test:document-race` passed against VS Code 1.147.0 on Windows. The test opens separate local Markdown files in the actual VS Code extension host. For each of inline replacement, insertion, split, fenced-code replacement and checklist replacement, it calls `submitDocumentEdit`, queues a competing `WorkspaceEdit` inside the application callback after Weaver's version check, verifies the extension-host document still reports the original version, and queues the rendered edit without waiting. VS Code applies the competing edit and refuses the rendered edit; the competing model text remains intact. The runner uses a separate temporary profile and workspace, redirects output to files, waits for exit, and requires a result file. It is currently Windows-only.
+
+This is evidence for an open local document whose competing change reaches the VS Code model before application. It exercises the shared submission helper with representative edits, not every webview path end to end or a disk change not yet observed by VS Code. The refused-edit webview tests and earlier local save-conflict checks cover separate parts of the behavior. Remaining local pending-input transitions and rapid input still require evidence before verification.
+
+## Earlier insertion after a saved later block (2026-11-19)
+
+Computer Use in the VS Code 1.147.0 development host reproduced another false conflict: after inserting and saving a paragraph at the end, selecting a checklist in an earlier insertion field showed a conflict despite no external change. The client now recognizes an insertion field strictly before the prior insertion as retaining its source line, while the host continues to validate the prior insertion. The separate same-position heading case retains its existing offset adjustment. A host/webview regression covers a later saved paragraph followed by an earlier checklist.
+
+After rebuilding, Computer Use repeated the sequence in the local temporary `notes.md`: saved `Later block`, selected Checklist with the mouse in the earlier field, entered `Earlier task`, and saved. No conflict appeared, and both the checklist and later paragraph were present in the file. This did not exercise deliberately delayed acknowledgement or rapid input. The broader pending-input and integration criteria remain open.
+
+After the fix, `npm.cmd run check` and `npm.cmd test` passed: 594 Markdown, 122 GitHub, and 248 CLI tests.
+
+Subsequent simulated delayed-acknowledgement tests found and addressed queued slash-menu input and queued IME composition state; see TASK-123. The tests use simulated composition, not a fresh real-IME pass. After these changes `npm.cmd run check` and the full `npm.cmd test` passed (599 Markdown, 122 GitHub, 248 CLI tests).

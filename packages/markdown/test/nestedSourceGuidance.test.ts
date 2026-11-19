@@ -15,8 +15,8 @@ describe('nested list source guidance', () => {
   it('tags nested items only and provides one source action on click', () => {
     const { dom, sent } = setup();
     const items = dom.window.document.querySelectorAll('li');
-    expect([...items].map(item => item.hasAttribute('data-nested-source'))).toEqual([false, true, true, false]);
-    const nested = items[1]; expect(nested.getAttribute('tabindex')).toBe('0'); expect(nested.getAttribute('aria-description')).toBe('Edit in source.');
+    expect([...items].map(item => item.hasAttribute('data-nested-source'))).toEqual([false, false, true, false]);
+    const nested = items[2]; expect(nested.getAttribute('tabindex')).toBe('0'); expect(nested.getAttribute('aria-description')).toBe('Edit in source.');
     nested.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     nested.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const notes = nested.querySelectorAll(':scope > [data-nested-hint]');
@@ -24,13 +24,15 @@ describe('nested list source guidance', () => {
     notes[0].querySelector('button')!.click(); expect(sent.at(-1)).toMatchObject({type: 'source'});
     dom.window.close();
   });
-  it('edits only safe leaf items and keeps unsupported nested checklists in source mode', () => {
+  it('edits safe leaf items including nested checklists and preserves rich items in source mode', () => {
     const html=renderMarkdown('- Parent\n  - Leaf\n\n  - **Rich**\n  - [ ] Check\n  - \n', value=>value, 'Write', 'Checklist', 'Edit in source.');
     const dom=new JSDOM(`<main>${html}</main>`); const items=[...dom.window.document.querySelectorAll('li')];
     expect(items[1].querySelector('[data-inline-original="  - Leaf"]')).toBeTruthy();
     expect(items[1].hasAttribute('data-nested-source')).toBe(false);
     expect(items[2].hasAttribute('data-nested-source')).toBe(true);
-    expect(items[3].hasAttribute('data-nested-source')).toBe(true);
+    expect(items[3].hasAttribute('data-nested-source')).toBe(false);
+    expect(items[3].querySelector('[data-inline-original]')?.getAttribute('data-inline-original')).toBe('  - [ ] Check');
+    expect(items[3].querySelector('input[data-checklist-line="4"]')).toBeTruthy();
     expect(items[4].querySelector('[data-inline-original="  - "]')).toBeTruthy();
     expect(items[4].hasAttribute('data-nested-source')).toBe(false); dom.window.close();
   });
@@ -39,6 +41,14 @@ describe('nested list source guidance', () => {
     const dom=new JSDOM(`<main>${html}</main>`);
     expect(dom.window.document.querySelector('[data-inline-original="  - Nested item"]')).toBeTruthy();
     expect(dom.window.document.querySelector('[data-inline-original="  - Nested item"]')!.closest('li')!.hasAttribute('data-nested-source')).toBe(false); dom.window.close();
+  });
+  it('makes an empty nested checklist leaf editable and toggleable', () => {
+    const html=renderMarkdown('- Parent\n  - [ ] \n', value=>value, 'Write', 'Checklist', 'Edit in source.');
+    const dom=new JSDOM(`<main>${html}</main>`);
+    const item=dom.window.document.querySelectorAll('li')[1];
+    expect(item.querySelector('input[data-checklist-line="1"]')).toBeTruthy();
+    expect(item.querySelector('[data-inline-original]')?.getAttribute('data-inline-original')).toBe('  - [ ] ');
+    expect(item.hasAttribute('data-nested-source')).toBe(false); dom.window.close();
   });
   it('allows keyboard users to reveal the source action', () => {
     const { dom } = setup(); const nested = dom.window.document.querySelector<HTMLElement>('[data-nested-source]')!;

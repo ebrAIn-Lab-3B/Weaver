@@ -25,6 +25,8 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
   let fence: { base: string; line: number; endLine: number; start: number; inserted: string } | undefined;
   let ownChanges: ExpectedDocumentChange[] = [];
   let staleProjection = false;
+  let projectionId = '';
+  const usedSplitIds = new Set<string>();
   const applyEdit = (edit: vscode.WorkspaceEdit, version: number): Promise<boolean> =>
     submitDocumentEdit(document, version, () => vscode.workspace.applyEdit(edit)).then((ok) => {
       if (!ok) ownChanges = ownChanges.filter((change) => change.version !== version + 1);
@@ -34,11 +36,13 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     staleProjection = false;
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'dist', 'markdownPreview.js'));
     const nonce = `${Date.now()}${Math.random().toString(36).slice(2)}`;
+    projectionId = nonce;
+    usedSplitIds.clear();
     const body = renderMarkdown(document.getText(), (src) => {
       const uri = vscode.Uri.joinPath(document.uri, '..', decodeURIComponent(src.split(/[?#]/)[0]));
       return panel.webview.asWebviewUri(uri).toString();
     }, message('ui.markdown.insert-placeholder'), message('ui.markdown.checklist'), message('ui.markdown.nested-source-hint'));
-    const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, labels: {
+    const config = JSON.stringify({ version: document.version, documentId: document.uri.toString(), projectionId, focusAfter, focusTextLine, labels: {
       menu: message('ui.markdown.slash-menu'), heading: message('ui.markdown.heading'), bullet: message('ui.markdown.bullet'),
       checklist: message('ui.markdown.checklist'), code: message('ui.markdown.code'), conflict: message('ui.markdown.edit-conflict'),
       nestedHint: message('ui.markdown.nested-source-hint'), source: message('ui.markdown.source'),
@@ -62,7 +66,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (editing || staleProjection) void panel.webview.postMessage({ type: 'conflict', detail: message('ui.markdown.stale-draft') });
     else render();
   });
-  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; beforeSlot?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
+  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; transactionId?: string; documentId?: string; projectionId?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; beforeSlot?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
     if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
       try {
@@ -85,7 +89,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     }
     let slotSplit: { line: number; shift: number } | undefined;
     if (event.type === 'split-slot') {
-      const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.stale-draft') }); };
+      const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', transactionId: event.transactionId, detail: message('ui.markdown.stale-draft') }); };
       if (!slot || !event.kind || !['paragraph', 'heading', 'bullet', 'checklist'].includes(event.kind) || event.line !== slot.line || event.version !== document.version || event.expected !== slot.inserted || typeof event.value !== 'string' || !event.value.trim() || /[\r\n]/.test(event.value) || document.getText().slice(slot.offset, slot.offset + slot.inserted.length) !== slot.inserted) { fail(); return; }
       const index = slot.inserted.indexOf(event.value);
       if (index < 0) { fail(); return; }
@@ -97,13 +101,16 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       event.type = 'split'; event.line = actualLine; event.blockType = blockType; event.expected = sourceLine;
     }
     if (event.type === 'split') {
-      const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.stale-draft') }); };
-      if (staleProjection || !editing || !Number.isInteger(event.line) || event.line! < 0 || event.line! >= document.lineCount ||
+      const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', transactionId: event.transactionId, detail: message('ui.markdown.stale-draft') }); };
+      if (staleProjection || !editing || event.documentId !== document.uri.toString() || event.projectionId !== projectionId ||
+          typeof event.transactionId !== 'string' || !event.transactionId.startsWith(`${projectionId}:`) || usedSplitIds.has(event.transactionId) ||
+          !Number.isInteger(event.line) || event.line! < 0 || event.line! >= document.lineCount ||
           !Number.isInteger(event.caret) || !Number.isInteger(event.selectionEnd) || typeof event.expected !== 'string' ||
           !['paragraph_open', 'heading_open', 'list_item_inline'].includes(event.blockType ?? '') || event.version !== document.version) { fail(); return; }
       const before = document.getText();
       const original = document.lineAt(event.line!);
       if (original.text !== event.expected || (inline && (inline.line !== event.line || inline.expected !== event.expected))) { fail(); return; }
+      usedSplitIds.add(event.transactionId);
       const start = document.offsetAt(original.range.start), end = document.offsetAt(original.range.end);
       const after = before.slice(end);
       const eol = after.startsWith('\r\n') ? '\r\n' : after.startsWith('\n') ? '\n' : document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
@@ -121,7 +128,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         const prefix = inlinePrefix(right, event.blockType === 'heading_open' ? 'paragraph_open' : event.blockType!);
         if (prefix === undefined) { fail(); return; }
         inline = { line: nextLine, prefix, expected: right }; slot = undefined; fence = undefined;
-        void panel.webview.postMessage({ type: 'split-applied', version: document.version, line: event.line, nextLine,
+        void panel.webview.postMessage({ type: 'split-applied', transactionId: event.transactionId, documentId: event.documentId, projectionId: event.projectionId, version: document.version, line: event.line, nextLine,
           leftExpected: document.lineAt(event.line!).text, rightExpected: right,
           ...(slotSplit ? { slot: true, line: slotSplit.line, leftLine: event.line, shift: slotSplit.shift } : {}) });
       } catch { ownChanges = ownChanges.filter(item => item !== own); fail(); }

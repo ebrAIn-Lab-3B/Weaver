@@ -35,13 +35,20 @@ describe('checklist checkbox changes', () => {
     expect(planChecklistToggle('- [ ] new', 1, '- [ ] new', true)).toBeUndefined();
   });
 
-  it('never edits lookalikes inside front matter, fenced code, blockquotes or nested lists', () => {
+  it('never edits lookalikes inside front matter, fenced code or blockquotes', () => {
     const source = '---\n- [ ] metadata\n---\n\n```md\n- [ ] code\n```\n\n> - [ ] quoted\n\n- parent\n  - [ ] nested\n';
     expect(planChecklistToggle(source, 1, '- [ ] metadata', true)).toBeUndefined();
     expect(planChecklistToggle(source, 5, '- [ ] code', true)).toBeUndefined();
     expect(planChecklistToggle(source, 8, '> - [ ] quoted', true)).toBeUndefined();
-    expect(planChecklistToggle(source, 11, '  - [ ] nested', true)).toBeUndefined();
+    expect(apply(source, 11, '  - [ ] nested', true)).toBe(source.replace('  - [ ] nested', '  - [x] nested'));
     expect(planChecklistToggle('---\n- [ ] unfinished', 1, '- [ ] unfinished', true)).toBeUndefined();
+  });
+
+  it('toggles nested leaves and parents while leaving code unchanged', () => {
+    const source = '- parent\n  - [ ] leaf\n  - [ ] parent task\n    - child\n\n    - [ ] code-like\n';
+    expect(apply(source, 1, '  - [ ] leaf', true)).toBe(source.replace('  - [ ] leaf', '  - [x] leaf'));
+    expect(apply(source, 2, '  - [ ] parent task', true)).toBe(source.replace('  - [ ] parent task', '  - [x] parent task'));
+    expect(planChecklistToggle('    - [ ] code\n', 0, '    - [ ] code', true)).toBeUndefined();
   });
 
   it('accepts only task boxes represented by the Markdown parser', () => {

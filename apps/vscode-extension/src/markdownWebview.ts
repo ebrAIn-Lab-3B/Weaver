@@ -18,6 +18,7 @@ let checklistPending;
 let locationsStale = false;
 let movingToSplit = false;
 const extraSplits = [];
+let splitCounter = 0;
 const provisionalSplit = node => [session?.split, ...extraSplits].find(split => split?.right === node);
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
 
@@ -47,12 +48,12 @@ function clearInvalid() {
 }
 
 function hideMenu() { if (menu) menu.remove(); menu = undefined; filtered = []; }
-function showMenu(node) {
+function showMenu(node, owner = session) {
   const value = node.textContent || '';
-  if (!session || session.type !== 'slot' || session.kind !== 'paragraph' || !value.startsWith('/')) { hideMenu(); return; }
+  if (!owner || !node.classList.contains('insert-field') || (owner.kind || 'paragraph') !== 'paragraph' || !value.startsWith('/')) { hideMenu(); return false; }
   const query = value.slice(1).toLocaleLowerCase();
   filtered = choices.filter(k => k.includes(query) || editorConfig.labels[k].toLocaleLowerCase().includes(query));
-  if (!filtered.length) { hideMenu(); return; }
+  if (!filtered.length) { hideMenu(); return false; }
   selected = Math.min(selected, filtered.length - 1);
   if (!menu) { menu = document.createElement('div'); menu.className = 'slash-menu'; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', editorConfig.labels.menu); node.parentElement.append(menu); }
   menu.textContent = '';
@@ -60,19 +61,23 @@ function showMenu(node) {
     const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'option');
     button.setAttribute('aria-selected', String(index === selected)); button.textContent = editorConfig.labels[kind];
     button.addEventListener('mousedown', event => event.preventDefault());
-    button.addEventListener('click', () => choose(kind)); menu.append(button);
+    button.addEventListener('click', () => choose(kind, node)); menu.append(button);
   });
+  return true;
 }
-function choose(kind) {
-  if (!session) return;
-  session.kind = kind; session.node.textContent = ''; session.node.parentElement.dataset.kind = kind;
-  hideMenu(); session.dirty = true; pump(); session.node.focus();
+function choose(kind, node = session?.node) {
+  const owner = session?.node === node ? session : [...pending].reverse().find(item => item.node === node);
+  if (!owner) return;
+  owner.kind = kind; node.textContent = ''; node.parentElement.dataset.kind = kind;
+  hideMenu(); owner.dirty = true; if (owner === session) pump(); node.focus();
 }
 function activateQueued(next) {
   start(next.node);
+  if (session && next.kind) session.kind = next.kind;
+  if (session && next.slashDismissed) session.slashDismissed = true;
+  if (session && next.composing) session.composing = true;
   if (next.dirty && session) {
-    if (session.type === 'slot' && session.node.textContent.startsWith('/')) showMenu(session.node);
-    else { session.dirty = true; pump(); }
+    if (!(session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/') && showMenu(session.node))) { session.dirty = true; pump(); }
   }
   if ((next.finish || (deferredAction && deferredAction !== 'save')) && session) { session.finish = true; pump(); }
 }
@@ -89,7 +94,9 @@ function pump() {
   }
   if (session.split && !session.split.sent) {
     session.inflight = true; session.split.sent = true;
+    session.split.sentVersion = session.version;
     vscode.postMessage({ type: session.type === 'slot' ? 'split-slot' : 'split', line: session.line, blockType: session.blockType, value: session.split.original,
+      transactionId: session.split.id, documentId: editorConfig.documentId, projectionId: editorConfig.projectionId,
       version: session.version, expected: session.expected, kind: session.kind,
       caret: session.split.caret, selectionEnd: session.split.selectionEnd });
     return;
@@ -100,7 +107,7 @@ function pump() {
   if (session.finish) {
     const finished = session; session = undefined; hideMenu();
     const next = pending.shift();
-    if (next?.beforeSlot) {
+    if (next?.adjustBeforeSlot) {
       // The heading's insertion may have introduced separator lines. Resolve
       // the new slot against the acknowledged inserted text, not the old DOM.
       const prefix = (finished.expected || '').match(/^(?:\r?\n)*/)?.[0] || '';
@@ -165,7 +172,7 @@ function beginSplit(offsets, node = session?.node) {
   const left = original.slice(0, offsets.caret), suffix = original.slice(offsets.selectionEnd);
   right.textContent = suffix;
   node.textContent = left;
-  const split = { original, rightBlockType: blockType === 'heading_open' ? 'paragraph_open' : blockType, caret: offsets.caret, selectionEnd: offsets.selectionEnd, right, rightDirty: false, rightFinish: false, composing: false, sent: false };
+  const split = { id: editorConfig.projectionId + ':' + (++splitCounter), original, blockType, rightBlockType: blockType === 'heading_open' ? 'paragraph_open' : blockType, caret: offsets.caret, selectionEnd: offsets.selectionEnd, right, rightDirty: false, rightFinish: false, composing: false, sent: false };
   if (owner) { owner.rightDirty = true; extraSplits.push(split); }
   else { session.split = split; session.dirty = true; }
   movingToSplit = true; right.focus();
@@ -178,7 +185,15 @@ main.addEventListener('focusin', event => {
   if (!node) return;
   if (movingToSplit || provisionalSplit(node)) return;
   if (!session && checklistPending) { pending.push({ node, dirty: false }); return; }
-  if (session && (node !== session.node || pending.length)) { pending.push({ node, dirty: false }); return; }
+  if (session && (node !== session.node || pending.length)) {
+    // A block or insertion position strictly before an insertion keeps its
+    // line number. The host still validates the completed insertion itself.
+    const isSlot = node.classList.contains('insert-field');
+    const line = Number(isSlot ? node.parentElement.dataset.insertLine : node.dataset.sourceLine);
+    const beforeSlot = session.type === 'slot' && (isSlot || node.hasAttribute('data-inline-original')) &&
+      Number.isInteger(line) && line < session.line;
+    pending.push({ node, dirty: false, beforeSlot }); return;
+  }
   if (session && node === session.node) { session.finish = false; return; }
   start(node);
 });
@@ -194,30 +209,39 @@ main.addEventListener('input', event => {
   if (changedSupersededSplit(event.target)) return;
   if (provisionalSplit(event.target)) { provisionalSplit(event.target).rightDirty = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
-  if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
+  if (queued) {
+    queued.dirty = true; if (session?.failed) showDraftConflict(queued);
+    else if (!event.isComposing && !queued.composing && queued.node.classList.contains('insert-field') && (queued.kind || 'paragraph') === 'paragraph' && !queued.slashDismissed && nodeValue(queued.node).startsWith('/')) { selected = 0; showMenu(queued.node, queued); }
+    return;
+  }
   if (!session || event.target !== session.node || event.isComposing || session.composing) return;
   clearInvalid();
   // If Enter was pressed over a selection and a new edit arrives before the
   // split is acknowledged, the browser has already replaced that selection.
   if (session.type === 'inline' && session.finish && session.next && session.selectionEnd > session.caret) session.selectionEnd = session.caret;
-  if (session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/')) { selected = 0; showMenu(session.node); return; }
+  if (session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/')) { selected = 0; if (showMenu(session.node)) return; }
   hideMenu(); session.dirty = true; pump();
 });
 main.addEventListener('compositionstart', event => {
   if (provisionalSplit(event.target)) provisionalSplit(event.target).composing = true;
+  else if (pending.some(item => item.node === event.target)) [...pending].reverse().find(item => item.node === event.target).composing = true;
   else if (session && event.target === session.node) session.composing = true;
 });
 main.addEventListener('compositionend', event => {
   if (changedSupersededSplit(event.target)) return;
   if (provisionalSplit(event.target)) { provisionalSplit(event.target).composing = false; provisionalSplit(event.target).rightDirty = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
-  if (queued) { queued.dirty = true; if (session?.failed) showDraftConflict(queued); return; }
+  if (queued) {
+    queued.composing = false; queued.dirty = true;
+    if (session?.failed) showDraftConflict(queued);
+    else if (queued.node.classList.contains('insert-field') && (queued.kind || 'paragraph') === 'paragraph' && !queued.slashDismissed && nodeValue(queued.node).startsWith('/')) showMenu(queued.node, queued);
+    return;
+  }
   if (!session || event.target !== session.node) return;
   session.composing = false;
   clearInvalid();
   if (session.type === 'inline' && session.finish && session.next && session.selectionEnd > session.caret) session.selectionEnd = session.caret;
-  if (session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/')) showMenu(session.node);
-  else { session.dirty = true; pump(); }
+  if (!(session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/') && showMenu(session.node))) { session.dirty = true; pump(); }
 });
 main.addEventListener('keydown', event => {
   const nested = event.target.closest('[data-nested-source]');
@@ -233,6 +257,14 @@ main.addEventListener('keydown', event => {
   if (provisionalSplit(event.target)) {
     if (event.key === 'Enter' && !event.isComposing && !provisionalSplit(event.target).composing) { event.preventDefault(); if (!beginSplit(selectionOffsets(event.target), event.target)) vscode.postMessage({ type: 'split-unavailable' }); }
     return;
+  }
+  const queued = [...pending].reverse().find(item => item.node === event.target);
+  if (queued && menu && menu.parentElement === queued.node.parentElement && !event.isComposing && !queued.composing) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); selected = (selected + (event.key === 'ArrowDown' ? 1 : filtered.length - 1)) % filtered.length; showMenu(queued.node, queued); return;
+    }
+    if (event.key === 'Escape') { event.preventDefault(); hideMenu(); queued.slashDismissed = true; queued.dirty = true; return; }
+    if (event.key === 'Enter') { event.preventDefault(); choose(filtered[selected], queued.node); return; }
   }
   if (!session || event.target !== session.node || event.isComposing || session.composing) return;
   if (session.type === 'fence' && event.key === 'Enter') return;
@@ -263,7 +295,7 @@ main.addEventListener('keydown', event => {
       before.dataset.kind = 'paragraph';
       const field = before.querySelector('.insert-field'); field.textContent = '';
       current.before(before); field.focus();
-      const queued = pending.at(-1); if (queued?.node === field) queued.beforeSlot = true;
+      const queued = pending.at(-1); if (queued?.node === field) { queued.beforeSlot = true; queued.adjustBeforeSlot = true; }
       return;
     }
     if (session.type === 'inline' && session.blockType === 'heading_open' && offsets?.caret === 0 && offsets.selectionEnd === 0) {
@@ -279,15 +311,16 @@ main.addEventListener('paste', event => {
   const text = event.clipboardData?.getData('text/plain');
   if (typeof text === 'string' && /[\r\n]/.test(text)) {
     event.preventDefault();
-    const node = event.target.closest('[data-inline-original]');
+    const node = event.target.closest('.insert-field,[data-inline-original]');
     const offsets = node && selectionOffsets(node);
-    const blockType = node?.dataset.sourceType;
-    const prefix = node && session?.expected && inlinePrefix(session.expected, blockType);
+    const slot = node?.classList.contains('insert-field');
+    const blockType = slot && session?.kind === 'paragraph' ? 'paragraph_open' : node?.dataset.sourceType;
+    const prefix = slot && blockType === 'paragraph_open' ? '' : node && session?.expected && inlinePrefix(session.expected, blockType);
     const parts = text.replace(/\r\n?/g, '\n').split('\n');
     const value = node && nodeValue(node);
     // Queue the same acknowledged split operations used by Enter, retaining a
     // visible editable provisional block for every line while the host catches up.
-    if (!node || !session || session.node !== node || session.type !== 'inline' || session.failed || session.invalid || session.composing ||
+    if (!node || !session || session.node !== node || !(session.type === 'inline' || (session.type === 'slot' && session.kind === 'paragraph')) || session.failed || session.invalid || session.composing ||
         session.split || pending.length || !offsets || prefix === undefined || parts.length > 50 ||
         !planMultilinePaste(prefix + value, blockType, offsets.caret, offsets.selectionEnd, text, '\n') ||
         (blockType === 'list_item_inline' && (node.closest('li')?.querySelector('ul,ol') || node.closest('li')?.querySelectorAll('[data-inline-original]').length !== 1))) {
@@ -315,7 +348,7 @@ main.addEventListener('focusout', event => {
   if (movingToSplit) return;
   if (provisionalSplit(event.target)) { provisionalSplit(event.target).rightFinish = true; return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
-  if (queued) { queued.finish = true; return; }
+  if (queued) { if (menu?.parentElement === queued.node.parentElement) hideMenu(); queued.finish = true; return; }
   if (!session || event.target !== session.node) return;
   if (session.type === 'slot' && session.kind === 'paragraph' && session.node.textContent.startsWith('/') && !session.slashDismissed) session.dirty = true;
   hideMenu(); session.finish = true; setTimeout(pump, 0);
@@ -351,8 +384,15 @@ window.addEventListener('message', event => {
   if (session.failed) return;
   if (event.data?.type === 'split-applied' && session.split) {
     const previous = session, split = previous.split, right = split.right;
+    if (event.data.transactionId !== split.id) return;
     const oldLine = previous.line, nextLine = event.data.nextLine, delta = event.data.slot ? event.data.shift : nextLine - oldLine;
-    if (event.data.line !== oldLine || !Number.isInteger(nextLine) || delta < 1 || typeof event.data.rightExpected !== 'string') {
+    const leftPrefix = typeof event.data.leftExpected === 'string' ? inlinePrefix(event.data.leftExpected, split.blockType) : undefined;
+    const rightPrefix = typeof event.data.rightExpected === 'string' ? inlinePrefix(event.data.rightExpected, split.rightBlockType) : undefined;
+    if (event.data.documentId !== editorConfig.documentId || event.data.projectionId !== editorConfig.projectionId ||
+        event.data.version !== split.sentVersion + 1 || event.data.line !== oldLine || !Number.isInteger(nextLine) || delta < 1 ||
+        leftPrefix === undefined || rightPrefix === undefined ||
+        event.data.leftExpected.slice(leftPrefix.length) !== split.original.slice(0, split.caret) ||
+        event.data.rightExpected.slice(rightPrefix.length) !== split.original.slice(split.selectionEnd)) {
       showDraftConflict(previous); showDraftConflict({node:right}); return;
     }
     const provisionalContainers = [split, ...extraSplits].map(item => item.rightBlockType === 'list_item_inline' ? item.right.closest('li') : item.right);
@@ -410,6 +450,7 @@ window.addEventListener('message', event => {
     session.invalidNote.textContent = event.data.detail || editorConfig.labels.fenceInvalid;
     if (session.dirty && nodeValue(session.node) !== session.sentValue) { clearInvalid(); pump(); }
   } else if (event.data?.type === 'edit-failed' || event.data?.type === 'conflict') {
+    if (event.data.type === 'edit-failed' && event.data.transactionId && event.data.transactionId !== session.split?.id) return;
     showDraftConflict(session, event.data.detail);
     if (session.split) showDraftConflict({ node:session.split.right }, event.data.detail);
     for (const split of extraSplits) showDraftConflict({ node:split.right }, event.data.detail);

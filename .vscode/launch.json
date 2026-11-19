@@ -6,6 +6,7 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
+        "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-extension",
         "${workspaceFolder}/examples/sample-workspace"
       ],
@@ -17,6 +18,7 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
+        "--disable-extensions",
         "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-extension",
         "${workspaceFolder}/docs"
       ],

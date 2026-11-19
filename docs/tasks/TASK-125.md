@@ -4,7 +4,7 @@ type: task
 title: Protect document changes and concurrent edits
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/328
-status: review
+status: in-progress
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-004, AC-006, AC-013, AC-014]
@@ -15,6 +15,19 @@ criteria: [AC-004, AC-006, AC-013, AC-014]
 ## Current card status (2026-11-20)
 
 Local in-session conflict reporting, draft recovery controls and VS Code save conflict handling are implemented. A local two-window conflict, representative model application races, mode transitions, undo/redo and a real Korean IME example were exercised as recorded below. The false conflict during pending split undo was fixed and Ctrl+S was routed through the pending queue, but a save-and-close action during a delayed split lost a pending draft, as recorded below. The card remains open. Automatic recovery after close, restart or crash is explicitly deferred.
+
+## Current outcome and remaining implementation (2026-11-20)
+
+- Implemented and checked: local save-conflict comparison, visible in-session draft recovery controls, representative VS Code model application races, real Korean IME input, and keyboard save/undo/redo queuing. [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344) contains the shortcut fix and its checks.
+- Reproduced and not fixed: when a split acknowledgement is delayed, typing in the provisional paragraph and choosing Save in VS Code's close confirmation can close the view with that draft missing from disk. The observed reproduction used an artificially delayed local Windows development host.
+- Required implementation: make every supported save-and-close path account for pending webview edits before VS Code can report a successful save or discard the view. Preserve VS Code's local save-conflict and undo behavior; handle a refused, failed, or stale edit without silently losing the draft. Do not equate the explicitly deferred restart/crash recovery feature with this in-session close case.
+- Required verification: repeat the reproduced close-confirmation scenario with delayed acknowledgement in the VS Code extension host, including a failed/conflicting pending edit; confirm the saved file or a clearly available draft, then check ordinary save, close/reopen and undo/redo. Add a focused automated regression and record what was actually observed.
+
+### Design investigation, not an implementation decision
+
+The current editor is a VS Code `CustomTextEditorProvider`: VS Code owns the `TextDocument` and its save lifecycle, while a provisional split draft can remain only in the webview until an acknowledgement arrives. Keyboard command interception protects the shortcuts it handles but cannot be assumed to cover the close confirmation, Save All, or other VS Code save entry points.
+
+First investigate keeping accepted in-session edits represented in, or safely synchronized with, the VS Code document model before a save can complete, with explicit handling of version conflicts and of a pending or failed acknowledgement. Prove the ordering against the actual close flow rather than assuming that a queued webview message arrives before disposal. The `onWillSaveTextDocument` hook alone is not a reliable unlimited barrier: VS Code documents a shared 1.5-second budget and says the event may be skipped in some save situations. If the existing text-editor model cannot provide the needed guarantee, evaluate a `CustomEditorProvider` with an extension-owned document and `saveCustomDocument` as a larger alternative; this would require explicit work to preserve text-editor interoperability, external-change handling, undo/redo, and lifecycle behavior. Neither approach is approved as an implementation decision solely by this investigation. Sources: [VS Code custom editors](https://code.visualstudio.com/api/extension-guides/custom-editors), [VS Code API reference](https://code.visualstudio.com/api/references/vscode-api).
 
 ## Context
 
@@ -108,7 +121,7 @@ In a separate local Restricted Mode workspace, Computer Use in the Windows VS Co
 
 ## Delayed split acknowledgement and undo (2026-11-20)
 
-A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. The trigger and the VS Code undo routing still need investigation and a fix, followed by automated and actual-host regression checks.
+A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. That observation preceded the fix and recheck recorded in the next section.
 
 ## Delayed undo fix and recheck (2026-11-20)
 

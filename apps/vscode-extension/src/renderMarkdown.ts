@@ -4,7 +4,7 @@ import { inlinePrefix } from './inlineEditing';
 import { fenceBody } from './fenceEditing';
 
 /** Render without raw HTML and retain source lines for safe, targeted editing. */
-export function renderMarkdown(text: string, imageUri: (source: string) => string, insertLabel?: string, emptyChecklistLabel?: string): string {
+export function renderMarkdown(text: string, imageUri: (source: string) => string, insertLabel?: string, emptyChecklistLabel?: string, nestedSourceHint?: string): string {
   const md = new MarkdownIt({ html: false, linkify: true }).use(taskLists);
   const lines = text.split(/\r?\n/);
   const hasFrontMatter = lines[0] === '---';
@@ -24,7 +24,15 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
     renderedSource = text.slice(0, bodyOffset).replace(/[^\r\n]/g, '') + text.slice(bodyOffset);
   }
   md.core.ruler.push('weaver-source-lines', (state) => {
+    let listDepth = 0;
     for (const [index, token] of state.tokens.entries()) {
+      if (token.type === 'bullet_list_open' || token.type === 'ordered_list_open') listDepth++;
+      if (token.type === 'bullet_list_close' || token.type === 'ordered_list_close') listDepth--;
+      if (insertLabel !== undefined && listDepth > 1 && token.type === 'list_item_open' && token.map) {
+        token.attrSet('data-nested-source', String(token.map[0]));
+        token.attrSet('tabindex', '0');
+        if (nestedSourceHint) { token.attrSet('aria-description', nestedSourceHint); token.attrSet('title', nestedSourceHint); }
+      }
       if (token.map && token.nesting >= 0 && token.level === 0 && token.type.endsWith('_open')) {
         token.attrSet('data-source-line', String(token.map[0]));
         token.attrSet('data-source-end', String(token.map[1]));

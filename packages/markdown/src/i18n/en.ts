@@ -36,6 +36,7 @@ export const en = {
   'ui.markdown.copy-failed': 'Could not copy the draft. Select and copy the text before closing this view.',
   'ui.markdown.edit-failed': 'The edit could not be applied.',
   'ui.markdown.multiline-paste': 'Pasting multiple lines here is not supported yet. Open source to paste them; your clipboard has not changed.',
+  'ui.markdown.nested-source-hint': 'Edit nested list items in source.',
   'ui.markdown.split-unavailable': 'Starting a new line here is temporarily unavailable. Open source to add a line; your current text is preserved.',
   'ui.markdown.insert': '+ Add a block',
   'ui.markdown.insert-placeholder': "Type '/' for blocks, or start writing",

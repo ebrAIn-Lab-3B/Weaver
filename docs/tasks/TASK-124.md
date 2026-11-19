@@ -33,3 +33,5 @@ Simple list-item text and top-level checklist toggles are supported, and ordinar
 ## Scope and fallback decision
 
 Prioritize predictable Enter and continued typing for newly created and reopened simple top-level bullet and checklist items. Assess nested items for safe direct editing; until supported and verified, retain their source unchanged and offer source mode. Do the same for other unsupported Markdown rather than silently converting it. Confirm behavior after save and reopen in the actual extension host.
+
+A nested item now offers source-editing guidance when selected; Computer Use verified the explanation and Source button with nested Markdown and Mermaid preserved.

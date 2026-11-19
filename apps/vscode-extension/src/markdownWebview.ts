@@ -209,6 +209,8 @@ main.addEventListener('compositionend', event => {
   else { session.dirty = true; pump(); }
 });
 main.addEventListener('keydown', event => {
+  const nested = event.target.closest('[data-nested-source]');
+  if (nested && event.target === nested && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showNestedSourceHint(nested); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 's') {
     event.preventDefault(); queueAction('save'); return;
   }
@@ -382,7 +384,17 @@ main.addEventListener('dblclick', event => {
   const block = event.target.closest('[data-source-line]:not([data-inline-original])');
   if (block && !session) vscode.postMessage({type:'edit', line:Number(block.dataset.sourceLine)});
 });
+function showNestedSourceHint(item) {
+  if (item.querySelector(':scope > [data-nested-hint]')) return;
+  const note = document.createElement('p'); note.dataset.nestedHint = 'true'; note.setAttribute('role', 'status');
+  note.textContent = editorConfig.labels.nestedHint;
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = editorConfig.labels.source;
+  button.addEventListener('click', event => { event.stopPropagation(); queueAction('source'); });
+  note.append(' ', button); item.append(note);
+}
 main.addEventListener('click', event => {
+  const nested = event.target.closest('[data-nested-source]');
+  if (nested && !event.target.closest('[data-nested-hint]') && !event.target.closest('a')) { showNestedSourceHint(nested); return; }
   const code = event.target.closest('code[data-fence-editable]');
   if (code) {
     const textarea = document.createElement('textarea');

@@ -114,6 +114,55 @@ describe('rendered editor synchronization', () => {
       dom.window.close();
     }
   });
+  it('waits for every delayed block edit before saving while preserving the active block', () => {
+    const { dom, sent, first, second } = webview();
+    first.focus(); first.textContent = 'First pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.focus(); second.textContent = 'Second pending'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(sent.some(event => event.type === 'save')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'First pending' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'Second pending', version: 2 });
+    expect(sent.some(event => event.type === 'save')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'Second pending' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'save' });
+    expect(dom.window.document.activeElement).toBe(second);
+    expect(second.textContent).toBe('Second pending'); dom.window.close();
+  });
+  it('waits for all delayed edits before issuing undo', () => {
+    const { dom, sent, first, second } = webview();
+    first.focus(); first.textContent = 'First pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.focus(); second.textContent = 'Second pending'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    second.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(sent.some(event => event.type === 'undo')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'First pending' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'Second pending', version: 2 });
+    expect(sent.some(event => event.type === 'undo')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'Second pending' } }));
+    expect(sent.slice(-2)).toMatchObject([{ type: 'finish', history: true }, { type: 'undo' }]);
+    expect(dom.window.document.querySelector('main')?.getAttribute('aria-busy')).toBe('true'); dom.window.close();
+  });
+  it('does not save during Korean composition until the committed input is acknowledged', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
+    first.textContent = '한'; first.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(sent.some(event => event.type === 'save' || event.type === 'inline-change')).toBe(false);
+    first.textContent = '한글'; first.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '한글' }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: '한글' });
+    expect(sent.some(event => event.type === 'save')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: '한글' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'save' });
+    expect(first.textContent).toBe('한글'); dom.window.close();
+  });
+  it('keeps the draft and cancels a queued save when the pending edit is rejected', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'Unsaved draft'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', detail: 'Conflict' } }));
+    expect(sent.some(event => event.type === 'save')).toBe(false);
+    expect(first.textContent).toBe('Unsaved draft');
+    expect(dom.window.document.querySelector('[role=alert]')).toBeTruthy(); dom.window.close();
+  });
   it('prevents multiline paste before it can replace the selection', () => {
     const { dom, sent, first } = webview();
     first.focus();

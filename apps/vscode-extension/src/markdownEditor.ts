@@ -37,10 +37,11 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     const body = renderMarkdown(document.getText(), (src) => {
       const uri = vscode.Uri.joinPath(document.uri, '..', decodeURIComponent(src.split(/[?#]/)[0]));
       return panel.webview.asWebviewUri(uri).toString();
-    }, message('ui.markdown.insert-placeholder'), message('ui.markdown.checklist'));
+    }, message('ui.markdown.insert-placeholder'), message('ui.markdown.checklist'), message('ui.markdown.nested-source-hint'));
     const config = JSON.stringify({ version: document.version, focusAfter, focusTextLine, labels: {
       menu: message('ui.markdown.slash-menu'), heading: message('ui.markdown.heading'), bullet: message('ui.markdown.bullet'),
       checklist: message('ui.markdown.checklist'), code: message('ui.markdown.code'), conflict: message('ui.markdown.edit-conflict'),
+      nestedHint: message('ui.markdown.nested-source-hint'), source: message('ui.markdown.source'),
       codeEdit: message('ui.markdown.code-edit'), fenceInvalid: message('ui.markdown.fence-invalid'), copyDraft: message('ui.markdown.copy-draft'), openDraft: message('ui.markdown.open-draft'),
     } }).replace(/</g, '\\u003c');
     focusAfter = undefined;

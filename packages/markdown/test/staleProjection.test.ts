@@ -50,6 +50,7 @@ async function editorHost(initial: string) {
     },
   };
   const panel = {
+    active: true,
     viewColumn: 1,
     webview: {
       options: {}, cspSource: 'csp', html: '', asWebviewUri: () => ({ toString: () => 'script' }),
@@ -60,7 +61,7 @@ async function editorHost(initial: string) {
   };
   const bundle = await build({ entryPoints: [path.resolve(process.cwd(), '../../apps/vscode-extension/src/markdownEditor.ts')], bundle: true, platform: 'node', format: 'cjs', external: ['vscode'], write: false, logLevel: 'silent' });
   const nodeRequire = createRequire(import.meta.url);
-  const module = { exports: {} as { attachMarkdownEditor: (document: unknown, panel: unknown, context: unknown) => void } };
+  const module = { exports: {} as { attachMarkdownEditor: (document: unknown, panel: unknown, context: unknown) => void; requestMarkdownAction: (action: 'save' | 'undo' | 'redo') => boolean } };
   const load = (id: string) => id === 'vscode' ? mock : nodeRequire(id);
   new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(load, module, module.exports);
   module.exports.attachMarkdownEditor(document, panel, { extensionUri: uri });
@@ -71,10 +72,15 @@ async function editorHost(initial: string) {
   let directSplitId = 0;
   return { receive: (event: Record<string, unknown>) => onMessage(event.type === 'split' && event.transactionId === undefined
     ? { ...event, ...identity(), transactionId: `${identity().projectionId}:direct-${++directSplitId}` } : event),
-    identity, replies, source: () => text, html: () => panel.webview.html };
+    identity, replies, source: () => text, html: () => panel.webview.html, requestAction: module.exports.requestMarkdownAction };
 }
 
 describe('pending edits after a structural change', () => {
+  it('routes a workbench save to the active rendered editor', async () => {
+    const host = await editorHost('First');
+    expect(host.requestAction('save')).toBe(true);
+    expect(host.replies.at(-1)).toMatchObject({ type: 'editor-action-request', action: 'save' });
+  });
   it('applies multiline paste into a new slot through the host', async () => {
     const host = await editorHost('Before\n\nAfter');
     const dom = new JSDOM('<button id="source"></button><main><p data-source-line="0">Before</p><div class="insert-slot" data-insert-line="2"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="2">After</p></main>', {runScripts:'outside-only'});
@@ -143,7 +149,7 @@ describe('pending edits after a structural change', () => {
     const drain = async () => { while (cursor < sent.length && cursor < 20) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: host.replies[reply++] })); } };
     later.focus(); later.textContent = 'Last'; later.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     await drain();
-    later.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     await drain();
     earlier.focus(); await new Promise(resolve => setTimeout(resolve, 5)); await drain();
     earlier.textContent = '/check'; earlier.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -168,7 +174,7 @@ describe('pending edits after a structural change', () => {
     let cursor = 0, reply = 0;
     const drain = async () => { while (cursor < sent.length && cursor < 20) { await host.receive(sent[cursor++]); while (reply < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: host.replies[reply++] })); } };
     await drain();
-    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     await drain();
     first.focus(); first.textContent = 'First edited'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     await new Promise(resolve => setTimeout(resolve, 5)); await drain();

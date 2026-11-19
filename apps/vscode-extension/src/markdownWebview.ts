@@ -260,11 +260,12 @@ main.addEventListener('keydown', event => {
   const nested = event.target.closest('[data-nested-source]');
   if (nested && event.target === nested && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showNestedSourceHint(nested); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 's') {
-    event.preventDefault(); queueAction('save'); return;
+    event.preventDefault(); return;
   }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
     event.preventDefault();
-    queueAction(event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo');
+    // VS Code's scoped keybinding sends one editor-action-request; do not enqueue
+    // a second undo from the webview's copy of the same key event.
     return;
   }
   if (provisionalSplit(event.target)) {
@@ -367,6 +368,9 @@ main.addEventListener('focusout', event => {
   hideMenu(); session.finish = true; setTimeout(pump, 0);
 });
 window.addEventListener('message', event => {
+  if (event.data?.type === 'editor-action-request' && ['save', 'undo', 'redo'].includes(event.data.action)) {
+    queueAction(event.data.action); return;
+  }
   if (event.data?.type === 'checklist-result' && checklistPending) {
     const checkbox = checklistPending.node;
     if (event.data.ok) {

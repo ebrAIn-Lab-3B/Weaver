@@ -15,6 +15,7 @@ import { processStore } from './processStore';
 import { rosterStore } from './rosterStore';
 import { RequirementView } from './requirementView';
 import { Loaded, loadWorkspaceArtifacts, publishDiagnostics, requirementsOf } from './workspace';
+import { requestMarkdownAction } from './markdownEditor';
 
 const SETUP_PROMPTED_KEY = 'weaver.setup.prompted';
 const WATCH_DELAY_MS = 400;
@@ -23,6 +24,15 @@ const IGNORED_PATH = /[\\/](node_modules|\.git|dist|out|examples|\.claude[\\/]wo
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
+    vscode.commands.registerCommand('weaver.markdownSave', () => {
+      if (!requestMarkdownAction('save')) return vscode.commands.executeCommand('workbench.action.files.save');
+    }),
+    vscode.commands.registerCommand('weaver.markdownUndo', () => {
+      if (!requestMarkdownAction('undo')) return vscode.commands.executeCommand('undo');
+    }),
+    vscode.commands.registerCommand('weaver.markdownRedo', () => {
+      if (!requestMarkdownAction('redo')) return vscode.commands.executeCommand('redo');
+    }),
     vscode.commands.registerCommand('weaver.createIdeation', () => createDocument('ideation')),
     vscode.commands.registerCommand('weaver.createRequirement', () => createDocument('requirement')),
     vscode.commands.registerCommand('weaver.linkIdeation', linkIdeation),

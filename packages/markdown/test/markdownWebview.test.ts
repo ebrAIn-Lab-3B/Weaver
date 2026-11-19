@@ -71,7 +71,7 @@ describe('rendered editor synchronization', () => {
   it('flushes save without finishing or losing focus, then continues editing', () => {
     const { dom, sent, first } = webview(); first.focus();
     first.textContent = 'Before save'; first.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
-    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'s', ctrlKey:true, bubbles:true, cancelable:true}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     expect(sent.some(event => event.type === 'save')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:2, expected:'Before save'}}));
     expect(sent.at(-1)).toMatchObject({type:'save'});
@@ -153,7 +153,8 @@ describe('rendered editor synchronization', () => {
       const { dom, sent, first } = webview();
       first.focus(); first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       if (action === 'source') dom.window.document.getElementById('source')!.click();
-      else first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: action === 'save' ? 's' : 'z', ctrlKey: true, bubbles: true, cancelable: true }));
+      else if (action === 'undo') dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'undo' } }));
+      else dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
       expect(sent.some((e) => e.type === action)).toBe(false);
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
       if (action === 'save') { expect(sent.at(-1)?.type).toBe('save'); expect(sent.some(e => e.type === 'finish')).toBe(false); }
@@ -165,7 +166,7 @@ describe('rendered editor synchronization', () => {
     const { dom, sent, first, second } = webview();
     first.focus(); first.textContent = 'First pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     second.focus(); second.textContent = 'Second pending'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    second.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     expect(sent.some(event => event.type === 'save')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'First pending' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'Second pending', version: 2 });
@@ -179,7 +180,7 @@ describe('rendered editor synchronization', () => {
     const { dom, sent, first, second } = webview();
     first.focus(); first.textContent = 'First pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     second.focus(); second.textContent = 'Second pending'; second.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    second.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'undo' } }));
     expect(sent.some(event => event.type === 'undo')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'First pending' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'Second pending', version: 2 });
@@ -192,7 +193,7 @@ describe('rendered editor synchronization', () => {
     const { dom, sent, first } = webview(); first.focus();
     first.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
     first.textContent = '한'; first.dispatchEvent(new dom.window.InputEvent('input', { bubbles: true, isComposing: true }));
-    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     expect(sent.some(event => event.type === 'save' || event.type === 'inline-change')).toBe(false);
     first.textContent = '한글'; first.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles: true, data: '한글' }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: '한글' });
@@ -204,7 +205,7 @@ describe('rendered editor synchronization', () => {
   it('keeps the draft and cancels a queued save when the pending edit is rejected', () => {
     const { dom, sent, first } = webview(); first.focus();
     first.textContent = 'Unsaved draft'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', detail: 'Conflict' } }));
     expect(sent.some(event => event.type === 'save')).toBe(false);
     expect(first.textContent).toBe('Unsaved draft');
@@ -227,7 +228,7 @@ describe('rendered editor synchronization', () => {
     first.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'Enter', bubbles:true, cancelable:true}));
     const right = first.nextElementSibling as HTMLElement;
     right.textContent = 'After split'; right.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
-    right.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key:'s', ctrlKey:true, bubbles:true, cancelable:true}));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:1, expected:'First'}}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:''}}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:3, expected:'After split'}}));
@@ -249,6 +250,44 @@ describe('rendered editor synchronization', () => {
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', line: 2, expected: 'rst', value: 'typed rst', version: 2 });
     expect(right.textContent).toBe('typed rst');
+    dom.window.close();
+  });
+  it('queues a workbench undo request until a delayed split and its draft are acknowledged', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'undo' } }));
+    expect(sent.some(event => event.type === 'undo')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
+    expect(sent.some(event => event.type === 'undo')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'First', rightExpected: '' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'draft', version: 2 });
+    expect(sent.some(event => event.type === 'undo')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'draft' } }));
+    expect(sent.slice(-2)).toMatchObject([{ type: 'finish', history: true }, { type: 'undo' }]);
+    dom.window.close();
+  });
+  it('does not enqueue history twice when VS Code forwards the shortcut to the webview', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const key = new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true });
+    first.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(sent.filter(event => event.type === 'undo')).toHaveLength(0);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'undo' } }));
+    expect(sent.filter(event => event.type === 'undo')).toHaveLength(1);
+    dom.window.close();
+  });
+  it('only saves once when VS Code forwards its save shortcut to the webview', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const key = new dom.window.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
+    first.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(true);
+    expect(sent.filter(event => event.type === 'save')).toHaveLength(0);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
+    expect(sent.filter(event => event.type === 'save')).toHaveLength(1);
     dom.window.close();
   });
   it('ignores an unrelated split acknowledgement and rejects a mismatched matching response', () => {

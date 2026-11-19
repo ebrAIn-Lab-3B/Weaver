@@ -29,6 +29,15 @@ The current editor is a VS Code `CustomTextEditorProvider`: VS Code owns the `Te
 
 First investigate keeping accepted in-session edits represented in, or safely synchronized with, the VS Code document model before a save can complete, with explicit handling of version conflicts and of a pending or failed acknowledgement. Prove the ordering against the actual close flow rather than assuming that a queued webview message arrives before disposal. The `onWillSaveTextDocument` hook alone is not a reliable unlimited barrier: VS Code documents a shared 1.5-second budget and says the event may be skipped in some save situations. If the existing text-editor model cannot provide the needed guarantee, evaluate a `CustomEditorProvider` with an extension-owned document and `saveCustomDocument` as a larger alternative; this would require explicit work to preserve text-editor interoperability, external-change handling, undo/redo, and lifecycle behavior. Neither approach is approved as an implementation decision solely by this investigation. Sources: [VS Code custom editors](https://code.visualstudio.com/api/extension-guides/custom-editors), [VS Code API reference](https://code.visualstudio.com/api/references/vscode-api).
 
+## Save lifecycle feasibility probes (2026-11-20)
+
+Two isolated API experiments ran against Windows VS Code 1.147.0 using temporary local files, an isolated profile, and an extension-test host. They did not modify the product or test the full editor journey.
+
+- A `CustomTextEditorProvider`-style `TextDocument` save participant was tested using `onWillSaveTextDocument`. When its `waitUntil` promise rejected, `document.save()` still returned true and the edited model was written. When its promise took 3.5 seconds, save returned true after about 1.53 seconds and the edited model was written. Therefore this hook alone cannot enforce the required close/save barrier in the observed host.
+- A separate minimal `CustomEditorProvider` prototype marked its own document dirty and intentionally held the promise returned by `saveCustomDocument`. After 2.5 seconds the save command remained pending and the old file was still on disk; releasing the promise wrote the new content and completed the command. This demonstrates a possible save barrier for that prototype, not a fix for Weaver's close-confirmation path. The prototype did not implement or verify Weaver's source-editor interoperability, external-change conflicts, undo/redo, multiple views, close/cancellation handling, IME, or the complete writing flow.
+
+The reproduced data-loss defect remains open. A production design must establish how every pending edit reaches the owned model before save can complete, handle cancellation and conflicts without losing the draft, and preserve the existing local VS Code editing behavior before it can be accepted.
+
 ## Context
 
 The trial produced false document-change warnings when editing existing content. Block edits must preserve both in-flight user input and the rest of the original Markdown while respecting the VS Code document lifecycle.

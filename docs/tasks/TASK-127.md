@@ -16,6 +16,12 @@ criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-00
 
 The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested, but save-and-close during a delayed split lost a pending draft as recorded below. The card remains open.
 
+## Current outcome and remaining verification (2026-11-20)
+
+- The local creation/linking/diagram/reopen journey, representative source preservation and local conflicts, English and Korean UI, and a real Korean IME example have recorded evidence below. [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344) records the keyboard queue fix and delayed-host checks.
+- TASK-125 owns the reproduced save-and-close data-loss defect. After its implementation and focused regression pass, repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples are not proof that close during a pending operation is safe.
+- Remote providers and offline-to-online synchronization are outside this local baseline; do not add them as blockers solely because they were not tested.
+
 ## Context
 
 TASK-121 covers the human-only journey across the two authoring requirements. This task adds an explicit extension-host verification pass for the Notion-like editing work in TASK-123 through TASK-126; it does not replace the broader requirement or declare it complete.
@@ -134,7 +140,7 @@ In a separate local Restricted Mode workspace, Computer Use in the Windows VS Co
 
 ## Delayed split acknowledgement and undo (2026-11-20)
 
-A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. The trigger and the VS Code undo routing still need investigation and a fix, followed by automated and actual-host regression checks.
+A separate Restricted Mode VS Code 1.147.0 development host on Windows used a temporary copy of the current extension with only the `split-applied` host-to-webview message delayed by 15 seconds. Computer Use split a paragraph, typed `Undo buffer` in the provisional block, and invoked Ctrl+Z while the acknowledgement was pending. With no external edit, the editor displayed the document-changed warning twice; `Undo buffer` remained visible with copy/open-draft controls. This is a reproduced false-conflict defect under an artificially delayed response, not a claim of loss or a test of an unmodified host. That observation preceded the fix and recheck recorded in the next section.
 
 ## Delayed undo fix and recheck (2026-11-20)
 

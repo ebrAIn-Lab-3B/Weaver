@@ -65,3 +65,7 @@ Completion requires repository changes, checks of the human-only authoring and r
 ## Prioritized implementation decision
 
 Follow [DEC-028](../decisions/DEC-028-notion-like-markdown-editing.md): establish safe concurrent-change handling first, complete the ordinary Enter flow next, then verify the integrated journey in an actual VS Code extension host. In normal use, authors click and type and use VS Code save, without a separate Apply action. On an actual conflict retain visible in-session input, offer copying or opening it separately, and do not automatically overwrite or merge either version. Where safe direct editing is not established, preserve the source and offer source editing. Automatic recovery after close, restart, or crash remains deferred. The requirement and related tasks remain unverified until their acceptance criteria and evidence policy are satisfied.
+
+## Local authoring and synchronization boundary (2026-11-19)
+
+The acceptance baseline is local Markdown editing and saving with VS Code, including its conflict handling under the tested settings. Later Git synchronization and merge conflicts follow the normal Git workflow. Remote providers and offline-to-online synchronization are not independently verified and are not release blockers solely because they are untested. Record actual defects separately. In-session pending input and the local save and conflict paths still require evidence. See [DEC-028](../decisions/DEC-028-notion-like-markdown-editing.md).

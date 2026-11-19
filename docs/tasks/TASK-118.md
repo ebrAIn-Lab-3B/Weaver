@@ -20,3 +20,7 @@ Progress: the command-palette creation flow is implemented on branch `feat/req-0
 ## 0.1.22 handover
 
 Creation commands shipped in [0.1.21](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.21); a later development-host pass created an ideation and requirement file, reviewed proposed content, and linked them. Remaining: resolve concurrent ID allocation and verify collision, cancellation, and offline behavior against the full criteria.
+
+## Card review: offline scope (2026-11-19)
+
+The remaining offline check concerns creating local files without a board, GitHub, or an agent, as specified above. It is not a requirement to test remote file providers or to implement Git synchronization. Concurrent ID allocation and collision/cancellation behavior also remain open.

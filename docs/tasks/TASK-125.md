@@ -49,4 +49,8 @@ A separate two-process VS Code test left a Weaver edit dirty while a second VS C
 
 ## 0.1.22 handover
 
-In-session conflict reporting, draft copy/open, version checks, and local two-window save-conflict observations shipped or were recorded with [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22). Remaining: clarify and verify the supported file-provider and VS Code configuration boundary and pending-input transitions; automatic recovery after close, restart, or crash remains deferred.
+In-session conflict reporting, draft copy/open, version checks, and local two-window save-conflict observations shipped or were recorded with [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22). Remaining: verify local pending-input transitions and the relevant undo/redo and conflict paths against the criteria above. Automatic recovery after close, restart, or crash remains deferred.
+
+## Card review: local baseline (2026-11-19)
+
+The observed local two-window save conflict is evidence for the tested VS Code configuration. Do not treat untested remote providers, offline-to-online synchronization, or alternative conflict settings as defects or release blockers by themselves. Git synchronization and merge conflicts follow the normal Git workflow. This does not prove every change/application race or a universal atomicity guarantee. Keep this card open for the remaining local in-session transition and conflict evidence; investigate other providers only for a concrete reproduced issue or separate requirement.

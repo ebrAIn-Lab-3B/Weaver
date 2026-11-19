@@ -26,10 +26,14 @@ Verify a schema-valid requirement with links, criteria, a task and a Mermaid blo
 
 ## 0.1.22 handover
 
-Requirement view to rendered editor and back shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). A development-host pass edited a generated requirement and followed its ideation link. Remaining: verify a schema-valid requirement combining metadata, task links, criteria, Mermaid, and unsupported Markdown through edit, save, reopen, and navigation.
+Requirement view to rendered editor and back shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). A development-host pass edited a generated requirement and followed its ideation link. The subsequent diagram-bearing requirement round trip below verifies that combined fixture.
 
 ## Diagram-bearing requirement round trip (2026-11-19)
 
 In a separate temporary workspace, Computer Use exercised the 0.1.22 development extension with a schema-valid `REQ-991` containing front matter, a story ID, two acceptance criteria, a `TASK-991` reference and local task link, an ideation link, a Mermaid flowchart, and a Markdown table with bold text. The requirement view showed its metadata, criteria and task. The editor displayed the Mermaid diagram; an existing outcome paragraph was edited and saved. Returning to the requirement view, the task details link opened the task, its requirement action returned to the requirement, and the ideation link opened the ideation document. The VS Code text editor showed the edited body and metadata; the saved file retained both links, task and criteria, Mermaid source, table, and bold text. The requirement was reopened in Weaver.
 
 The fixture intentionally has no GitHub Issue link for the task, so Weaver reported that expected warning. This was a targeted local-file test using a development host, not an installed-VSIX test or a complete test of pending changes, remote file providers, offline mode, or all input and conflict timings.
+
+## Card review: remaining local evidence (2026-11-19)
+
+The combined metadata, criteria, task links, Mermaid, source preservation, save, reopen, and navigation fixture has been exercised as recorded above. Keep this card open until requirement-specific pending input and mode transitions are checked against TASK-125. Untested remote providers and offline-to-online synchronization alone are not defects or completion blockers.

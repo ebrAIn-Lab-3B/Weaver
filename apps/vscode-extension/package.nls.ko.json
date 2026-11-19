@@ -13,6 +13,7 @@
   "weaver.config.language.en": "영어(English)",
   "weaver.config.language.ko": "한국어",
   "weaver.editor.requirement.displayName": "Weaver 문서 화면",
+  "weaver.editor.author.displayName": "Weaver 문서 편집기",
   "weaver.command.setFabricRoot.title": "Weaver: 작업 폴더 정하기",
   "weaver.command.cloneRegistered.title": "Weaver: 등록된 저장소 클론",
   "weaver.command.openFabricRoot.title": "Weaver: 작업 폴더 열기",

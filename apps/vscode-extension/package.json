@@ -157,6 +157,12 @@
     },
     "customEditors": [
       {
+        "viewType": "weaver.markdownAuthor",
+        "displayName": "%weaver.editor.author.displayName%",
+        "selector": [{ "filenamePattern": "*.md" }],
+        "priority": "option"
+      },
+      {
         "viewType": "weaver.requirementEditor",
         "displayName": "%weaver.editor.requirement.displayName%",
         "selector": [

@@ -8,6 +8,15 @@ import { attachMarkdownEditor } from './markdownEditor';
 import { whilePanelAlive } from './panelLifecycle';
 
 export const REQUIREMENT_EDITOR = 'weaver.requirementEditor';
+export const MARKDOWN_AUTHOR_EDITOR = 'weaver.markdownAuthor';
+
+/** Explicit writing surface; the standard requirement view remains the default. */
+export class MarkdownAuthorProvider implements vscode.CustomTextEditorProvider {
+  constructor(private readonly context: vscode.ExtensionContext) {}
+  resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
+    attachMarkdownEditor(document, panel, this.context, true);
+  }
+}
 
 /** Opens a requirement file as its Weaver view instead of raw Markdown (TASK-017). */
 export class RequirementEditorProvider implements vscode.CustomTextEditorProvider {

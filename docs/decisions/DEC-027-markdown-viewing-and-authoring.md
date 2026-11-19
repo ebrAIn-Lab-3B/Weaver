@@ -14,7 +14,7 @@ People need to read ordinary Markdown and diagrams and author ideation and requi
 2. The commands for creating an ideation or requirement file ask for the destination and show the initial content before creating it. Ideation begins with only the chosen title. A requirement starts with the required schema fields, outcome, and one acceptance criterion. Both remain ordinary Markdown.
 3. The initial requirement ID proposal follows the largest existing parsed requirement ID in the workspace. The ID is checked again before creation, and exclusive file creation prevents overwriting a destination. This is not yet an atomic workspace-wide allocation across concurrent processes; that remains implementation work.
 4. A requirement can link to an ideation file in the same workspace folder with an ordinary relative Markdown link, inserted as an unsaved text edit.
-5. The rendered view can edit a single-line heading or paragraph as a targeted Markdown text edit. Other content is edited in the source editor. A broader block editor and slash-command set remain open: any future editor must preserve unsupported Markdown and diagram source on round trip. Source mode remains available.
+5. The initial view edits a single-line heading or paragraph as a targeted Markdown text edit. The subsequent product direction for a Notion-like block editor and slash commands is recorded in [DEC-028](./DEC-028-notion-like-markdown-editing.md). Source mode remains available.
 
 ## Review and limitations
 

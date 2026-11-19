@@ -13,6 +13,7 @@
   "weaver.config.language.en": "English",
   "weaver.config.language.ko": "Korean (한국어)",
   "weaver.editor.requirement.displayName": "Weaver Document View",
+  "weaver.editor.author.displayName": "Weaver Document Editor",
   "weaver.command.setFabricRoot.title": "Weaver: Set Fabric Root Folder",
   "weaver.command.cloneRegistered.title": "Weaver: Clone Registered Repositories",
   "weaver.command.openFabricRoot.title": "Weaver: Open Fabric Root Folder",

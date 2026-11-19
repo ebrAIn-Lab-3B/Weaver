@@ -313,6 +313,7 @@ export function renderRequirementHtml(
   ${noteKey ? `<p class="muted">${e(tt(noteKey))}</p>` : ''}
   <dl>${metaHtml}</dl>
   <div class="actions">
+    <button data-cmd="editDocument">${e(tt('ui.button.edit-document'))}</button>
     <button data-cmd="openSource">${e(tt('ui.button.open-source'))}</button>
     <button data-cmd="openPreview">${e(tt('ui.button.open-preview'))}</button>
     <button data-cmd="showOnOverview">${e(tt('ui.button.show-on-overview'))}</button>

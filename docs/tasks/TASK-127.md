@@ -66,3 +66,7 @@ A nested bullet and Mermaid fixture was rendered and the nested item was clicked
 In a separate test workspace, Computer Use exercised Enter in the middle of an existing heading, at the beginning of a newly inserted heading, and on an empty bullet to leave the list. It pasted three plain lines into an existing paragraph, continued typing, and saved. It also edited a simple nested child, used Enter to create a sibling, saved, and reopened the document. Blank visual spacing is not retained on reopen; multiline paste containing blank lines or formatting, multiline paste in a new insertion field, nested checklists, formatted nested items, and items with children remain source-mode cases.
 
 A further human-only pass used the extension to create an ideation file and a requirement, link the requirement to the ideation file, edit the requirement, and follow the link. A requirement fixture combining a diagram with the rest of the authoring journey was not verified in that pass. These observations are partial evidence; the tasks and requirement remain unverified.
+
+## 0.1.22 handover
+
+Partial extension-host checks, automated checks, and the released scope are recorded above and in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22). Remaining: complete the combined diagram-bearing requirement journey, reopening outside Weaver, and the remaining timing and environment checks. Do not mark verified on the partial passes alone.

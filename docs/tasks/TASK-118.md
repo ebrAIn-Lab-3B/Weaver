@@ -16,3 +16,7 @@ After TASK-115, implement a human-driven creation flow with repository and desti
 Verify both creation paths, required metadata, collision and cancellation behavior, and offline operation without an agent, board, or GitHub. A named agent owner remains to be assigned.
 
 Progress: the command-palette creation flow is implemented on branch `feat/req-021-022-markdown-authoring`. It proposes an ID, reviews the initial file, and uses exclusive file creation. The shared decisions, concurrent ID allocation, automated integration coverage, and VS Code host verification remain open; this task is not yet verified.
+
+## 0.1.22 handover
+
+Creation commands shipped in [0.1.21](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.21); a later development-host pass created an ideation and requirement file, reviewed proposed content, and linked them. Remaining: resolve concurrent ID allocation and verify collision, cancellation, and offline behavior against the full criteria.

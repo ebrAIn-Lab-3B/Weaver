@@ -37,3 +37,7 @@ Pasting multiple nonempty plain lines into an existing supported paragraph is su
 Prioritize predictable Enter and continued typing for newly created and reopened simple top-level bullet and checklist items. Allow safely supported simple nested children; retain unsupported nested structures unchanged and offer source mode. Do the same for other unsupported Markdown rather than silently converting it. Confirm behavior after save and reopen in the actual extension host.
 
 An unsupported nested item offers source-editing guidance when selected; Computer Use verified the explanation and Source button with nested Markdown and Mermaid preserved.
+
+## 0.1.22 handover
+
+Supported paragraphs, headings, simple lists and nested child bullets, checklist toggles, code blocks, and bounded multiline plain-text paste shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). Remaining: decide and implement broader nested checklist and formatted-block editing and multiline paste with blank lines or from a new insertion field; source mode remains available.

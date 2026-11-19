@@ -4,13 +4,17 @@ type: task
 title: Edit requirement documents from their Weaver view
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/329
-status: draft
+status: review
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-002, AC-004, AC-014]
 ---
 
 # TASK-126 Edit requirement documents from their Weaver view
+
+## Current card status (2026-11-20)
+
+The requirement-view route, local editing, save/reopen and navigation with front matter, task and ideation links, Mermaid and unsupported Markdown were exercised in the development host. The remaining review is the requirement-specific application of TASK-125's in-session protection; remote providers and offline-to-online sync are not blockers solely because they were not tested.
 
 ## Context
 

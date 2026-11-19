@@ -4,13 +4,17 @@ type: task
 title: Protect document changes and concurrent edits
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/328
-status: draft
+status: review
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-004, AC-006, AC-013, AC-014]
 ---
 
 # TASK-125 Protect document changes and concurrent edits
+
+## Current card status (2026-11-20)
+
+Local in-session conflict reporting, draft recovery controls and VS Code save conflict handling are implemented. A local two-window conflict, representative model application races, mode transitions, undo/redo and a real Korean IME example were exercised as recorded below. Deliberately delayed host responses and rapid transitions in all combinations remain unverified; no defect is inferred from those gaps. Automatic recovery after close, restart or crash is explicitly deferred.
 
 ## Context
 

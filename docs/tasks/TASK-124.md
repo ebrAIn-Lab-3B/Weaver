@@ -4,13 +4,17 @@ type: task
 title: Edit structured Markdown blocks in the rendered document
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/327
-status: draft
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-010, AC-012]
 ---
 
 # TASK-124 Edit structured Markdown blocks in the rendered document
+
+## Current card status (2026-11-20)
+
+The supported structured-block scope satisfies the Done when criteria: headings, paragraphs, list items, checklists and fenced code have been edited in the VS Code development host; save/reopen, surrounding-content preservation and the source route for unsupported Markdown were checked. Implementation evidence is [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331), [PR #336](https://github.com/ebrAIn-Lab-3B/Weaver/pull/336) and [PR #337](https://github.com/ebrAIn-Lab-3B/Weaver/pull/337); exact tests and host observations follow. Formatted nested constructs, splitting items with children and unsupported whitespace pastes remain source-only by the accepted scope, not unfinished acceptance criteria.
 
 ## Context
 
@@ -30,7 +34,7 @@ Verify insertion followed by editing, existing documents, multiple items and cod
 
 Supported plain paragraphs, headings, top-level list items, and simple nested child items can be edited in place. Enter splits supported headings and items; a newly selected empty bullet can return to a paragraph. Ordinary closed top-level fenced code can be edited. Computer Use exercised a simple nested child edit and Enter, then saved and reopened it. Plain nested list and checklist items are now editable and toggleable, including nonempty parents; splitting a parent with children and formatted nested items still require source mode; selecting an unsupported nested item offers source guidance.
 
-Pasting multiple nonempty plain lines into an existing supported paragraph is supported. A single empty separator between plain paragraphs is supported; other blank-line cases and formatted text still require source mode. Plain nonempty multiline paste into a new paragraph insertion field is implemented and has automated and extension-host coverage described below. Blank visual spacing created in an empty paragraph field does not survive reopening Markdown. Concurrent external changes not yet loaded into VS Code remain a limitation. The full task remains in progress.
+Pasting multiple nonempty plain lines into an existing supported paragraph is supported. A single empty separator between plain paragraphs is supported; other blank-line cases and formatted text still require source mode. Plain nonempty multiline paste into a new paragraph insertion field is implemented and has automated and extension-host coverage described below. Blank visual spacing created in an empty paragraph field does not survive reopening Markdown. Concurrent external changes not yet loaded into VS Code remain a limitation. The current supported-block acceptance scope is verified; the source-only limitations remain documented.
 
 ## Scope and fallback decision
 
@@ -42,7 +46,7 @@ An unsupported nested item offers source-editing guidance when selected; Compute
 
 Supported paragraphs, headings, simple lists and nested child bullets, checklist toggles, code blocks, and bounded multiline plain-text paste shipped in [0.1.22](https://github.com/ebrAIn-Lab-3B/Weaver/releases/tag/v0.1.22) via [PR #331](https://github.com/ebrAIn-Lab-3B/Weaver/pull/331). Remaining: decide and implement splitting nested parents and formatted-block editing and multiline paste with blank lines; source mode remains available. Plain multiline paste in a new paragraph insertion field has since been implemented as recorded below.
 
-Splitting nested parents, formatted nested items, and blank-line paste remain unimplemented. Verification of the supported paths across the complete local authoring journey and pending-edit transitions also remains incomplete; see TASK-125 and TASK-127.
+Splitting nested parents, formatted nested items, and the unsupported blank-line cases remain source-only. Broader document-transition review is tracked in TASK-125 and TASK-127.
 
 
 ## Multiline paste in a new paragraph field (2026-11-19)

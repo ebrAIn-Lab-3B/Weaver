@@ -68,7 +68,7 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
         }
       }
       if (insertLabel !== undefined && token.type === 'inline' && token.map && token.map[1] === token.map[0] + 1 &&
-          paragraph?.type === 'paragraph_open' && item?.type === 'list_item_open' && item.level === 1 &&
+          paragraph?.type === 'paragraph_open' && item?.type === 'list_item_open' && item.level >= 1 &&
           (!hasFrontMatter || (frontMatterEnd >= 0 && token.map[0] > frontMatterEnd))) {
         const line = lines[token.map[0]];
         const prefix = inlinePrefix(line, 'list_item_inline');
@@ -77,7 +77,17 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
         const contentIndex = checkbox ? 1 : 0;
         const content = children[contentIndex];
         const visible = content?.type === 'text' ? (checkbox ? content.content.replace(/^[ \t]+/, '') : content.content) : undefined;
-        if (prefix !== undefined && children.length === contentIndex + 1 && visible === line.slice(prefix.length)) {
+        // Simple nested leaf items can be edited without rebuilding their parent
+        // list. Keep nested checkboxes, rich content, and items with children in
+        // source mode until their structure can be addressed safely.
+        const safeNested = item.level > 1 && !checkbox && item.map &&
+          lines.slice(item.map[0] + 1, item.map[1]).every(value => !value.trim());
+        if (prefix !== undefined && children.length === contentIndex + 1 && visible === line.slice(prefix.length) && (item.level === 1 || safeNested)) {
+          if (safeNested) {
+            for (const name of ['data-nested-source', 'tabindex', 'aria-description', 'title']) {
+              const attr = item.attrIndex(name); if (attr >= 0) item.attrs?.splice(attr, 1);
+            }
+          }
           const open = new state.Token('span_open', 'span', 1);
           open.attrSet('data-source-line', String(token.map[0]));
           open.attrSet('data-source-end', String(token.map[1]));
@@ -103,12 +113,18 @@ export function renderMarkdown(text: string, imageUri: (source: string) => strin
       // items editable without adding invisible characters to the source.
       for (let index = state.tokens.length - 1; index >= 0; index--) {
         const item = state.tokens[index];
-        if (item.type !== 'list_item_open' || item.level !== 1 || !item.map || item.map[1] !== item.map[0] + 1 ||
+        if (item.type !== 'list_item_open' || item.level < 1 || !item.map || item.map[1] !== item.map[0] + 1 ||
             (hasFrontMatter && (frontMatterEnd < 0 || item.map[0] <= frontMatterEnd))) continue;
         const line = lines[item.map[0]];
         const prefix = inlinePrefix(line, 'list_item_inline');
         if (prefix === undefined || line !== prefix) continue;
         const isChecklist = /\[[ xX]\][ \t]+$/.test(prefix);
+        if (item.level > 1 && isChecklist) continue;
+        if (item.level > 1) {
+          for (const name of ['data-nested-source', 'tabindex', 'aria-description', 'title']) {
+            const attr = item.attrIndex(name); if (attr >= 0) item.attrs?.splice(attr, 1);
+          }
+        }
         const span = `<span data-source-line="${item.map[0]}" data-source-end="${item.map[1]}" data-source-type="list_item_inline" data-inline-prefix="${escapeAttribute(prefix)}" data-inline-original="${escapeAttribute(line)}" contenteditable="plaintext-only" spellcheck="true"></span>`;
         if (isChecklist) {
           const inline = state.tokens[index + 2];

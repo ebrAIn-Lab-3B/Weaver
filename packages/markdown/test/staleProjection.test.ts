@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebview';
+import { renderMarkdown } from '../../../apps/vscode-extension/src/renderMarkdown';
 
 /** Run the actual extension host message handler with a small in-memory VS Code document. */
 async function editorHost(initial: string) {
@@ -67,6 +68,45 @@ async function editorHost(initial: string) {
 }
 
 describe('pending edits after a structural change', () => {
+  it('applies multiline paste with immediate typing through the actual host', async () => {
+    const host = await editorHost('abcd\n\nFollowing');
+    const dom = new JSDOM('<button id="source"></button><main><p contenteditable="plaintext-only" data-inline-original="abcd" data-source-line="0" data-source-end="1" data-source-type="paragraph_open">abcd</p><p contenteditable="plaintext-only" data-inline-original="Following" data-source-line="2" data-source-end="3" data-source-type="paragraph_open">Following</p></main>', {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}), editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}} });
+    dom.window.eval(markdownClient);
+    const node=dom.window.document.querySelector('p') as HTMLElement; node.focus();
+    const range=dom.window.document.createRange(); range.setStart(node.firstChild!,1); range.setEnd(node.firstChild!,3); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true}); Object.defineProperty(paste,'clipboardData',{value:{getData:()=> 'ONE\nTWO\nTHREE'}}); node.dispatchEvent(paste);
+    const tail=dom.window.document.querySelectorAll('p')[2]; tail.textContent='typed '+tail.textContent; tail.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    let index=0, replyIndex=0;
+    while(index < sent.length && index < 20) { await host.receive(sent[index++]); while(replyIndex < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }
+    expect(host.source()).toBe('aONE\n\nTWO\n\ntyped THREEd\n\nFollowing');
+    expect((dom.window.document.querySelector('[data-inline-original="Following"]') as HTMLElement).dataset.sourceLine).toBe('6');
+    dom.window.close();
+  });
+  it('keeps checklist markers while pasting multiple lines through the host', async () => {
+    const host=await editorHost('- [x] abcd\n\nFollowing');
+    const dom=new JSDOM('<button id="source"></button><main><ul><li><input type="checkbox" checked data-checklist-line="0" data-checklist-expected="- [x] abcd"><span contenteditable="plaintext-only" data-inline-original="- [x] abcd" data-source-line="0" data-source-end="1" data-source-type="list_item_inline">abcd</span></li></ul><p data-source-line="2">Following</p></main>',{runScripts:'outside-only'});
+    const sent:Record<string,unknown>[]=[]; Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open'}}}); dom.window.eval(markdownClient);
+    const node=dom.window.document.querySelector('span') as HTMLElement; node.focus(); const range=dom.window.document.createRange(); range.setStart(node.firstChild!,1); range.setEnd(node.firstChild!,3); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    const paste=new dom.window.Event('paste',{bubbles:true,cancelable:true}); Object.defineProperty(paste,'clipboardData',{value:{getData:()=> 'ONE\nTWO\nTHREE'}}); node.dispatchEvent(paste);
+    let index=0, replyIndex=0; while(index < sent.length && index < 20) { await host.receive(sent[index++]); while(replyIndex < host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }
+    expect(host.source()).toBe('- [x] aONE\n- [ ] TWO\n- [ ] THREEd\n\nFollowing');
+    expect([...dom.window.document.querySelectorAll('input')].map(box=>box.checked)).toEqual([true,false,false]); dom.window.close();
+  });
+  it('edits and splits a simple nested leaf without changing its ancestors or peers', async () => {
+    const source='- Parent\n  - Child\n    - Grandchild\n- Peer\n';
+    const host=await editorHost(source); const html=renderMarkdown(source, value=>value, 'Write', 'Checklist', 'Open source');
+    const dom=new JSDOM('<button id="source"></button><main>'+html+'</main>',{runScripts:'outside-only'}); const sent:Record<string,unknown>[]=[];
+    Object.assign(dom.window,{acquireVsCodeApi:()=>({postMessage:(event:Record<string,unknown>)=>sent.push(event)}),editorConfig:{version:1,labels:{conflict:'Conflict',copyDraft:'Copy',openDraft:'Open',nestedHint:'Open source',source:'Source'}}}); dom.window.eval(markdownClient);
+    const node=dom.window.document.querySelector('[data-inline-original="    - Grandchild"]') as HTMLElement; expect(node).toBeTruthy();
+    node.focus(); node.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true})); expect(dom.window.document.querySelector('[data-nested-hint]')).toBeNull();
+    const range=dom.window.document.createRange(); range.setStart(node.firstChild!,5); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    node.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    const right=node.closest('li')!.nextElementSibling!.querySelector('[data-inline-original]') as HTMLElement; right.textContent='new child'; right.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    let index=0,replyIndex=0; while(index<sent.length && index<20) { await host.receive(sent[index++]); while(replyIndex<host.replies.length) dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies[replyIndex++]})); }
+    expect(host.source()).toBe('- Parent\n  - Child\n    - Grand\n    - new child\n- Peer\n'); dom.window.close();
+  });
   it('restores the edited block after undo when the history command makes no change', async () => {
     const host = await editorHost('First\n\nSecond');
     await host.receive({type:'focus'});
@@ -162,6 +202,65 @@ describe('pending edits after a structural change', () => {
       expect(host.source()).toBe('- [x] Alpha\n- [ ] Next\n\nFollowing');
     }
     dom.window.close();
+  });
+  it('moves to the empty slot before an existing heading at its start', async () => {
+    const host = await editorHost('## Title\n\nFollowing');
+    const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><h2 contenteditable="plaintext-only" data-inline-original="## Title" data-source-line="0" data-source-type="heading_open">Title</h2></main>', {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{}} });
+    dom.window.eval(markdownClient);
+    const heading=dom.window.document.querySelector('h2')!; heading.focus();
+    const range=dom.window.document.createRange(); range.setStart(heading.firstChild!,0); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    heading.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    const field=dom.window.document.querySelector('.insert-field') as HTMLElement;
+    expect(dom.window.document.activeElement).toBe(field);
+    field.textContent='Before'; field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    await new Promise(resolve => setTimeout(resolve, 5));
+    for (let cursor=0; cursor < sent.length && cursor < 10; cursor++) { await host.receive(sent[cursor]); const reply=host.replies.at(-1); if(reply && ['edit-applied','edit-failed'].includes(String(reply.type))) {host.replies.length=0;dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:reply}));} }
+    expect(host.source()).toBe('Before\n\n## Title\n\nFollowing'); dom.window.close();
+  });
+  it.each([['Following', 0, 'Before\n\n## Title\n\nFollowing'], ['Existing', 1, 'Existing\n\nBefore\n\n## Title\n']])('types before a newly inserted heading at the beginning in %s', async (source, line, expected) => {
+    const host = await editorHost(source);
+    const dom = new JSDOM(`<button id="source"></button><main><div class="insert-slot" data-insert-line="${line}"><div class="insert-field" contenteditable="plaintext-only"></div></div></main>`, {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu',conflict:'conflict'}} });
+    dom.window.eval(markdownClient);
+    const title=dom.window.document.querySelector('.insert-field') as HTMLElement; title.focus();
+    title.textContent='/heading'; title.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    title.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    title.textContent='Title'; title.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    const range=dom.window.document.createRange(); range.setStart(title.firstChild!,0); range.collapse(true); dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    title.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    const before=dom.window.document.activeElement as HTMLElement;
+    expect(before).not.toBe(title);
+    before.textContent='Before'; before.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    await new Promise(resolve => setTimeout(resolve, 5));
+    let cursor=0;
+    while (cursor < sent.length && cursor < 15) { await host.receive(sent[cursor++]); const reply=host.replies.at(-1); if(reply && ['edit-applied','edit-failed'].includes(String(reply.type))) { host.replies.length=0; dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:reply})); } }
+    expect(host.source()).toBe(expected); expect(sent.some(msg => msg.type==='split-unavailable')).toBe(false); dom.window.close();
+  });
+  it('splits a heading in the middle without losing either half', async () => {
+    const host = await editorHost('## AlphaBeta\n\nFollowing');
+    await host.receive({ type:'focus' });
+    await host.receive({ type:'split', line:0, blockType:'heading_open', version:1, expected:'## AlphaBeta', caret:5, selectionEnd:5 });
+    expect(host.source()).toBe('## Alpha\n\nBeta\n\nFollowing');
+    expect(host.replies.at(-1)).toMatchObject({ type:'split-applied', nextLine:2, rightExpected:'Beta' });
+  });
+  it.each(['heading', 'bullet', 'checklist'])('cancels an empty new %s and preserves immediate paragraph typing', async (kind) => {
+    const host = await editorHost('Following');
+    const dom = new JSDOM('<button id="source"></button><main><div class="insert-slot" data-insert-line="0"><div class="insert-field" contenteditable="plaintext-only"></div></div><p data-source-line="0">Following</p></main>', {runScripts:'outside-only'});
+    const sent: Record<string, unknown>[] = [];
+    Object.assign(dom.window, { acquireVsCodeApi: () => ({postMessage:(event:Record<string, unknown>) => sent.push(event)}), editorConfig:{version:1, labels:{heading:'heading',bullet:'bullet',checklist:'checklist',code:'code',menu:'menu'}} });
+    dom.window.eval(markdownClient);
+    const field = dom.window.document.querySelector('.insert-field') as HTMLElement; field.focus();
+    field.textContent = '/' + kind; field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+    field.textContent = 'After'; field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    let cursor = 0;
+    while (cursor < sent.length && cursor < 12) { const msg=sent[cursor++]; await host.receive(msg); const reply=host.replies.at(-1); if (reply && ['edit-applied','edit-failed'].includes(String(reply.type))) { host.replies.length=0; dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:reply})); } }
+    expect(host.source()).toBe('After\n\nFollowing');
+    expect(sent.some(msg => msg.type === 'split-unavailable')).toBe(false); dom.window.close();
   });
   it('creates an editable paragraph after a heading through the host', async () => {
     const host = await editorHost('## Title\n\nFollowing');

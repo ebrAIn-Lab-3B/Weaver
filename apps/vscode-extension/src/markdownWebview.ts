@@ -1,5 +1,10 @@
+import { inlinePrefix } from './inlineEditing';
+import { createPastePlanner } from './multilinePaste';
+
 /** Client-side interaction runs inside the isolated webview. */
 export const markdownClient = String.raw`
+const inlinePrefix = ${inlinePrefix.toString()};
+const planMultilinePaste = (${createPastePlanner.toString()})(inlinePrefix);
 const vscode = acquireVsCodeApi();
 const main = document.querySelector('main');
 const choices = ['heading', 'bullet', 'checklist', 'code'];
@@ -95,8 +100,14 @@ function pump() {
   if (session.finish) {
     const finished = session; session = undefined; hideMenu();
     const next = pending.shift();
+    if (next?.beforeSlot) {
+      // The heading's insertion may have introduced separator lines. Resolve
+      // the new slot against the acknowledged inserted text, not the old DOM.
+      const prefix = (finished.expected || '').match(/^(?:\r?\n)*/)?.[0] || '';
+      next.node.parentElement.dataset.insertLine = String((finished.slotStartLine ?? finished.line) + (prefix.match(/\n/g) || []).length);
+    }
     if (!next && (deferredAction === 'undo' || deferredAction === 'redo')) { main.inert = true; main.setAttribute('aria-busy', 'true'); }
-    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle', history: deferredAction === 'undo' || deferredAction === 'redo', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
+    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle', beforeSlot: !!next?.beforeSlot, history: deferredAction === 'undo' || deferredAction === 'redo', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
     if (next) activateQueued(next);
     else if (deferredAction) {
       const action = deferredAction; deferredAction = undefined;
@@ -131,7 +142,7 @@ function beginSplit(offsets, node = session?.node) {
   if (!offsets || offsets.caret < 0 || offsets.selectionEnd < offsets.caret || offsets.selectionEnd > original.length) return false;
   const breaksSurrogate = offset => offset > 0 && offset < original.length && /[\uD800-\uDBFF]/.test(original[offset - 1]) && /[\uDC00-\uDFFF]/.test(original[offset]);
   if (breaksSurrogate(offsets.caret) || breaksSurrogate(offsets.selectionEnd)) return false;
-  if (blockType === 'heading_open' && (offsets.caret !== original.length || offsets.selectionEnd !== original.length)) return false;
+  if (blockType === 'heading_open' && offsets.caret === 0) return false;
   let right;
   if (blockType === 'list_item_inline' && session.type === 'slot' && !owner) {
     const list = document.createElement('ul'), item = document.createElement('li');
@@ -232,6 +243,12 @@ main.addEventListener('keydown', event => {
   if (event.key === 'Enter') {
     event.preventDefault();
     if (menu) { choose(filtered[selected]); return; }
+    if (session.type === 'slot' && ['heading', 'bullet', 'checklist'].includes(session.kind) && !nodeValue(session.node).trim()) {
+      // Cancel a newly selected empty block; remove any marker already sent to
+      // the document before processing subsequent input as a plain paragraph.
+      session.kind = 'paragraph'; session.node.parentElement.dataset.kind = 'paragraph';
+      session.dirty = true; pump(); return;
+    }
     if (session.type === 'slot' && session.kind === 'paragraph' && !nodeValue(session.node) && !session.inflight && !session.dirty && !pending.length) {
       // Markdown has no persistent empty paragraph. Keep a visual blank slot in
       // this projection while moving the caret to another slot at the same source position.
@@ -240,7 +257,20 @@ main.addEventListener('keydown', event => {
       next.classList.remove('empty-paragraph'); current.after(next);
       session.finish = true; pump(); next.querySelector('.insert-field').focus(); return;
     }
-    if (!beginSplit(selectionOffsets(session.node))) vscode.postMessage({ type: 'split-unavailable' });
+    const offsets = selectionOffsets(session.node);
+    if (session.type === 'slot' && session.kind === 'heading' && nodeValue(session.node).trim() && offsets?.caret === 0 && offsets.selectionEnd === 0 && !pending.length) {
+      const current = session.node.parentElement, before = current.cloneNode(true);
+      before.dataset.kind = 'paragraph';
+      const field = before.querySelector('.insert-field'); field.textContent = '';
+      current.before(before); field.focus();
+      const queued = pending.at(-1); if (queued?.node === field) queued.beforeSlot = true;
+      return;
+    }
+    if (session.type === 'inline' && session.blockType === 'heading_open' && offsets?.caret === 0 && offsets.selectionEnd === 0) {
+      const before = session.node.previousElementSibling;
+      if (before?.classList.contains('insert-slot')) { before.querySelector('.insert-field')?.focus(); return; }
+    }
+    if (!beginSplit(offsets)) vscode.postMessage({ type: 'split-unavailable' });
   }
 });
 main.addEventListener('paste', event => {
@@ -249,7 +279,36 @@ main.addEventListener('paste', event => {
   const text = event.clipboardData?.getData('text/plain');
   if (typeof text === 'string' && /[\r\n]/.test(text)) {
     event.preventDefault();
-    vscode.postMessage({ type: 'multiline-paste' });
+    const node = event.target.closest('[data-inline-original]');
+    const offsets = node && selectionOffsets(node);
+    const blockType = node?.dataset.sourceType;
+    const prefix = node && session?.expected && inlinePrefix(session.expected, blockType);
+    const parts = text.replace(/\r\n?/g, '\n').split('\n');
+    const value = node && nodeValue(node);
+    // Queue the same acknowledged split operations used by Enter, retaining a
+    // visible editable provisional block for every line while the host catches up.
+    if (!node || !session || session.node !== node || session.type !== 'inline' || session.failed || session.invalid || session.composing ||
+        session.split || pending.length || !offsets || prefix === undefined || parts.length > 50 ||
+        !planMultilinePaste(prefix + value, blockType, offsets.caret, offsets.selectionEnd, text, '\n') ||
+        (blockType === 'list_item_inline' && (node.closest('li')?.querySelector('ul,ol') || node.closest('li')?.querySelectorAll('[data-inline-original]').length !== 1))) {
+      vscode.postMessage({ type: 'multiline-paste' }); return;
+    }
+    const suffix = value.slice(offsets.selectionEnd);
+    const head = value.slice(0, offsets.caret) + parts[0];
+    node.textContent = head + suffix; session.dirty = true;
+    if (!beginSplit({ caret: head.length, selectionEnd: head.length }, node)) { showDraftConflict(session); return; }
+    for (let index = 1; index < parts.length; index++) {
+      const split = extraSplits.at(-1) || session.split;
+      const right = split.right;
+      right.textContent = parts[index] + nodeValue(right); split.rightDirty = true;
+      if (index < parts.length - 1) {
+        if (!beginSplit({ caret: parts[index].length, selectionEnd: parts[index].length }, right)) { showDraftConflict({node:right}); return; }
+      } else {
+        const range = document.createRange(); range.setStart(right.firstChild, parts[index].length); range.collapse(true);
+        const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
+      }
+    }
+    pump();
   }
 });
 main.addEventListener('focusout', event => {
@@ -337,7 +396,7 @@ window.addEventListener('message', event => {
     // Never send a checkbox action using the old DOM after such an edit.
     if (session.type === 'slot' || session.type === 'fence') locationsStale = true;
     editorConfig.version = event.data.version;
-    session.version = event.data.version; session.expected = event.data.expected; session.inflight = false;
+    session.version = event.data.version; session.expected = event.data.expected; session.slotStartLine = event.data.slotStartLine; session.inflight = false;
     if (session.type === 'inline') {
       session.node.dataset.inlineOriginal = event.data.expected;
       const checkbox = session.node.closest('li')?.querySelector('input[data-checklist-line]');
@@ -394,7 +453,7 @@ function showNestedSourceHint(item) {
 }
 main.addEventListener('click', event => {
   const nested = event.target.closest('[data-nested-source]');
-  if (nested && !event.target.closest('[data-nested-hint]') && !event.target.closest('a')) { showNestedSourceHint(nested); return; }
+  if (nested && !event.target.closest('[data-inline-original]') && !event.target.closest('[data-nested-hint]') && !event.target.closest('a')) { showNestedSourceHint(nested); return; }
   const code = event.target.closest('code[data-fence-editable]');
   if (code) {
     const textarea = document.createElement('textarea');

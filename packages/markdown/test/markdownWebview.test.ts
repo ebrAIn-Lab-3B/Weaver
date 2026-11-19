@@ -163,11 +163,11 @@ describe('rendered editor synchronization', () => {
     expect(first.textContent).toBe('Unsaved draft');
     expect(dom.window.document.querySelector('[role=alert]')).toBeTruthy(); dom.window.close();
   });
-  it('prevents multiline paste before it can replace the selection', () => {
+  it('prevents unsupported Markdown paste before it can replace the selection', () => {
     const { dom, sent, first } = webview();
     first.focus();
     const paste = new dom.window.Event('paste', { bubbles: true, cancelable: true });
-    Object.defineProperty(paste, 'clipboardData', { value: { getData: () => 'first\nsecond' } });
+    Object.defineProperty(paste, 'clipboardData', { value: { getData: () => 'first\n# second' } });
     first.dispatchEvent(paste);
     expect(paste.defaultPrevented).toBe(true);
     expect(first.textContent).toBe('First');

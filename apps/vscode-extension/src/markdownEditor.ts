@@ -62,7 +62,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (editing || staleProjection) void panel.webview.postMessage({ type: 'conflict', detail: message('ui.markdown.stale-draft') });
     else render();
   });
-  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
+  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; beforeSlot?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
     if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
       try {
@@ -107,11 +107,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       const start = document.offsetAt(original.range.start), end = document.offsetAt(original.range.end);
       const after = before.slice(end);
       const eol = after.startsWith('\r\n') ? '\r\n' : after.startsWith('\n') ? '\n' : document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-      const headingPrefix = event.blockType === 'heading_open' ? inlinePrefix(original.text, event.blockType) : undefined;
-      const headingText = headingPrefix === undefined ? undefined : original.text.slice(headingPrefix.length);
-      const split = event.blockType === 'heading_open'
-        ? headingText !== undefined && event.caret === headingText.length && event.selectionEnd === headingText.length ? original.text + eol + eol : undefined
-        : splitParagraph(original.text, event.blockType!, event.caret!, event.selectionEnd!, eol);
+      const split = splitParagraph(original.text, event.blockType!, event.caret!, event.selectionEnd!, eol);
       if (split === undefined) { fail(); return; }
       const nextLine = event.line! + (event.blockType === 'list_item_inline' ? 1 : 2);
       const nextSource = before.slice(0, start) + split + before.slice(end);
@@ -166,7 +162,10 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       // Insertions and fence edits may shift every subsequent source line, even
       // when a stale line contains identical text. Refuse queued writes until
       // a fresh projection can be shown without destroying a draft.
-      if (event.preserve && (slot || fence)) staleProjection = true;
+      if (event.preserve && (slot || fence)) {
+        const validBeforeSlot = event.beforeSlot && slot && event.line === slot.line && event.version === document.version && event.expected === slot.inserted && document.getText().slice(slot.offset, slot.offset + slot.inserted.length) === slot.inserted;
+        if (!validBeforeSlot) staleProjection = true;
+      }
       if (event.next && Number.isInteger(event.line)) focusAfter = slot ? document.positionAt(slot.offset + slot.inserted.length).line : event.line! + 1;
       slot = undefined; inline = undefined; fence = undefined; if (!event.preserve) render(); return;
     }
@@ -270,14 +269,14 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       if (changeDetails && document.getText().slice(changeDetails.offset, changeDetails.offset + changeDetails.length) === changeDetails.text) {
         if (event.type === 'slot-change' && slot) slot.inserted = expected;
         if (event.type === 'fence-change' && fence) fence.inserted = expected;
-        void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected });
+        void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected, ...(event.type === 'slot-change' && slot ? { slotStartLine: document.positionAt(slot.offset).line } : {}) });
         return;
       }
       if (changeDetails) ownChanges.push({ version: document.version + 1, ...changeDetails });
       if (!await applyEdit(edit, event.version!)) { fail(); return; }
       if (event.type === 'slot-change' && slot) slot.inserted = expected;
       if (event.type === 'fence-change' && fence) fence.inserted = expected;
-      void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected });
+      void panel.webview.postMessage({ type: 'edit-applied', version: document.version, expected, ...(event.type === 'slot-change' && slot ? { slotStartLine: document.positionAt(slot.offset).line } : {}) });
       return;
     }
     if (event.type === 'requirement' && task) await vscode.commands.executeCommand('weaver.openRequirementView', document.uri);

@@ -82,10 +82,10 @@ describe('slash insertion', () => {
     // The checkbox is outside the editable text and carries its source line.
     expect(html).toMatch(/<input[^>]*data-checklist-line="1"[^>]*checked=""[^>]*> <span[^>]*data-inline-original="- \[x\] complete"[^>]*>complete<\/span>/);
   });
-  it('leaves list items with rich, nested, continued, or encoded text in source mode', () => {
+  it('edits simple nested leaves while leaving rich, continued, or encoded text in source mode', () => {
     const html = renderMarkdown('- **bold**\n- parent\n  - nested\n- first line\n  continuation\n- A &amp; B\n', (src) => src, 'Write');
     expect(html).not.toContain('data-inline-original="- **bold**"');
-    expect(html).not.toContain('data-inline-original="  - nested"');
+    expect(html).toContain('data-inline-original="  - nested"');
     expect(html).not.toContain('data-inline-original="- first line"');
     expect(html).not.toContain('data-inline-original="- A &amp;amp; B"');
     expect(inlinePrefix('- **bold**', 'list_item_inline')).toBeUndefined();

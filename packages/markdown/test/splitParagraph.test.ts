@@ -11,7 +11,8 @@ describe('split a simple paragraph at the selection', () => {
   it('keeps unsupported or invalid content untouched', () => {
     expect(splitParagraph('bold **text**', 'paragraph_open', 4, 4, '\n')).toBeUndefined();
     expect(splitParagraph('A &amp; B', 'paragraph_open', 3, 3, '\n')).toBeUndefined();
-    expect(splitParagraph('# Heading', 'heading_open', 2, 2, '\n')).toBeUndefined();
+    expect(splitParagraph('# Heading', 'heading_open', 2, 2, '\n')).toBe('# He\n\nading');
+    expect(splitParagraph('# Heading', 'heading_open', 0, 0, '\n')).toBeUndefined();
     expect(splitParagraph('abc', 'paragraph_open', 4, 4, '\n')).toBeUndefined();
   });
   it('never splits a surrogate pair or changes a new paragraph into a Markdown block', () => {

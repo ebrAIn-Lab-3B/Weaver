@@ -12,6 +12,7 @@ async function editorHost(initial: string) {
   let onChange: (event: unknown) => void = () => {};
   let onMessage: (event: Record<string, unknown>) => Promise<void> = async () => {};
   const replies: Record<string, unknown>[] = [];
+  const commands: string[] = [];
   class Position { constructor(public line: number, public character: number) {} }
   class Range { constructor(public start: Position, public end: Position) {} }
   class WorkspaceEdit {
@@ -34,7 +35,7 @@ async function editorHost(initial: string) {
     Uri: { joinPath: () => uri, file: () => uri, parse: () => uri },
     env: { language: 'en', openExternal: async () => {} },
     window: { visibleTextEditors: [], showWarningMessage: () => {}, showInformationMessage: () => {}, showErrorMessage: () => {} },
-    commands: { executeCommand: async () => {} },
+    commands: { executeCommand: async (command: string) => { commands.push(command); } },
     workspace: {
       workspaceFolders: [], getConfiguration: () => ({ get: () => 'en' }),
       onDidChangeTextDocument: (handler: typeof onChange) => { onChange = handler; return { dispose() {} }; },
@@ -72,7 +73,8 @@ async function editorHost(initial: string) {
   let directSplitId = 0;
   return { receive: (event: Record<string, unknown>) => onMessage(event.type === 'split' && event.transactionId === undefined
     ? { ...event, ...identity(), transactionId: `${identity().projectionId}:direct-${++directSplitId}` } : event),
-    identity, replies, source: () => text, html: () => panel.webview.html, requestAction: module.exports.requestMarkdownAction };
+    identity, replies, source: () => text, html: () => panel.webview.html, requestAction: module.exports.requestMarkdownAction,
+    commands, setActive: (active: boolean) => { panel.active = active; } };
 }
 
 describe('pending edits after a structural change', () => {
@@ -80,6 +82,15 @@ describe('pending edits after a structural change', () => {
     const host = await editorHost('First');
     expect(host.requestAction('save')).toBe(true);
     expect(host.replies.at(-1)).toMatchObject({ type: 'editor-action-request', action: 'save' });
+  });
+  it('does not close another editor if the original panel is no longer active', async () => {
+    const host = await editorHost('First');
+    host.setActive(false);
+    await host.receive({ type: 'close' });
+    expect(host.commands).not.toContain('workbench.action.closeActiveEditor');
+    host.setActive(true);
+    await host.receive({ type: 'close' });
+    expect(host.commands).toContain('workbench.action.closeActiveEditor');
   });
   it('applies multiline paste into a new slot through the host', async () => {
     const host = await editorHost('Before\n\nAfter');

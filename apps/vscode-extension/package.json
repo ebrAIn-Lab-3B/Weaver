@@ -18,6 +18,12 @@
   "contributes": {
     "keybindings": [
       {
+        "command": "weaver.markdownClose",
+        "key": "ctrl+w",
+        "mac": "cmd+w",
+        "when": "(activeCustomEditorId == weaver.markdownAuthor || activeCustomEditorId == weaver.requirementEditor) && !listFocus && !inputFocus"
+      },
+      {
         "command": "weaver.markdownSave",
         "key": "ctrl+s",
         "mac": "cmd+s",

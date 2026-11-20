@@ -45,6 +45,14 @@ In contrast, Computer Use then checked the current Weaver development extension 
 
 The reproduced data-loss defect remains open. A production design must establish how every pending edit reaches the owned model before save can complete, handle cancellation and conflicts without losing the draft, and preserve the existing local VS Code editing behavior before it can be accepted.
 
+## Close shortcut mitigation (2026-11-20)
+
+The Weaver editor's Ctrl+W shortcut now waits for the active webview's pending edits before asking VS Code to close the editor. A failed or conflicting pending edit leaves the editor open, and a delayed request will not close a different editor if the active panel has changed. Automated webview tests cover a delayed split and a rejected split; a host test checks the active-panel guard.
+
+In a separate local Restricted Mode workspace using Windows VS Code 1.147.0, Computer Use tested a temporary copy with its split acknowledgement artificially delayed by 45 seconds. It split a paragraph, typed `Close shortcut draft`, and invoked Ctrl+W before the acknowledgement. The view remained open with the draft until the queued edit was applied; the subsequent VS Code save confirmation appeared, and Save, close and reopen preserved the draft in the local Markdown file. In a separate test of the same build, a dirty local edit and an external disk marker were followed by Ctrl+W and Save; VS Code refused the conflicting save, retained the local view, and left the external marker on disk.
+
+This is a partial mitigation, not a fix for TASK-125. In the same artificially delayed host, Computer Use split another temporary paragraph, typed `Tab pending draft`, clicked the tab's X, and chose Save in VS Code's confirmation. The view closed and the saved file did not contain the draft: the tab close action bypasses the shortcut and still reproduces the data-loss defect. Closing the window and other save/close entry points remain unverified. Keep the task and dependent cards open. These tests do not establish behavior for other operating systems, remapped keys, or every save and conflict timing.
+
 ## Context
 
 The trial produced false document-change warnings when editing existing content. Block edits must preserve both in-flight user input and the rest of the original Markdown while respecting the VS Code document lifecycle.

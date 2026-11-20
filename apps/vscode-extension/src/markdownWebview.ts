@@ -368,7 +368,7 @@ main.addEventListener('focusout', event => {
   hideMenu(); session.finish = true; setTimeout(pump, 0);
 });
 window.addEventListener('message', event => {
-  if (event.data?.type === 'editor-action-request' && ['save', 'undo', 'redo'].includes(event.data.action)) {
+  if (event.data?.type === 'editor-action-request' && ['save', 'undo', 'redo', 'close'].includes(event.data.action)) {
     queueAction(event.data.action); return;
   }
   if (event.data?.type === 'checklist-result' && checklistPending) {

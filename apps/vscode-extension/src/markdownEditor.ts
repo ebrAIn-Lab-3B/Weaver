@@ -220,7 +220,13 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       }
       return;
     }
-    if (event.type === 'save') { await document.save(); return; }
+    if (event.type === 'save') {
+      // The workbench save path provides VS Code's normal local conflict UI.
+      // Do not save a different editor if focus changed while the queue drained.
+      if (panel.active) await vscode.commands.executeCommand('workbench.action.files.save');
+      else void vscode.window.showWarningMessage(message('ui.markdown.save-focus-changed'));
+      return;
+    }
     if (event.type === 'close') {
       // The user may have switched tabs while the pending queue was draining.
       // Never close a different editor in that case.

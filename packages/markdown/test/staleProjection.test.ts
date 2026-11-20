@@ -98,6 +98,15 @@ describe('pending edits after a structural change', () => {
     expect(host.requestAction('save')).toBe(true);
     expect(host.replies.at(-1)).toMatchObject({ type: 'editor-action-request', action: 'save' });
   });
+  it('uses workbench save only if the original panel is still active', async () => {
+    const host = await editorHost('First');
+    host.setActive(false);
+    await host.receive({ type: 'save' });
+    expect(host.commands).not.toContain('workbench.action.files.save');
+    host.setActive(true);
+    await host.receive({ type: 'save' });
+    expect(host.commands).toContain('workbench.action.files.save');
+  });
   it('does not close another editor if the original panel is no longer active', async () => {
     const host = await editorHost('First');
     host.setActive(false);

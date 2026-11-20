@@ -14,7 +14,7 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed, but save-and-close during a delayed split lost a pending draft in a separate host test, as recorded below. The card remains open. Automated delayed-response tests are simulations.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed. Ctrl+W now waits for pending edits ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348)), but a tab X save-and-close during a delayed split still lost a pending draft in a separate host test, as recorded below. The card remains open. Automated delayed-response tests are simulations.
 
 ## Current outcome and dependency (2026-11-20)
 

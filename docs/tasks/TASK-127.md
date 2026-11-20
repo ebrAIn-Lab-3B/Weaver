@@ -14,7 +14,7 @@ criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-00
 
 ## Current card status (2026-11-20)
 
-The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested, but save-and-close during a delayed split lost a pending draft as recorded below. The card remains open.
+The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested. Ctrl+W pending-edit protection and local Compare reconciliation were checked ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348), [PR #349](https://github.com/ebrAIn-Lab-3B/Weaver/pull/349)), but tab X save-and-close during a delayed split lost a pending draft as recorded below. The card remains open.
 
 ## Current outcome and remaining verification (2026-11-20)
 

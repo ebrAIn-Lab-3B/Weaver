@@ -26,6 +26,56 @@ function checklistWebview() {
 }
 
 describe('rendered editor synchronization', () => {
+  it('acknowledges a flush only after a pending edit and remains locked until released', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'Pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'save-1' } }));
+    expect(sent.some(event => event.type === 'flush-result')).toBe(false);
+    expect(dom.window.document.querySelector('main')!.getAttribute('aria-busy')).toBe('true');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Pending' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'flush-result', requestId: 'save-1', ok: true });
+    expect(dom.window.document.querySelector('main')!.getAttribute('aria-busy')).toBe('true');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-release', requestId: 'other' } }));
+    expect(dom.window.document.querySelector('main')!.getAttribute('aria-busy')).toBe('true');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-release', requestId: 'save-1' } }));
+    expect(dom.window.document.querySelector('main')!.hasAttribute('aria-busy')).toBe(false); dom.window.close();
+  });
+  it('refuses a flush when the pending edit fails and leaves its draft visible', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'My draft'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'save-2' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed' } }));
+    expect(sent).toContainEqual({ type: 'flush-result', requestId: 'save-2', ok: false });
+    expect(first.textContent).toBe('My draft');
+    expect(dom.window.document.querySelector('main')!.hasAttribute('aria-busy')).toBe(false); dom.window.close();
+  });
+  it('cancels a waiting flush without discarding the pending edit', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'Pending'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'save-3' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-cancel', requestId: 'other' } }));
+    expect(sent.some(event => event.type === 'flush-result')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-cancel', requestId: 'save-3' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'flush-result', requestId: 'save-3', ok: false });
+    expect(first.textContent).toBe('Pending');
+    expect(dom.window.document.querySelector('main')!.hasAttribute('aria-busy')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Pending' } }));
+    expect(sent.filter(event => event.type === 'flush-result')).toHaveLength(1); dom.window.close();
+  });
+  it('refuses a flush during IME composition without blocking the editor', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'save-4' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'flush-result', requestId: 'save-4', ok: false });
+    expect(dom.window.document.querySelector('main')!.hasAttribute('aria-busy')).toBe(false); dom.window.close();
+  });
+  it('releases a successful lock if cancellation races with the response', () => {
+    const { dom, sent } = webview();
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'save-race' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'flush-result', requestId: 'save-race', ok: true });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-cancel', requestId: 'save-race' } }));
+    expect(dom.window.document.querySelector('main')!.hasAttribute('aria-busy')).toBe(false); dom.window.close();
+  });
   it('retains a slash selection and subsequent typing while the preceding edit is pending', () => {
     const { dom, sent, first, second } = webview();
     const slot = dom.window.document.createElement('div'); slot.className = 'insert-slot'; slot.dataset.insertLine = '2';
@@ -229,7 +279,6 @@ describe('rendered editor synchronization', () => {
     const right = first.nextElementSibling as HTMLElement;
     right.textContent = 'After split'; right.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'save' } }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:1, expected:'First'}}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:''}}));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', {data:{type:'edit-applied', version:3, expected:'After split'}}));
     expect(sent.at(-1)).toMatchObject({type:'save'}); expect(sent.some(event => event.type === 'finish')).toBe(false);
@@ -244,13 +293,24 @@ describe('rendered editor synchronization', () => {
     const right = first.nextElementSibling as HTMLElement;
     expect(first.textContent).toBe('Fi'); expect(right.textContent).toBe('rst');
     right.textContent = 'typed rst'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'First' });
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
-    expect(sent.at(-1)).toMatchObject({ type: 'split', line: 0, caret: 2, selectionEnd: 2, expected: 'First', version: 1 });
+    expect(sent.find(event => event.type === 'split')).toMatchObject({ type: 'split', line: 0, caret: 2, selectionEnd: 2, expected: 'First', version: 1 });
+    expect(sent.at(-1)).toMatchObject({ type: 'provisional-change', value: 'typed rst' });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', line: 2, expected: 'rst', value: 'typed rst', version: 2 });
     expect(right.textContent).toBe('typed rst');
     dom.window.close();
+  });
+  it('still waits for a modified block to be acknowledged before splitting it', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    first.textContent = 'Changed'; first.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(sent.filter(event => event.type === 'split')).toHaveLength(0);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'Changed', version: 2 });
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 2, expected: 'Changed' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'split', version: 2, expected: 'Changed' }); dom.window.close();
   });
   it('queues a workbench undo request until a delayed split and its draft are acknowledged', () => {
     const { dom, sent, first } = webview(); first.focus();
@@ -261,7 +321,6 @@ describe('rendered editor synchronization', () => {
     right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'undo' } }));
     expect(sent.some(event => event.type === 'undo')).toBe(false);
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
     expect(sent.some(event => event.type === 'undo')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'First', rightExpected: '' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'draft', version: 2 });
@@ -279,12 +338,26 @@ describe('rendered editor synchronization', () => {
     right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'close' } }));
     expect(sent.some(event => event.type === 'close')).toBe(false);
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'First', rightExpected: '' } }));
     expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'draft', version: 2 });
     expect(sent.some(event => event.type === 'close')).toBe(false);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'draft' } }));
     expect(sent.slice(-2)).toMatchObject([{ type: 'finish' }, { type: 'close' }]);
+    dom.window.close();
+  });
+  it('waits for a delayed split and its provisional draft before acknowledging a flush', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'flush-request', requestId: 'split-save' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'First', rightExpected: '' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'draft', version: 2 });
+    expect(sent.some(event => event.type === 'flush-result')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'draft' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'flush-result', requestId: 'split-save', ok: true });
     dom.window.close();
   });
   it('does not close after a pending split fails', () => {
@@ -295,7 +368,6 @@ describe('rendered editor synchronization', () => {
     const right = first.nextElementSibling as HTMLElement;
     right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'close' } }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', transactionId: splitAck(sent).transactionId } }));
     expect(sent.some(event => event.type === 'close')).toBe(false);
     expect(right.textContent).toBe('draft');
@@ -328,16 +400,15 @@ describe('rendered editor synchronization', () => {
     dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
     first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     const right = first.nextElementSibling as HTMLElement; right.textContent = 'typed'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
     const identity = splitAck(sent);
     const ack = { ...identity, type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'Fi', rightExpected: 'rst' };
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...ack, transactionId: 'other' } }));
-    expect(sent.at(-1)?.type).toBe('split'); expect(right.textContent).toBe('typed');
+    expect(sent.at(-1)?.type).toBe('provisional-change'); expect(right.textContent).toBe('typed');
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', transactionId: 'other' } }));
     expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(0);
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...ack, rightExpected: 'wrong' } }));
     expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(2);
-    expect(sent.at(-1)?.type).toBe('split'); expect(right.textContent).toBe('typed');
+    expect(sent.at(-1)?.type).toBe('provisional-change'); expect(right.textContent).toBe('typed');
     dom.window.close();
   });
   it('queues successive Enter presses and preserves immediate typing in each new block', () => {
@@ -350,11 +421,10 @@ describe('rendered editor synchronization', () => {
     selectEnd(second); enter(second);
     const third = second.nextElementSibling as HTMLElement;
     third.textContent = 'Third'; third.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'Second', expected:'' });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:3, expected:'Second' } }));
-    expect(sent.at(-1)).toMatchObject({ type:'split', line:2, caret:6, version:3 });
+    expect([...sent].reverse().find(event => event.type === 'split')).toMatchObject({ type:'split', line:2, caret:6, version:3 });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:2, nextLine:4, version:4, leftExpected:'Second', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:4, value:'Third', expected:'' });
     expect([first.textContent, second.textContent, third.textContent]).toEqual(['First', 'Second', 'Third']);
@@ -368,8 +438,7 @@ describe('rendered editor synchronization', () => {
     const third = second.nextElementSibling as HTMLElement; third.textContent = 'Third'; third.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     second.textContent = 'Revised'; second.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(3);
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
-    expect(sent.some(event => event.type === 'split')).toBe(false);
+    expect(sent.filter(event => event.type === 'split')).toHaveLength(1);
     expect(second.textContent).toBe('Revised'); expect(third.textContent).toBe('Third'); dom.window.close();
   });
   it('retains both halves if a split conflicts and does not send the provisional draft', () => {
@@ -381,7 +450,8 @@ describe('rendered editor synchronization', () => {
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', detail: 'Conflict' } }));
     expect(first.textContent).toBe('Fi'); expect(right.textContent).toBe('changed');
     expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(2);
-    expect(sent.some(event => event.type === 'split')).toBe(false); dom.window.close();
+    expect(sent.filter(event => event.type === 'split')).toHaveLength(1);
+    expect(sent.some(event => event.type === 'inline-change' && event.value === 'changed')).toBe(false); dom.window.close();
   });
   it('waits for IME composition in the new block before sending buffered input', () => {
     const { dom, sent, first } = webview(); first.focus();
@@ -391,7 +461,6 @@ describe('rendered editor synchronization', () => {
     const right = first.nextElementSibling as HTMLElement;
     right.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
     right.textContent = '한'; right.dispatchEvent(new dom.window.InputEvent('input', { bubbles:true, isComposing:true }));
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'First' } }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'split' });
     right.textContent = '한글'; right.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles:true, data:'한글' }));
@@ -403,6 +472,18 @@ describe('rendered editor synchronization', () => {
     first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, isComposing:false }));
     expect(sent.some(event => event.type === 'split' || event.type === 'inline-change')).toBe(false);
     expect(first.nextElementSibling?.textContent).toBe('Second'); dom.window.close();
+  });
+  it('sends only committed IME text early while a split acknowledgement is pending', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.dispatchEvent(new dom.window.CompositionEvent('compositionstart', { bubbles:true }));
+    right.textContent = '한'; right.dispatchEvent(new dom.window.InputEvent('input', { bubbles:true, isComposing:true }));
+    expect(sent.some(event => event.type === 'provisional-change')).toBe(false);
+    right.textContent = '한글'; right.dispatchEvent(new dom.window.CompositionEvent('compositionend', { bubbles:true, data:'한글' }));
+    expect(sent.at(-1)).toMatchObject({ type:'provisional-change', value:'한글' }); dom.window.close();
   });
   it('does not split the provisional paragraph while its IME composition is active', () => {
     const { dom, first } = webview(); first.focus();
@@ -420,7 +501,7 @@ describe('rendered editor synchronization', () => {
     const right = first.nextElementSibling as HTMLElement; expect(right.tagName).toBe('P');
     right.textContent = 'Next'; right.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ type:'edit-applied', version:1, expected:'## First' } }));
-    expect(sent.at(-1)).toMatchObject({ type:'split', blockType:'heading_open', caret:5 });
+    expect([...sent].reverse().find(event => event.type === 'split')).toMatchObject({ type:'split', blockType:'heading_open', caret:5 });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:{ ...splitAck(sent), type:'split-applied', line:0, nextLine:2, version:2, leftExpected:'## First', rightExpected:'' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', blockType:'paragraph_open', value:'Next' }); dom.window.close();
   });
@@ -452,7 +533,7 @@ describe('rendered editor synchronization', () => {
     expect(checkbox.checked).toBe(false); expect(nextBox.checked).toBe(false);
     nextText.textContent = 'Next'; nextText.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type:'edit-applied', version:1, expected:'- [ ] First' } }));
-    expect(sent.at(-1)).toMatchObject({ type:'split', caret:5 });
+    expect([...sent].reverse().find(event => event.type === 'split')).toMatchObject({ type:'split', caret:5 });
     dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type:'split-applied', line:0, nextLine:1, version:2, leftExpected:'- [ ] First', rightExpected:'- [ ] ' } }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:1, value:'Next', expected:'- [ ] ' });
     expect(nextBox.dataset.checklistLine).toBe('1'); dom.window.close();

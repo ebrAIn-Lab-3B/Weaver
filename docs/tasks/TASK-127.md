@@ -4,7 +4,7 @@ type: task
 title: Verify the human-only authoring journey in VS Code
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/330
-status: in-progress
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-009, AC-015]
@@ -14,13 +14,21 @@ criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-00
 
 ## Current card status (2026-11-20)
 
-The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested. Ctrl+W pending-edit protection and local Compare reconciliation were checked ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348), [PR #349](https://github.com/ebrAIn-Lab-3B/Weaver/pull/349)). TASK-125 records a subsequent targeted pass of tab X save-and-close with a delayed split acknowledgement, plus conflict comparison and keyboard undo/redo. The integrated authoring journey after those changes has not been repeated; the card remains open.
+The integrated local creation-to-reopen journey was repeated on main after the pending-edit fixes; the results and limits are recorded below. Earlier delayed-acknowledgement close and conflict checks are recorded in TASK-125. The maintainer accepted the verification scope and requested Verified on 2026-11-20. CRLF behavior has automated coverage for representative editing operations; focus switching has separate local-host and delayed-acknowledgement evidence. Neither was independently retested in the integrated pass.
 
 ## Current outcome and remaining verification (2026-11-20)
 
 - The local creation/linking/diagram/reopen journey, representative source preservation and local conflicts, English and Korean UI, and a real Korean IME example have recorded evidence below. [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344) records the keyboard queue fix and delayed-host checks.
-- TASK-125 owns pending-input and save-and-close behavior. Its focused delayed-acknowledgement regression passed with [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351); repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples do not prove that input still in transit is saved.
+- TASK-125 owns pending-input and save-and-close behavior. Its focused delayed-acknowledgement regression passed with [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351); the integrated local journey was subsequently repeated as described below. The examples do not prove that input still in transit is saved.
 - Remote providers and offline-to-online synchronization are outside this local baseline; do not add them as blockers solely because they were not tested.
+
+## Integrated main verification (2026-11-20)
+
+On main commit `68454f2`, Computer Use exercised the uninstrumented development extension in Windows VS Code 1.147.0, using an isolated profile and a separate local Restricted Mode workspace. The user-created repository file `docs/test.md` was not used. The ideation and requirement commands created local files; the requirement was linked to the ideation file. The requirement's source was extended with a Mermaid flowchart and a formatted Markdown table, then opened in the requirement view and rendered editor. An existing paragraph was edited and split, a new paragraph was written, and the English slash menu inserted a checklist. Undo removed the checklist text and redo restored it. After saving, the local Markdown retained the requirement front matter, ideation link, edited paragraphs, Mermaid source, formatted table and checklist. The diagram rendered, and the ideation link opened its document.
+
+With an additional local paragraph edit unsaved, an independent disk write added an external marker. Ctrl+S produced VS Code's newer-file warning; Compare displayed both changes. The marker was copied into the local version and VS Code's overwrite action saved the reconciled result. The saved file contained both changes and the source elements listed above. The rendered editor was closed and the requirement reopened from the workspace. English UI and Korean labels selected through the workspace language setting were observed. This pass did not exercise a physical Korean IME; the earlier physical IME pass is recorded separately below. It also did not independently establish CRLF preservation or deliberately rapid focus switching; the earlier sequential focus and instrumented delayed-response observations remain as recorded below. The external marker was appended to the checklist line in the final source, so this test establishes retention of its text, not separate-paragraph formatting.
+
+On the same checkout, `npm.cmd run check`, `npm.cmd test`, and `npm.cmd run test:document-race` passed. The last test covers the five representative VS Code model edit shapes, not every provider or timing. The previously recorded delayed-close loss was addressed and retested as described in TASK-125; text still in transit or unfinished IME composition at close is not guaranteed saved under the documented decision.
 
 ## Context
 
@@ -152,4 +160,4 @@ In the Windows VS Code 1.147.0 development host, Computer Use used a separate te
 
 With the fixed extension copied to a Windows VS Code 1.147.0 development host and a split acknowledgement artificially delayed by 120 seconds, Computer Use typed `Waiting A` into the provisional paragraph, switched to an existing paragraph, typed `Waiting B`, and pressed Ctrl+S. VS Code retained the dirty indicator during the delay; after the acknowledgement, both additions appeared in the saved local file. This is a targeted queued-focus and keyboard-save observation with an instrumented extension, not a claim about every transition.
 
-A separate instrumented host with a 30-second acknowledgement delay exposed an unresolved data-loss case: after Enter and typing `Close pending draft`, Ctrl+W showed the VS Code unsaved-changes dialog. Choosing Save closed the editor, but the saved local file contained the split and did not contain the draft. The Ctrl+S routing fix does not intercept this VS Code save-and-close path. Keep the task open until the close path protects pending input and passes an actual-host regression.
+A separate instrumented host with a 30-second acknowledgement delay exposed a data-loss case: after Enter and typing `Close pending draft`, Ctrl+W showed the VS Code unsaved-changes dialog. Choosing Save closed the editor, but the saved local file contained the split and did not contain the draft. The Ctrl+S routing fix did not intercept this VS Code save-and-close path. Subsequent fixes and the targeted close regression are recorded in TASK-125, subject to the accepted pending-input limitation noted above.

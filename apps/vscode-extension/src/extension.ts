@@ -24,6 +24,9 @@ const IGNORED_PATH = /[\\/](node_modules|\.git|dist|out|examples|\.claude[\\/]wo
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
+    vscode.commands.registerCommand('weaver.markdownClose', () => {
+      if (!requestMarkdownAction('close')) return vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    }),
     vscode.commands.registerCommand('weaver.markdownSave', () => {
       if (!requestMarkdownAction('save')) return vscode.commands.executeCommand('workbench.action.files.save');
     }),

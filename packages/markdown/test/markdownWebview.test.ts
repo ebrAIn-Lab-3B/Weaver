@@ -270,6 +270,38 @@ describe('rendered editor synchronization', () => {
     expect(sent.slice(-2)).toMatchObject([{ type: 'finish', history: true }, { type: 'undo' }]);
     dom.window.close();
   });
+  it('holds a close shortcut until a delayed split and its typed draft are committed', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'close' } }));
+    expect(sent.some(event => event.type === 'close')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { ...splitAck(sent), type: 'split-applied', line: 0, nextLine: 2, version: 2, leftExpected: 'First', rightExpected: '' } }));
+    expect(sent.at(-1)).toMatchObject({ type: 'inline-change', value: 'draft', version: 2 });
+    expect(sent.some(event => event.type === 'close')).toBe(false);
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 3, expected: 'draft' } }));
+    expect(sent.slice(-2)).toMatchObject([{ type: 'finish' }, { type: 'close' }]);
+    dom.window.close();
+  });
+  it('does not close after a pending split fails', () => {
+    const { dom, sent, first } = webview(); first.focus();
+    const range = dom.window.document.createRange(); range.selectNodeContents(first); range.collapse(false);
+    dom.window.getSelection()!.removeAllRanges(); dom.window.getSelection()!.addRange(range);
+    first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const right = first.nextElementSibling as HTMLElement;
+    right.textContent = 'draft'; right.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'editor-action-request', action: 'close' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-applied', version: 1, expected: 'First' } }));
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'edit-failed', transactionId: splitAck(sent).transactionId } }));
+    expect(sent.some(event => event.type === 'close')).toBe(false);
+    expect(right.textContent).toBe('draft');
+    expect(dom.window.document.querySelector('[role="alert"]')).not.toBeNull();
+    dom.window.close();
+  });
   it('does not enqueue history twice when VS Code forwards the shortcut to the webview', () => {
     const { dom, sent, first } = webview(); first.focus();
     const key = new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true });

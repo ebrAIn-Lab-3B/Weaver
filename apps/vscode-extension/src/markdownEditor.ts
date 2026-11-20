@@ -16,7 +16,7 @@ import { submitDocumentEdit } from './submitDocumentEdit';
 const authorPanels = new Set<vscode.WebviewPanel>();
 
 /** Route workbench shortcuts through the active editor's pending-edit queue. */
-export function requestMarkdownAction(action: 'save' | 'undo' | 'redo'): boolean {
+export function requestMarkdownAction(action: 'save' | 'undo' | 'redo' | 'close'): boolean {
   const panel = [...authorPanels].find((item) => item.active);
   if (!panel) return false;
   void panel.webview.postMessage({ type: 'editor-action-request', action });
@@ -199,6 +199,12 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
       return;
     }
     if (event.type === 'save') { await document.save(); return; }
+    if (event.type === 'close') {
+      // The user may have switched tabs while the pending queue was draining.
+      // Never close a different editor in that case.
+      if (panel.active) await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      return;
+    }
     if (event.type === 'multiline-paste') {
       void vscode.window.showInformationMessage(message('ui.markdown.multiline-paste'));
       return;

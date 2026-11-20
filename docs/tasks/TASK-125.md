@@ -53,6 +53,10 @@ In a separate local Restricted Mode workspace using Windows VS Code 1.147.0, Com
 
 This is a partial mitigation, not a fix for TASK-125. In the same artificially delayed host, Computer Use split another temporary paragraph, typed `Tab pending draft`, clicked the tab's X, and chose Save in VS Code's confirmation. The view closed and the saved file did not contain the draft: the tab close action bypasses the shortcut and still reproduces the data-loss defect. Closing the window and other save/close entry points remain unverified. Keep the task and dependent cards open. These tests do not establish behavior for other operating systems, remapped keys, or every save and conflict timing.
 
+## Compare and manual reconciliation check (2026-11-20)
+
+In the existing temporary `weaver-current-conflict-check` local workspace, Computer Use inspected the VS Code 1.147.0 save-conflict comparison from the earlier Weaver test. The file-on-disk side contained `EXTERNAL CHANGE` and the VS Code document side contained `LOCAL CHANGE`. In the editable VS Code side, the external marker was added to the local version; the comparison editor's **Use your changes and overwrite file contents** action was then selected. The temporary Markdown file contained both markers afterward, and closing and reopening the document retained them. A second temporary fixture repeated comparison and reconciliation; after the comparison editor closed, the rendered view showed both markers. This verifies a manual reconciliation for content already present in the VS Code document model in this local configuration; it does not show that webview-only pending drafts are included, nor does it address the open tab-close data-loss defect. Weaver's in-session conflict warning offers copy/open-draft actions for detected unsaved drafts.
+
 ## Context
 
 The trial produced false document-change warnings when editing existing content. Block edits must preserve both in-flight user input and the rest of the original Markdown while respecting the VS Code document lifecycle.

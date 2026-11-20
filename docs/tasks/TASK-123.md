@@ -19,7 +19,7 @@ Direct editing and the slash choices are implemented. English and Korean menu se
 ## Current outcome and dependency (2026-11-20)
 
 - Implemented and checked: direct editing, paragraph splitting at the start/middle/end, slash-menu selection and cancellation, literal slash input, and representative Korean IME input. The delayed-acknowledgement undo false conflict was fixed and rechecked in [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344).
-- Remaining dependency: TASK-125 owns provisional input and save-and-close safety. Its unmerged change passed the targeted delayed-acknowledgement reproduction, but the affected writing, conflict and undo/redo flows still require integrated verification before closing this card. Do not count untested remote providers or offline-to-online synchronization as defects.
+- Remaining dependency: TASK-125 owns provisional input and save-and-close safety. [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351) passed the targeted delayed-acknowledgement reproduction and focused conflict and undo/redo checks, but the affected writing flow still requires integrated verification before closing this card. Do not count untested remote providers or offline-to-online synchronization as defects.
 
 ## Additional keyboard menu recheck (2026-11-20)
 

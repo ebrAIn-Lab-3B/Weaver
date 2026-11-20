@@ -19,7 +19,7 @@ The local creation-to-reopen journey and the listed preservation, local conflict
 ## Current outcome and remaining verification (2026-11-20)
 
 - The local creation/linking/diagram/reopen journey, representative source preservation and local conflicts, English and Korean UI, and a real Korean IME example have recorded evidence below. [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344) records the keyboard queue fix and delayed-host checks.
-- TASK-125 owns pending-input and save-and-close behavior. Its focused delayed-acknowledgement regression passed; repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples do not prove that input still in transit is saved.
+- TASK-125 owns pending-input and save-and-close behavior. Its focused delayed-acknowledgement regression passed with [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351); repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples do not prove that input still in transit is saved.
 - Remote providers and offline-to-online synchronization are outside this local baseline; do not add them as blockers solely because they were not tested.
 
 ## Context

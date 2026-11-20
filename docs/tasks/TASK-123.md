@@ -4,7 +4,7 @@ type: task
 title: Make direct writing and slash menus flow naturally
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/326
-status: review
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-010, AC-011]
@@ -14,12 +14,12 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed. Ctrl+W waits for pending edits ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348)). An early-input change now passes the prior artificially delayed split-acknowledgement tab X reproduction; see TASK-125 for the precise test and remaining limitations. The card remains open.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed. Ctrl+W waits for pending edits ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348)). The early-input change passes the prior artificially delayed split-acknowledgement tab X reproduction ([PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351)). The maintainer accepted the documented verification scope and requested Verified on 2026-11-20; the limitations in TASK-125 remain visible.
 
 ## Current outcome and dependency (2026-11-20)
 
 - Implemented and checked: direct editing, paragraph splitting at the start/middle/end, slash-menu selection and cancellation, literal slash input, and representative Korean IME input. The delayed-acknowledgement undo false conflict was fixed and rechecked in [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344).
-- Remaining dependency: TASK-125 owns provisional input and save-and-close safety. [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351) passed the targeted delayed-acknowledgement reproduction and focused conflict and undo/redo checks, but the affected writing flow still requires integrated verification before closing this card. Do not count untested remote providers or offline-to-online synchronization as defects.
+- Verification scope: [PR #351](https://github.com/ebrAIn-Lab-3B/Weaver/pull/351) passed the targeted delayed-acknowledgement reproduction and focused conflict and undo/redo checks. The complete authoring journey after these changes remains a separate TASK-127 activity. Do not count untested remote providers or offline-to-online synchronization as defects.
 
 ## Additional keyboard menu recheck (2026-11-20)
 

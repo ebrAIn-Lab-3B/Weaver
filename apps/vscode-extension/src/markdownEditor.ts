@@ -12,6 +12,7 @@ import { fenceBody, planFenceBodyEdit } from './fenceEditing';
 import { planChecklistToggle } from './checklistEditing';
 import { markdownSlotStyles } from './markdownSlotStyles';
 import { submitDocumentEdit } from './submitDocumentEdit';
+import { SerialMessageQueue } from './serialMessageQueue';
 
 const authorPanels = new Set<vscode.WebviewPanel>();
 
@@ -38,6 +39,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
   let staleProjection = false;
   let projectionId = '';
   const usedSplitIds = new Set<string>();
+  let provisional: { id: string; initial: string; initialVersion: number; expected: string; version: number; line: number; prefix: string } | undefined;
   const applyEdit = (edit: vscode.WorkspaceEdit, version: number): Promise<boolean> =>
     submitDocumentEdit(document, version, () => vscode.workspace.applyEdit(edit)).then((ok) => {
       if (!ok) ownChanges = ownChanges.filter((change) => change.version !== version + 1);
@@ -49,6 +51,7 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     const nonce = `${Date.now()}${Math.random().toString(36).slice(2)}`;
     projectionId = nonce;
     usedSplitIds.clear();
+    provisional = undefined;
     const body = renderMarkdown(document.getText(), (src) => {
       const uri = vscode.Uri.joinPath(document.uri, '..', decodeURIComponent(src.split(/[?#]/)[0]));
       return panel.webview.asWebviewUri(uri).toString();
@@ -77,7 +80,8 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (editing || staleProjection) void panel.webview.postMessage({ type: 'conflict', detail: message('ui.markdown.stale-draft') });
     else render();
   });
-  const receive = panel.webview.onDidReceiveMessage(async (event: { type?: string; transactionId?: string; documentId?: string; projectionId?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; beforeSlot?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }) => {
+  const queue = new SerialMessageQueue();
+  const handleMessage = async (event: { type?: string; transactionId?: string; documentId?: string; projectionId?: string; line?: number; endLine?: number; blockType?: string; expected?: string; value?: string; version?: number; checked?: boolean; kind?: InsertKind; next?: boolean; preserve?: boolean; beforeSlot?: boolean; history?: boolean; caret?: number; selectionEnd?: number; href?: string }): Promise<void> => {
     if (event.type === 'focus') { editing = true; slot = undefined; inline = undefined; fence = undefined; return; }
     if (event.type === 'copy-draft' && typeof event.value === 'string' && event.value.length <= 1_000_000) {
       try {
@@ -139,10 +143,28 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         const prefix = inlinePrefix(right, event.blockType === 'heading_open' ? 'paragraph_open' : event.blockType!);
         if (prefix === undefined) { fail(); return; }
         inline = { line: nextLine, prefix, expected: right }; slot = undefined; fence = undefined;
+        provisional = { id: event.transactionId!, initial: right, initialVersion: document.version, expected: right, version: document.version, line: nextLine, prefix };
         void panel.webview.postMessage({ type: 'split-applied', transactionId: event.transactionId, documentId: event.documentId, projectionId: event.projectionId, version: document.version, line: event.line, nextLine,
           leftExpected: document.lineAt(event.line!).text, rightExpected: right,
           ...(slotSplit ? { slot: true, line: slotSplit.line, leftLine: event.line, shift: slotSplit.shift } : {}) });
       } catch { ownChanges = ownChanges.filter(item => item !== own); fail(); }
+      return;
+    }
+    if (event.type === 'provisional-change') {
+      const fail = (): void => { if (provisional?.id === event.transactionId) provisional = undefined; void panel.webview.postMessage({ type: 'edit-failed', transactionId: event.transactionId, detail: message('ui.markdown.stale-draft') }); };
+      const current = provisional;
+      if (!current || current.id !== event.transactionId || event.documentId !== document.uri.toString() || event.projectionId !== projectionId ||
+          staleProjection || !editing || typeof event.value !== 'string' || event.value.length > 10000 || /[\r\n]/.test(event.value) ||
+          document.version !== current.version || current.line >= document.lineCount || document.lineAt(current.line).text !== current.expected) { fail(); return; }
+      const expected = current.prefix + event.value;
+      if (expected === current.expected) return;
+      const original = document.lineAt(current.line);
+      const edit = new vscode.WorkspaceEdit(); edit.replace(document.uri, original.range, expected);
+      const own: ExpectedDocumentChange = { version: document.version + 1, offset: document.offsetAt(original.range.start), length: original.text.length, text: expected };
+      ownChanges.push(own);
+      if (!await applyEdit(edit, current.version) || document.version !== own.version || document.lineAt(current.line).text !== expected) { ownChanges = ownChanges.filter(item => item !== own); fail(); return; }
+      current.expected = expected; current.version = document.version;
+      inline = { line: current.line, prefix: current.prefix, expected };
       return;
     }
     if (event.type === 'finish') {
@@ -236,6 +258,12 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
     if (event.type === 'slot-change' || event.type === 'inline-change' || event.type === 'fence-change') {
       const fail = (): void => { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.edit-conflict') }); };
       if (staleProjection) { void panel.webview.postMessage({ type: 'edit-failed', detail: message('ui.markdown.stale-draft') }); return; }
+      if (event.type === 'inline-change' && event.transactionId) {
+        const current = provisional;
+        if (!current || current.id !== event.transactionId || event.line !== current.line || event.version !== current.initialVersion || event.expected !== current.initial ||
+            document.version !== current.version || document.lineAt(current.line).text !== current.expected) { fail(); return; }
+        event.version = current.version; event.expected = current.expected; provisional = undefined;
+      }
       if (event.version !== document.version || !Number.isInteger(event.line) || typeof event.value !== 'string' || (event.type !== 'fence-change' && (/[\r\n]/.test(event.value) || event.value.length > 10000))) { fail(); return; }
       const edit = new vscode.WorkspaceEdit();
       let expected = '';
@@ -319,7 +347,10 @@ export function attachMarkdownEditor(document: vscode.TextDocument, panel: vscod
         }
       } catch { void vscode.window.showErrorMessage(message('ui.markdown.link-error')); }
     }
-  });
-  panel.onDidDispose(() => { authorPanels.delete(panel); change.dispose(); receive.dispose(); });
+  };
+  const receive = panel.webview.onDidReceiveMessage((event) => queue.run(() => handleMessage(event)).catch(() => {
+    void panel.webview.postMessage({ type: 'edit-failed', transactionId: event?.transactionId, detail: message('ui.markdown.edit-failed') });
+  }));
+  panel.onDidDispose(() => { queue.dispose(); authorPanels.delete(panel); change.dispose(); receive.dispose(); });
   render();
 }

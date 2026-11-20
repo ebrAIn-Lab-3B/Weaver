@@ -14,12 +14,16 @@ criteria: [AC-010, AC-011]
 
 ## Current card status (2026-11-20)
 
-Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed. Ctrl+W now waits for pending edits ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348)), but a tab X save-and-close during a delayed split still lost a pending draft in a separate host test, as recorded below. The card remains open. Automated delayed-response tests are simulations.
+Direct editing and the slash choices are implemented. English and Korean menu selection, Escape, literal slash and a real Korean IME example have been checked in the VS Code development host. The supported paragraph split and concurrent-change checks are documented below; beginning, middle and end paragraph splits were also exercised in the host. The delayed split undo false conflict was fixed and targeted keyboard checks passed. Ctrl+W waits for pending edits ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348)). An early-input change now passes the prior artificially delayed split-acknowledgement tab X reproduction; see TASK-125 for the precise test and remaining limitations. The card remains open.
 
 ## Current outcome and dependency (2026-11-20)
 
 - Implemented and checked: direct editing, paragraph splitting at the start/middle/end, slash-menu selection and cancellation, literal slash input, and representative Korean IME input. The delayed-acknowledgement undo false conflict was fixed and rechecked in [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344).
-- Remaining dependency: TASK-125 owns the reproduced loss of a provisional split draft when VS Code saves while closing the editor. Recheck the affected writing flow after that fix before closing this card. Do not count untested remote providers or offline-to-online synchronization as defects.
+- Remaining dependency: TASK-125 owns provisional input and save-and-close safety. Its unmerged change passed the targeted delayed-acknowledgement reproduction, but the affected writing, conflict and undo/redo flows still require integrated verification before closing this card. Do not count untested remote providers or offline-to-online synchronization as defects.
+
+## Additional keyboard menu recheck (2026-11-20)
+
+In the existing local Restricted Mode Windows VS Code development host, Computer Use opened a new temporary Markdown file, filtered the English menu with `/head` and `/check`, and selected Heading and Checklist with Enter. Each item was saved with Ctrl+S, closed with Ctrl+W, and reopened; the rendered content remained visible and the saved Markdown contained `## Keyboard heading` and `- [ ] Keyboard checklist`. This repeats ordinary keyboard interaction without an artificially delayed acknowledgement; it does not resolve the TASK-125 tab X save-and-close defect. The focused `markdownWebview.test.ts` and `splitTransaction.test.ts` suites passed 48 tests.
 
 ## Context
 

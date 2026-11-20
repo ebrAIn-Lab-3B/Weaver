@@ -16,6 +16,8 @@ let selected = 0;
 let filtered = [];
 const pending = [];
 let deferredAction;
+let flushRequest;
+let flushLock;
 let checklistPending;
 let locationsStale = false;
 let movingToSplit = false;
@@ -23,8 +25,16 @@ const extraSplits = [];
 let splitCounter = 0;
 const provisionalSplit = node => [session?.split, ...extraSplits].find(split => split?.right === node);
 const nodeValue = node => node instanceof HTMLTextAreaElement ? node.value : (node.textContent || '');
+function sendProvisional(split) {
+  if (!split?.sent || !split.rightDirty || split.composing || extraSplits.length || session?.failed) return;
+  const value = nodeValue(split.right);
+  if (split.earlyValue === value) return;
+  split.earlyValue = value; split.earlySent = true;
+  vscode.postMessage({ type: 'provisional-change', transactionId: split.id, documentId: editorConfig.documentId, projectionId: editorConfig.projectionId, value });
+}
 
 function showDraftConflict(current, detail) {
+  if (flushRequest !== undefined) completeFlush(false);
   if (current.conflictShown) return;
   current.conflictShown = true;
   current.failed = true; current.inflight = false;
@@ -92,7 +102,7 @@ function activateQueued(next) {
   if (next.dirty && session) {
     if (!(session.type === 'slot' && session.kind === 'paragraph' && !session.slashDismissed && session.node.textContent.startsWith('/') && showMenu(session.node))) { session.dirty = true; pump(); }
   }
-  if ((next.finish || (deferredAction && deferredAction !== 'save')) && session) { session.finish = true; pump(); }
+  if ((next.finish || (deferredAction && deferredAction !== 'save' && deferredAction !== 'flush')) && session) { session.finish = true; pump(); }
 }
 function pump() {
   if (!session || session.inflight || session.failed || session.invalid || session.composing) return;
@@ -102,7 +112,8 @@ function pump() {
     session.sentValue = value;
     const payload = { type: session.type === 'slot' ? 'slot-change' : session.type === 'fence' ? 'fence-change' : 'inline-change', line: session.line,
       value, version: session.version, kind: session.kind, endLine: session.endLine,
-      blockType: session.blockType, expected: session.expected };
+      blockType: session.blockType, expected: session.expected, ...(session.earlyTransactionId ? { transactionId: session.earlyTransactionId } : {}) };
+    session.earlyTransactionId = undefined;
     vscode.postMessage(payload); return;
   }
   if (session.split && !session.split.sent) {
@@ -112,11 +123,14 @@ function pump() {
       transactionId: session.split.id, documentId: editorConfig.documentId, projectionId: editorConfig.projectionId,
       version: session.version, expected: session.expected, kind: session.kind,
       caret: session.split.caret, selectionEnd: session.split.selectionEnd });
+    sendProvisional(session.split);
     return;
   }
   // Save the committed document without leaving the active field. This keeps
   // the caret and provisional empty slots stable while the user continues typing.
-  if (deferredAction === 'save' && !session.finish) { deferredAction = undefined; sendAction('save'); return; }
+  if ((deferredAction === 'save' || deferredAction === 'flush') && !session.finish && !pending.length) {
+    const action = deferredAction; deferredAction = undefined; sendAction(action); return;
+  }
   if (session.finish) {
     const finished = session; session = undefined; hideMenu();
     const next = pending.shift();
@@ -127,7 +141,7 @@ function pump() {
       next.node.parentElement.dataset.insertLine = String((finished.slotStartLine ?? finished.line) + (prefix.match(/\n/g) || []).length);
     }
     if (!next && (deferredAction === 'undo' || deferredAction === 'redo')) { main.inert = true; main.setAttribute('aria-busy', 'true'); }
-    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle', beforeSlot: !!next?.beforeSlot, history: deferredAction === 'undo' || deferredAction === 'redo', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
+    vscode.postMessage({ type: 'finish', line: finished.line, next: finished.next, preserve: !!next || deferredAction === 'checklist-toggle' || deferredAction === 'flush', beforeSlot: !!next?.beforeSlot, history: deferredAction === 'undo' || deferredAction === 'redo', caret: finished.caret, selectionEnd: finished.selectionEnd, blockType: finished.blockType, version: finished.version, expected: finished.expected });
     if (next) activateQueued(next);
     else if (deferredAction) {
       const action = deferredAction; deferredAction = undefined;
@@ -187,7 +201,14 @@ function beginSplit(offsets, node = session?.node) {
   node.textContent = left;
   const split = { id: editorConfig.projectionId + ':' + (++splitCounter), original, blockType, rightBlockType: blockType === 'heading_open' ? 'paragraph_open' : blockType, caret: offsets.caret, selectionEnd: offsets.selectionEnd, right, rightDirty: false, rightFinish: false, composing: false, sent: false };
   if (owner) { owner.rightDirty = true; extraSplits.push(split); }
-  else { session.split = split; session.dirty = true; }
+  else {
+    session.split = split;
+    // A clean existing block is already in the VS Code document. Avoid an
+    // unnecessary no-op edit and acknowledgement before requesting its split.
+    const prefix = session.type === 'inline' && typeof session.expected === 'string'
+      ? inlinePrefix(session.expected, blockType) : undefined;
+    if (session.inflight || session.dirty || prefix === undefined || session.expected.slice(prefix.length) !== original) session.dirty = true;
+  }
   movingToSplit = true; right.focus();
   const range = document.createRange(); range.selectNodeContents(right); range.collapse(true);
   const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
@@ -220,7 +241,7 @@ function changedSupersededSplit(node) {
 }
 main.addEventListener('input', event => {
   if (changedSupersededSplit(event.target)) return;
-  if (provisionalSplit(event.target)) { provisionalSplit(event.target).rightDirty = true; return; }
+  if (provisionalSplit(event.target)) { const split = provisionalSplit(event.target); split.rightDirty = true; if (!event.isComposing) sendProvisional(split); return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) {
     queued.dirty = true; if (session?.failed) showDraftConflict(queued);
@@ -242,7 +263,7 @@ main.addEventListener('compositionstart', event => {
 });
 main.addEventListener('compositionend', event => {
   if (changedSupersededSplit(event.target)) return;
-  if (provisionalSplit(event.target)) { provisionalSplit(event.target).composing = false; provisionalSplit(event.target).rightDirty = true; return; }
+  if (provisionalSplit(event.target)) { const split = provisionalSplit(event.target); split.composing = false; split.rightDirty = true; sendProvisional(split); return; }
   const queued = [...pending].reverse().find(item => event.target === item.node);
   if (queued) {
     queued.composing = false; queued.dirty = true;
@@ -368,6 +389,27 @@ main.addEventListener('focusout', event => {
   hideMenu(); session.finish = true; setTimeout(pump, 0);
 });
 window.addEventListener('message', event => {
+  if (event.data?.type === 'flush-cancel' && typeof event.data.requestId === 'string' && event.data.requestId === flushRequest) {
+    completeFlush(false); return;
+  }
+  if (event.data?.type === 'flush-cancel' && typeof event.data.requestId === 'string' && event.data.requestId === flushLock) {
+    flushLock = undefined; main.inert = false; main.removeAttribute('aria-busy'); return;
+  }
+  if (event.data?.type === 'flush-release' && typeof event.data.requestId === 'string' && event.data.requestId === flushLock) {
+    flushLock = undefined; main.inert = false; main.removeAttribute('aria-busy'); return;
+  }
+  if (event.data?.type === 'flush-request' && typeof event.data.requestId === 'string') {
+    const requestId = event.data.requestId;
+    if (flushRequest !== undefined || flushLock !== undefined || deferredAction || checklistPending || session?.failed || session?.invalid || session?.next || session?.composing || session?.split?.composing || extraSplits.some(item => item.composing) || pending.some(item => item.composing)) {
+      vscode.postMessage({ type: 'flush-result', requestId, ok: false }); return;
+    }
+    flushRequest = requestId;
+    main.inert = true;
+    main.setAttribute('aria-busy', 'true');
+    if (!session) completeFlush(true);
+    else { deferredAction = 'flush'; pump(); }
+    return;
+  }
   if (event.data?.type === 'editor-action-request' && ['save', 'undo', 'redo', 'close'].includes(event.data.action)) {
     queueAction(event.data.action); return;
   }
@@ -446,7 +488,8 @@ window.addEventListener('message', event => {
     const nextSplit = extraSplits.shift();
     session = { node:right, type:'inline', line:nextLine, kind:'paragraph', blockType:split.rightBlockType, split:nextSplit,
       expected:event.data.rightExpected, version:event.data.version, inflight:false, dirty:split.rightDirty || !!nextSplit,
-      finish:split.rightFinish || pending.length > 0 || (!!deferredAction && deferredAction !== 'save'), next:false, failed:false, composing:split.composing };
+      earlyTransactionId:split.earlySent ? split.id : undefined, originSplitId:split.id,
+      finish:split.rightFinish || pending.length > 0 || (!!deferredAction && deferredAction !== 'save' && deferredAction !== 'flush'), next:false, failed:false, composing:split.composing };
     pump();
   } else if (event.data?.type === 'edit-applied') {
     // Slot and fence edits may change the line numbers of every later block.
@@ -461,13 +504,14 @@ window.addEventListener('message', event => {
     }
     pump();
   } else if (event.data?.type === 'edit-invalid') {
+    if (flushRequest !== undefined) completeFlush(false);
     session.inflight = false; session.invalid = true;
     session.node.setAttribute('aria-invalid', 'true');
     if (!session.invalidNote) { session.invalidNote = document.createElement('p'); session.invalidNote.setAttribute('role', 'alert'); session.node.insertAdjacentElement('afterend', session.invalidNote); }
     session.invalidNote.textContent = event.data.detail || editorConfig.labels.fenceInvalid;
     if (session.dirty && nodeValue(session.node) !== session.sentValue) { clearInvalid(); pump(); }
   } else if (event.data?.type === 'edit-failed' || event.data?.type === 'conflict') {
-    if (event.data.type === 'edit-failed' && event.data.transactionId && event.data.transactionId !== session.split?.id) return;
+    if (event.data.type === 'edit-failed' && event.data.transactionId && event.data.transactionId !== session.split?.id && event.data.transactionId !== session.originSplitId) return;
     showDraftConflict(session, event.data.detail);
     if (session.split) showDraftConflict({ node:session.split.right }, event.data.detail);
     for (const split of extraSplits) showDraftConflict({ node:split.right }, event.data.detail);
@@ -475,6 +519,7 @@ window.addEventListener('message', event => {
   }
 });
 function sendAction(type) {
+  if (type === 'flush') { completeFlush(true); return; }
   if (type === 'checklist-toggle' && checklistPending) {
     const checkbox = checklistPending.node;
     if (locationsStale) {
@@ -483,6 +528,14 @@ function sendAction(type) {
     }
     vscode.postMessage({ type, line: Number(checkbox.dataset.checklistLine), expected: checkbox.dataset.checklistExpected, checked: checkbox.checked, version: editorConfig.version });
   } else vscode.postMessage({ type });
+}
+function completeFlush(ok) {
+  const requestId = flushRequest;
+  flushRequest = undefined;
+  if (deferredAction === 'flush') deferredAction = undefined;
+  if (ok) flushLock = requestId;
+  else { main.inert = false; main.removeAttribute('aria-busy'); }
+  if (requestId !== undefined) vscode.postMessage({ type: 'flush-result', requestId, ok });
 }
 function queueAction(type) {
   if (!session) { sendAction(type); return true; }

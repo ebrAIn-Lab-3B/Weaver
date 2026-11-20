@@ -14,12 +14,12 @@ criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006, AC-007, AC-008, AC-00
 
 ## Current card status (2026-11-20)
 
-The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested. Ctrl+W pending-edit protection and local Compare reconciliation were checked ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348), [PR #349](https://github.com/ebrAIn-Lab-3B/Weaver/pull/349)), but tab X save-and-close during a delayed split lost a pending draft as recorded below. The card remains open.
+The local creation-to-reopen journey and the listed preservation, local conflict, slash and Korean IME examples have recorded development-host evidence below. The false conflict from undo during a deliberately delayed split acknowledgement was fixed and retested. Ctrl+W pending-edit protection and local Compare reconciliation were checked ([PR #348](https://github.com/ebrAIn-Lab-3B/Weaver/pull/348), [PR #349](https://github.com/ebrAIn-Lab-3B/Weaver/pull/349)). TASK-125 records a subsequent targeted pass of tab X save-and-close with a delayed split acknowledgement, plus conflict comparison and keyboard undo/redo. The integrated authoring journey after those changes has not been repeated; the card remains open.
 
 ## Current outcome and remaining verification (2026-11-20)
 
 - The local creation/linking/diagram/reopen journey, representative source preservation and local conflicts, English and Korean UI, and a real Korean IME example have recorded evidence below. [PR #344](https://github.com/ebrAIn-Lab-3B/Weaver/pull/344) records the keyboard queue fix and delayed-host checks.
-- TASK-125 owns the reproduced save-and-close data-loss defect. After its implementation and focused regression pass, repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples are not proof that close during a pending operation is safe.
+- TASK-125 owns pending-input and save-and-close behavior. Its focused delayed-acknowledgement regression passed; repeat the affected close/save/reopen flow as part of the integrated local VS Code journey and record the outcome. The previous examples do not prove that input still in transit is saved.
 - Remote providers and offline-to-online synchronization are outside this local baseline; do not add them as blockers solely because they were not tested.
 
 ## Context

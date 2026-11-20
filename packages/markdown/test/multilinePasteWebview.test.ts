@@ -44,7 +44,7 @@ describe('multiline paste as queued, editable splits', () => {
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{...splitAck(sent),type:'split-applied',version:3,slot:true,shift:3,line:0,leftLine:0,nextLine:2,leftExpected:'ONE',rightExpected:''}}));
     expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'TWO'});
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{type:'edit-applied',version:4,expected:'TWO'}}));
-    expect(sent.at(-1)).toMatchObject({type:'split',caret:3});
+    expect([...sent].reverse().find(event => event.type === 'split')).toMatchObject({type:'split',caret:3});
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{...splitAck(sent),type:'split-applied',version:5,line:2,nextLine:4,leftExpected:'TWO',rightExpected:''}}));
     expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'THREE typed'});
     expect(dom.window.document.querySelectorAll('[role=alert]')).toHaveLength(0);
@@ -61,7 +61,7 @@ describe('multiline paste as queued, editable splits', () => {
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{...splitAck(sent), type:'split-applied',version:3,line:0,nextLine:2,leftExpected:'aONE',rightExpected:'d'}}));
     expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'TWOd'});
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{type:'edit-applied',version:4,expected:'TWOd'}}));
-    expect(sent.at(-1)).toMatchObject({type:'split',caret:3});
+    expect([...sent].reverse().find(event => event.type === 'split')).toMatchObject({type:'split',caret:3});
     dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:{...splitAck(sent), type:'split-applied',version:5,line:2,nextLine:4,leftExpected:'TWO',rightExpected:'d'}}));
     expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'typed THREEd'});
     dom.window.close();

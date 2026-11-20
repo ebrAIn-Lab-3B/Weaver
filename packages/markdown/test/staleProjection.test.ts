@@ -7,7 +7,7 @@ import { markdownClient } from '../../../apps/vscode-extension/src/markdownWebvi
 import { renderMarkdown } from '../../../apps/vscode-extension/src/renderMarkdown';
 
 /** Run the actual extension host message handler with a small in-memory VS Code document. */
-async function editorHost(initial: string) {
+async function editorHost(initial: string, beforeApply: () => Promise<void> = async () => {}) {
   let text = initial;
   let onChange: (event: unknown) => void = () => {};
   let onMessage: (event: Record<string, unknown>) => Promise<void> = async () => {};
@@ -40,6 +40,7 @@ async function editorHost(initial: string) {
       workspaceFolders: [], getConfiguration: () => ({ get: () => 'en' }),
       onDidChangeTextDocument: (handler: typeof onChange) => { onChange = handler; return { dispose() {} }; },
       applyEdit: async (edit: WorkspaceEdit) => {
+        await beforeApply();
         for (const change of edit.changes) {
           const start = document.offsetAt(change.start), end = document.offsetAt(change.end);
           text = text.slice(0, start) + change.text + text.slice(end);
@@ -74,10 +75,24 @@ async function editorHost(initial: string) {
   return { receive: (event: Record<string, unknown>) => onMessage(event.type === 'split' && event.transactionId === undefined
     ? { ...event, ...identity(), transactionId: `${identity().projectionId}:direct-${++directSplitId}` } : event),
     identity, replies, source: () => text, html: () => panel.webview.html, requestAction: module.exports.requestMarkdownAction,
-    commands, setActive: (active: boolean) => { panel.active = active; } };
+    commands, setActive: (active: boolean) => { panel.active = active; },
+    externalChange: (value: string) => { const old = text; text = value; document.version++; onChange({ document, contentChanges: [{ rangeOffset: 0, rangeLength: old.length, text: value }] }); } };
 }
 
 describe('pending edits after a structural change', () => {
+  it('serializes host edits received while an earlier apply is still pending', async () => {
+    let release!: () => void; let applyCount = 0;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const host = await editorHost('First', async () => { if (++applyCount === 1) await waiting; });
+    await host.receive({ type: 'focus' });
+    const first = host.receive({ type: 'inline-change', line: 0, blockType: 'paragraph_open', expected: 'First', value: 'ONE', version: 1 });
+    const second = host.receive({ type: 'inline-change', line: 0, blockType: 'paragraph_open', expected: 'ONE', value: 'TWO', version: 2 });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(applyCount).toBe(1); expect(host.source()).toBe('First');
+    release(); await Promise.all([first, second]);
+    expect(applyCount).toBe(2); expect(host.source()).toBe('TWO');
+    expect(host.replies.filter(event => event.type === 'edit-applied')).toHaveLength(2);
+  });
   it('routes a workbench save to the active rendered editor', async () => {
     const host = await editorHost('First');
     expect(host.requestAction('save')).toBe(true);
@@ -285,17 +300,40 @@ describe('pending edits after a structural change', () => {
     first.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:'Enter', bubbles:true, cancelable:true }));
     const right = first.nextElementSibling as HTMLElement;
     right.textContent = 'typed rst'; right.dispatchEvent(new dom.window.Event('input', { bubbles:true }));
+    expect(sent[1]).toMatchObject({ type:'split' });
+    expect(sent[2]).toMatchObject({ type:'provisional-change', value:'typed rst' });
     await host.receive(sent[0]); await host.receive(sent[1]);
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:host.replies.at(-1) }));
-    expect(sent.at(-1)).toMatchObject({ type:'split' });
-    await host.receive(sent.at(-1)!);
     expect(host.source()).toBe('Fi\n\nrst\n\nSecond');
-    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:host.replies.at(-1) }));
+    const splitReply = host.replies.at(-1);
+    await host.receive(sent[2]);
+    expect(host.source()).toBe('Fi\n\ntyped rst\n\nSecond');
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data:splitReply }));
     expect(sent.at(-1)).toMatchObject({ type:'inline-change', line:2, value:'typed rst' });
     await host.receive(sent.at(-1)!);
     expect(host.source()).toBe('Fi\n\ntyped rst\n\nSecond');
     expect(dom.window.document.querySelectorAll('p')[2].dataset.sourceLine).toBe('4');
     dom.window.close();
+  });
+  it('refuses a provisional edit after an external document change', async () => {
+    const host = await editorHost('First\n\nSecond'); const identity = host.identity();
+    await host.receive({ type:'focus' });
+    await host.receive({ type:'split', ...identity, transactionId:identity.projectionId + ':1', line:0, blockType:'paragraph_open', expected:'First', version:1, caret:5, selectionEnd:5 });
+    host.externalChange('First\n\nExternal\n\nSecond');
+    await host.receive({ type:'provisional-change', ...identity, transactionId:identity.projectionId + ':1', value:'Draft' });
+    expect(host.source()).toBe('First\n\nExternal\n\nSecond');
+    expect(host.replies.at(-1)).toMatchObject({ type:'edit-failed', transactionId:identity.projectionId + ':1' });
+  });
+  it('applies ordered provisional values and reconciles the acknowledged edit', async () => {
+    const host = await editorHost('First\n\nSecond'); const identity = host.identity();
+    const transactionId = identity.projectionId + ':1';
+    await host.receive({ type:'focus' });
+    await host.receive({ type:'split', ...identity, transactionId, line:0, blockType:'paragraph_open', expected:'First', version:1, caret:5, selectionEnd:5 });
+    await host.receive({ type:'provisional-change', ...identity, transactionId, value:'ONE' });
+    await host.receive({ type:'provisional-change', ...identity, transactionId, value:'TWO' });
+    expect(host.source()).toBe('First\n\nTWO\n\nSecond');
+    await host.receive({ type:'inline-change', transactionId, line:2, blockType:'paragraph_open', expected:'', version:2, value:'THREE' });
+    expect(host.source()).toBe('First\n\nTHREE\n\nSecond');
+    expect(host.replies.at(-1)).toMatchObject({ type:'edit-applied', expected:'THREE', version:5 });
   });
   it('splits an inserted paragraph and preserves immediate input with the actual host', async () => {
     const host = await editorHost('First\n\nFollowing');
@@ -310,7 +348,10 @@ describe('pending edits after a structural change', () => {
     const right = field.parentElement!.nextElementSibling as HTMLElement; right.textContent = 'typed Beta'; right.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
     await host.receive(sent[0]); await host.receive(sent[1]); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
     await host.receive(sent.at(-1)!); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
-    await host.receive(sent.at(-1)!); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:host.replies.at(-1)}));
+    const split = sent.find(event => event.type === 'split-slot')!;
+    await host.receive(split); const splitReply = host.replies.at(-1);
+    const early = sent.find(event => event.type === 'provisional-change')!;
+    await host.receive(early); dom.window.dispatchEvent(new dom.window.MessageEvent('message',{data:splitReply}));
     expect(sent.at(-1)).toMatchObject({type:'inline-change',value:'typed Beta'}); await host.receive(sent.at(-1)!);
     expect(host.source()).toBe('First\n\nAlpha\n\ntyped Beta\n\nFollowing');
     expect((dom.window.document.querySelector('[data-inline-original="Following"]') as HTMLElement).dataset.sourceLine).toBe('6'); dom.window.close();

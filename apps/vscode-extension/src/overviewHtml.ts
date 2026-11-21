@@ -24,6 +24,8 @@ export interface OverviewCard {
   title: string;
   url: string;
   assignees: string[];
+  /** Status read from the Project, independently of the card's mapped column. */
+  boardStatus?: string;
   taskId?: string;
   placement: KanbanPlacement;
   requirement?: RequirementLink;
@@ -41,6 +43,10 @@ export interface OverviewCard {
   labels?: string[];
   /** Where the task file of a card without one in the open folder is, asked of GitHub (DEC-024): on GitHub (the folder is behind) or nowhere. */
   taskFile?: 'on-github' | 'absent';
+  /** Values recorded in the local task file, not proof of work or a review request. */
+  participants?: { path: string; assignee?: string; kind?: 'human' | 'agent'; reviewer?: string };
+  /** Selected Project values, or no timestamp when the read is unavailable. */
+  projectFields?: { at?: string; invalid?: boolean; failed?: boolean; values: { name: string; value?: string }[] };
 }
 
 export type OverviewState =
@@ -137,14 +143,28 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     const markVerified = canMarkVerified
       ? `<div class="small"><button class="mark-verified" data-mark-verified="${e(card.url)}" title="${e(tt('ui.overview.mark-verified-title', { task: card.taskId ?? `#${card.number}` }))}">${e(tt('ui.overview.mark-verified'))}</button></div>`
       : '';
-    const assignees = card.assignees.length ? `<div class="muted small">@${e(card.assignees.join(', @'))}</div>` : '';
+    const assignees = card.assignees.length ? `<div class="muted small">${e(tt('ui.overview.issue-assignees', { names: card.assignees.map((name) => `@${name}`).join(', ') }))}</div>` : '';
+    const boardStatus = card.boardStatus ? `<div class="muted small">${e(tt('ui.overview.project-status', { status: card.boardStatus }))}</div>` : '';
+    const projectFields = card.projectFields
+      ? card.projectFields.invalid
+        ? `<div class="warn small">${e(tt('ui.overview.project-fields-invalid'))}</div>`
+        : card.projectFields.failed
+          ? `<div class="warn small">${e(tt('ui.overview.project-fields-failed'))}</div>`
+        : card.projectFields.at
+        ? `<div class="muted small">${e(tt('ui.overview.project-fields', { time: card.projectFields.at }))}${card.projectFields.values.map((field) => `<div>${e(tt('ui.overview.project-field', { field: field.name, value: field.value ?? tt('ui.overview.project-field-unknown') }))}</div>`).join('')}</div>`
+        : `<div class="muted small">${e(tt('ui.overview.project-fields-pending'))}</div>`
+      : '';
+    const participants = card.participants;
+    const taskPeople = participants && (participants.assignee || participants.reviewer)
+      ? `<div class="small"><a href="#" data-file="${e(participants.path)}">${e(tt('ui.overview.task-participants'))}</a>${participants.assignee ? `<div>${e(tt('ui.overview.task-owner', { name: participants.assignee, kind: participants.kind ? tt(`ui.overview.participant.${participants.kind}` as MessageKey) : tt('ui.overview.participant.unknown') }))}</div>` : ''}${participants.reviewer ? `<div>${e(tt('ui.overview.task-reviewer', { name: participants.reviewer }))}</div>` : ''}</div>`
+      : '';
     const title = e(card.title.replace(TASK_PREFIX, ''));
     const titleHtml = card.requirement
       ? `<a class="title" href="#" data-open="${e(card.url || `task:${encodeURIComponent(card.requirement.path)}/${card.requirement.taskId}`)}" title="${e(tt('ui.overview.open-task', { id: card.requirement.id, task: card.requirement.taskId }))}">${title}</a>`
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
-        <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${assignees}
+        <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${boardStatus}${projectFields}${taskPeople}${assignees}
       </div>`;
   };
 

@@ -18,7 +18,7 @@ This is the single reference for the repository-native Requirement and Task arti
 | User story | `US-` + 3 or more digits | `US-013` |
 | Repository | `owner/name` | `ebrAIn-Lab-3B/Weaver` |
 
-IDs are unique within a workspace and are never reused.
+Requirement IDs are scoped to a repository identified by `owner/name` and, where needed, a Git server address. The same requirement ID can occur in different repositories. Task and story ID rules have not changed. Allocation history must be preserved; independent clones and lost or pre-history records cannot guarantee non-reuse. Services on the same address and port distinguished only by URL path are not distinguished.
 
 ## Requirement artifact
 
@@ -33,6 +33,7 @@ A Markdown file with frontmatter `type: requirement`.
 | `owner` | no | string | person, team, or agent |
 | `story_ids` | no | list of `US-###` | |
 | `repository` | no | `owner/name` | owning repository |
+| `repository_server` | no | server address | Git server host name or IP address and optional port, without scheme or credentials |
 | `github_project` | no | string | project used for the Kanban projection |
 | `accepted_by` | no | string | who recorded acceptance; written by the view's **Record acceptance** action |
 | `accepted_on` | no | date string | when acceptance was recorded |
@@ -58,10 +59,13 @@ A task normally lives as a GitHub Issue plus a line in the requirement's `## Tas
 | `type` | yes | `task` | |
 | `title` | yes | string | |
 | `requirement` | yes | `REQ-###` | must exist in the workspace |
+| `requirement_repository` | no | `owner/name` | identifies a requirement in a different repository or disambiguates a reference |
+| `requirement_server` | no | server address | Git server of `requirement_repository`; requires that field |
 | `status` | yes, unless `issue` is set | lifecycle status | with an `issue` link the Issue decides the column ([DEC-003](../decisions/DEC-003-board-status-mapping.md)) |
 | `assignee_type` | no | `human` or `agent` | |
 | `assignee` | no | string | |
 | `repository` | no | `owner/name` | |
+| `repository_server` | no | server address | Git server host name or IP address and optional port, without scheme or credentials |
 | `branch` | no | string | |
 | `pull_request` | no | URL or `null` | |
 | `issue` | no | URL | |
@@ -69,6 +73,12 @@ A task normally lives as a GitHub Issue plus a line in the requirement's `## Tas
 | `blockers` | no | list of strings | |
 | `evidence_exception` | no | string | a human-approved reason to accept the task without complete evidence ([DEC-006](../decisions/DEC-006-closing-pr-evidence.md)) |
 | `criteria` | no | list of `AC-###` | acceptance criteria of the requirement that this task satisfies |
+
+When `requirement_repository` is absent, Weaver prefers the requirement in the task's local repository. A legacy reference without a local match resolves only if exactly one matching requirement is available. `requirement_server` disambiguates identical repository names on different hosts and never matches a target whose host is unknown. Weaver may obtain a checkout's origin host locally; explicit `repository_server` is useful when that context is unavailable. The CLI `task create` command accepts `--requirement-repository owner/name` and `--requirement-server host` to disambiguate. Inputs lacking sufficient metadata or checkout context cannot safely distinguish identical IDs.
+
+An address may be `git.example.com`, `git.example.com:8443`, `192.0.2.1:8443`, or `[2001:db8::1]:2222`. Quote IPv6 addresses in YAML. Host names are case-insensitive; IPv6 representations and numeric ports are normalized. A port explicitly present in a Git origin is retained, including a protocol's default port, and an address without a port is distinct from one with a port. Weaver does not infer that SSH and HTTPS endpoints or DNS aliases name the same service.
+
+The CLI task-creation workflow currently writes through GitHub and refuses a requirement identified as belonging to another Git server. Server-qualified reading and navigation do not imply that Weaver can create Issues or pull requests on other Git servers.
 
 ## Lifecycle status
 
@@ -89,7 +99,7 @@ Errors (the artifact is invalid):
 
 Workspace-level errors:
 
-7. IDs are unique across all artifacts.
+7. Requirement IDs are unique within a repository. The host can supply a local checkout scope for files without a repository name; where neither identity is available, duplicate IDs remain an error. Other artifact IDs remain unique across the workspace.
 8. A task file's `requirement` refers to an existing requirement.
 9. A task ID is listed under at most one requirement's `## Tasks`.
 

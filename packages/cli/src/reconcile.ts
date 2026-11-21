@@ -9,7 +9,7 @@ import {
   MergedPull,
   MessageKey,
   normalizeIssueUrl,
-  RequirementArtifact,
+  requirementForTask,
   TaskArtifact,
   planMove,
   Mismatch,
@@ -151,7 +151,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
       case 'task-without-issue': {
         // A change to repository files, so it is offered as a pull request (DEC-012, TASK-053).
         const task = input.artifacts.find((a): a is TaskArtifact => a.kind === 'task' && a.id === m.args.task);
-        const requirement = task && input.artifacts.find((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === task.requirement);
+        const requirement = task && requirementForTask(task, input.artifacts);
         const planned = input.files && task ? await planLinkIssue(input.files, task, requirement, input.cards) : undefined;
         if (planned) actions.push(...planned);
         else reports.push(item('proposed', false));

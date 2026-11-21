@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 import { parseCriteria, parseTasks } from './body';
 import type { MessageArgs } from './i18n';
+import { normalizeServerAddress } from './identity';
 import {
   ASSIGNEE_TYPES,
   AssigneeType,
@@ -24,11 +25,11 @@ const PATTERNS = {
 };
 
 const KNOWN_REQUIREMENT_FIELDS = [
-  'id', 'type', 'title', 'status', 'owner', 'story_ids', 'repository', 'github_project',
+  'id', 'type', 'title', 'status', 'owner', 'story_ids', 'repository', 'repository_server', 'github_project',
   'accepted_by', 'accepted_on',
 ];
 const KNOWN_TASK_FIELDS = [
-  'id', 'type', 'title', 'requirement', 'status', 'assignee_type', 'assignee', 'repository',
+  'id', 'type', 'title', 'requirement', 'requirement_repository', 'requirement_server', 'status', 'assignee_type', 'assignee', 'repository', 'repository_server',
   'branch', 'pull_request', 'issue', 'tests', 'blockers', 'criteria',
   'evidence_exception', 'reviewer', 'approved_by', 'approved_on',
 ];
@@ -95,6 +96,8 @@ export function parseArtifact(path: string, text: string, options: ParseOptions 
     add('error', 'invalid-status', { status: statusRaw, allowed: LIFECYCLE_STATUSES.join(', ') });
   }
   const repository = str(fm.repository);
+  const repositoryServer = str(fm.repository_server);
+  if (fm.repository_server !== undefined && (!repositoryServer || !normalizeServerAddress(repositoryServer))) add('error', 'invalid-repository-server', { server: String(fm.repository_server) });
   if (repository && !PATTERNS.repository.test(repository)) {
     add('error', 'invalid-repository', { repository });
   }
@@ -137,6 +140,7 @@ export function parseArtifact(path: string, text: string, options: ParseOptions 
       path, id, title, status, storyIds, criteria, tasks,
       ...(str(fm.owner) ? { owner: str(fm.owner) } : {}),
       ...(repository ? { repository } : {}),
+      ...(repositoryServer ? { repositoryServer } : {}),
       ...(str(fm.github_project) ? { githubProject: str(fm.github_project) } : {}),
       ...(str(fm.accepted_by) ? { acceptedBy: str(fm.accepted_by) } : {}),
       ...(str(fm.accepted_on) ? { acceptedOn: str(fm.accepted_on) } : {}),
@@ -146,6 +150,13 @@ export function parseArtifact(path: string, text: string, options: ParseOptions 
   }
 
   const requirement = required('requirement');
+  const requirementRepository = str(fm.requirement_repository);
+  const requirementServer = str(fm.requirement_server);
+  if (fm.requirement_server !== undefined && (!requirementServer || !normalizeServerAddress(requirementServer))) add('error', 'invalid-repository-server', { server: String(fm.requirement_server) });
+  if (requirementServer && !requirementRepository) add('error', 'requirement-server-without-repository');
+  if (requirementRepository && !PATTERNS.repository.test(requirementRepository)) {
+    add('error', 'invalid-repository', { repository: requirementRepository });
+  }
   if (requirement && !PATTERNS.requirement.test(requirement)) {
     add('error', 'invalid-requirement-ref', { requirement });
   }
@@ -174,6 +185,8 @@ export function parseArtifact(path: string, text: string, options: ParseOptions 
   const artifact: TaskArtifact = {
     kind: 'task',
     path, id, title, requirement, blockers, criteria,
+    ...(requirementRepository ? { requirementRepository } : {}),
+    ...(requirementServer ? { requirementServer } : {}),
     ...(status ? { status } : {}),
     ...(assigneeType ? { assigneeType: assigneeType as AssigneeType } : {}),
     ...(str(fm.assignee) ? { assignee: str(fm.assignee) } : {}),
@@ -181,6 +194,7 @@ export function parseArtifact(path: string, text: string, options: ParseOptions 
     ...(str(fm.approved_by) ? { approvedBy: str(fm.approved_by) } : {}),
     ...(dateStr(fm.approved_on) ? { approvedOn: dateStr(fm.approved_on) } : {}),
     ...(repository ? { repository } : {}),
+    ...(repositoryServer ? { repositoryServer } : {}),
     ...(str(fm.branch) ? { branch: str(fm.branch) } : {}),
     ...(pullRequest !== undefined ? { pullRequest } : {}),
     ...(str(fm.issue) ? { issue: str(fm.issue) } : {}),

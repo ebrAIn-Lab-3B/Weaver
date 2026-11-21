@@ -96,7 +96,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   const cardHtml = (card: OverviewCard): string => {
     const gaps = card.placement.gaps.map((gap) => `<div class="warn small">⚠ ${e(formatNotice(gap, locale))}</div>`).join('');
     const requirement = card.requirement
-      ? `<button class="req" data-req="${e(card.requirement.id)}" title="${e(tt('ui.overview.open-requirement', { id: card.requirement.id, title: card.requirement.title }))}">${e(card.requirement.id)}</button>`
+      ? `<button class="req" data-req="${e(card.requirement.id)}" data-req-path="${e(card.requirement.path)}" title="${e(tt('ui.overview.open-requirement', { id: card.requirement.id, title: card.requirement.title }))}">${e(card.requirement.id)}</button>`
       : '';
     const stale = card.stale.length
       ? `<div class="stale">${card.stale.map((notice) => `<span class="stale-chip ${notice.code.slice('stale.'.length)}">${e(formatNotice(notice, locale))}</span>`).join('')}</div>`
@@ -140,7 +140,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     const assignees = card.assignees.length ? `<div class="muted small">@${e(card.assignees.join(', @'))}</div>` : '';
     const title = e(card.title.replace(TASK_PREFIX, ''));
     const titleHtml = card.requirement
-      ? `<a class="title" href="#" data-open="${e(card.url || `task:${card.requirement.id}/${card.requirement.taskId}`)}" title="${e(tt('ui.overview.open-task', { id: card.requirement.id, task: card.requirement.taskId }))}">${title}</a>`
+      ? `<a class="title" href="#" data-open="${e(card.url || `task:${encodeURIComponent(card.requirement.path)}/${card.requirement.taskId}`)}" title="${e(tt('ui.overview.open-task', { id: card.requirement.id, task: card.requirement.taskId }))}">${title}</a>`
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
@@ -326,7 +326,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     if (target.dataset.url) vscode.postMessage({ type: 'openUrl', url: target.dataset.url });
     if (target.dataset.open) vscode.postMessage({ type: 'openCard', url: target.dataset.open });
     if (target.dataset.file) vscode.postMessage({ type: 'openFile', path: target.dataset.file });
-    if (target.dataset.req) vscode.postMessage({ type: 'openRequirement', id: target.dataset.req });
+    if (target.dataset.req) vscode.postMessage({ type: 'openRequirement', id: target.dataset.req, path: target.dataset.reqPath });
     if (target.dataset.toggle) vscode.postMessage({ type: 'toggleLane', id: target.dataset.toggle });
     if (target.dataset.fold) vscode.postMessage({ type: 'foldLane', id: target.dataset.fold });
     if (target.dataset.startProcess) vscode.postMessage({ type: 'startProcess', id: target.dataset.startProcess });

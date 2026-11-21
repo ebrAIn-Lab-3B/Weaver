@@ -55,6 +55,7 @@ A person can create and edit an ideation document and a schema-valid requirement
 - `TASK-125` Protect document changes and concurrent edits — [GitHub Issue #328](https://github.com/ebrAIn-Lab-3B/Weaver/issues/328)
 - `TASK-126` Edit requirement documents from their Weaver view — [GitHub Issue #329](https://github.com/ebrAIn-Lab-3B/Weaver/issues/329)
 - `TASK-127` Verify the authoring journey in VS Code — [GitHub Issue #330](https://github.com/ebrAIn-Lab-3B/Weaver/issues/330)
+- `TASK-128` Add optional shared-root requirement ID allocation — [task file](../tasks/TASK-128.md); no Issue assigned yet
 
 These tasks are assigned to agents; named owners remain to be assigned. The shared decisions are tracked in [TASK-115](../tasks/TASK-115.md), and rendered reading and diagram display in [REQ-021](./REQ-021-render-ordinary-markdown.md). Story authoring is covered by [REQ-016](./REQ-016-user-stories-on-the-board.md).
 

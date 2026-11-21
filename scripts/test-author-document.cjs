@@ -79,7 +79,11 @@ async function run() {
     await assert.rejects(fs.stat(path.join(root, 'stale.md')), { code: 'ENOENT' });
     assert.match(errors[0], /IDs changed/);
 
-    reset('idea.md');
+    reset('idea.md', async (options, choice) => {
+      assert.ok(options.detail.replace(/\n/g, '').includes(path.join(root, 'idea.md')));
+      assert.match(options.detail, /# A title/);
+      return choice;
+    });
     await createDocument('ideation');
     assert.equal(await fs.readFile(path.join(root, 'idea.md'), 'utf8'), '# A title\n\n');
 
@@ -145,14 +149,14 @@ async function run() {
     scanRoot = secondRepository;
     reset('second-repository/other.md');
     await createDocument('requirement');
-    assert.match(await fs.readFile(path.join(secondRepository, 'other.md'), 'utf8'), /id: REQ-004/);
+    assert.match(await fs.readFile(path.join(secondRepository, 'other.md'), 'utf8'), /id: REQ-001/);
     reset('second-repository/stale-history.md', async (_options, choice) => {
       await fs.appendFile(history, 'REQ-005\n');
       return choice;
     });
     await createDocument('requirement');
-    await assert.rejects(fs.stat(path.join(secondRepository, 'stale-history.md')), { code: 'ENOENT' });
-    assert.match(errors[0], /IDs changed/);
+    assert.match(await fs.readFile(path.join(secondRepository, 'stale-history.md'), 'utf8'), /id: REQ-002/);
+    assert.deepEqual(errors, []);
     const largeRepository = path.join(root, 'large-repository');
     await fs.mkdir(path.join(largeRepository, '.git'), { recursive: true });
     await fs.writeFile(path.join(largeRepository, 'existing.md'), draft('REQ-9007199254740993', 'Large', 'Outcome', 'Criterion'));

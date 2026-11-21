@@ -57,7 +57,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const document = vscode.window.activeTextEditor?.document;
     const kind =
       document && latest
-        ? documentKindOf(latest.artifacts, vscode.workspace.asRelativePath(document.uri, false))
+        ? documentKindOf(latest.artifacts, vscode.workspace.asRelativePath(document.uri))
         : 'none';
     void vscode.commands.executeCommand('setContext', 'weaver.documentKind', kind);
   };
@@ -101,7 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const openView = vscode.commands.registerCommand('weaver.openRequirementView', async (resource?: vscode.Uri) => {
     const loaded = await refresh();
     if (resource instanceof vscode.Uri) {
-      const target = viewTargetOf(loaded.artifacts, vscode.workspace.asRelativePath(resource, false));
+      const target = viewTargetOf(loaded.artifacts, vscode.workspace.asRelativePath(resource));
       if (!target) {
         void vscode.window.showInformationMessage(message('ui.msg.not-requirement'));
       } else if (target.taskId) {
@@ -155,17 +155,17 @@ export function activate(context: vscode.ExtensionContext): void {
   // From a requirement view, a requirement file, or a task file: show its cards on the Overview (TASK-041).
   const showOnOverview = vscode.commands.registerCommand(
     'weaver.showOnOverview',
-    async (arg?: vscode.Uri | { requirementId: string; taskId?: string }) => {
+    async (arg?: vscode.Uri | { requirementId: string; requirementPath?: string; taskId?: string }) => {
       const loaded = await refresh();
-      let target: { requirementId: string; taskId?: string } | undefined;
+      let target: { requirementId: string; requirementPath?: string; taskId?: string } | undefined;
       if (arg instanceof vscode.Uri) {
-        const found = viewTargetOf(loaded.artifacts, vscode.workspace.asRelativePath(arg, false));
-        if (found) target = { requirementId: found.requirement.id, ...(found.taskId ? { taskId: found.taskId } : {}) };
+        const found = viewTargetOf(loaded.artifacts, vscode.workspace.asRelativePath(arg));
+        if (found) target = { requirementId: found.requirement.id, requirementPath: found.requirement.path, ...(found.taskId ? { taskId: found.taskId } : {}) };
       } else if (arg) {
         target = arg;
       } else {
         const requirement = await pickRequirement(loaded);
-        if (requirement) target = { requirementId: requirement.id };
+        if (requirement) target = { requirementId: requirement.id, requirementPath: requirement.path };
       }
       if (!target) {
         void vscode.window.showInformationMessage(message('ui.msg.not-requirement'));

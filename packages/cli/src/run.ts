@@ -8,6 +8,7 @@ import {
   Locale,
   LOCALES,
   loadWorkspace,
+  sameServer,
   MessageArgs,
   MessageKey,
   effectiveRepositories,
@@ -167,8 +168,11 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
 
   const artifacts: Artifact[] = loadWorkspace(await deps.files(root)).artifacts;
   if (args.command === 'task') {
-    const requirement = artifacts.find((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === args.options.requirement);
+    const matches = artifacts.filter((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === args.options.requirement && (!args.options['requirement-repository'] || a.repository?.toLowerCase() === args.options['requirement-repository'].toLowerCase()) && (!args.options['requirement-server'] || sameServer(a.repositoryServer, args.options['requirement-server'])));
+    if (matches.length > 1) return fail(EXIT.usage, 'cli.requirement-ambiguous', { id: args.options.requirement });
+    const requirement = matches.length === 1 ? matches[0] : undefined;
     if (!requirement) return fail(EXIT.notFound, 'cli.requirement-not-found', { id: args.options.requirement });
+    if (requirement.repositoryServer && requirement.repositoryServer.toLowerCase() !== 'github.com') return fail(EXIT.usage, 'cli.requirement-other-server', { server: requirement.repositoryServer });
     const title = args.options.title.trim();
     if (!title || /[:\n]/.test(title)) return fail(EXIT.usage, 'cli.bad-title');
     const wanted = args.options.repository ?? requirement.repository ?? '';

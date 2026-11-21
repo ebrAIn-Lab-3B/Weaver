@@ -1,4 +1,5 @@
 import type { Artifact, RequirementArtifact } from './types';
+import { requirementForTask } from './identity';
 
 /** What a Markdown file is to Weaver. `none` is ordinary Markdown. */
 export type DocumentKind = 'requirement' | 'task' | 'none';
@@ -23,7 +24,7 @@ export function viewTargetOf(artifacts: Artifact[], path: string): ViewTarget | 
   const artifact = artifacts.find((a) => a.path === path);
   if (artifact?.kind === 'requirement') return { requirement: artifact };
   if (artifact?.kind === 'task') {
-    const requirement = artifacts.find((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === artifact.requirement);
+    const requirement = requirementForTask(artifact, artifacts);
     return requirement && { requirement, taskId: artifact.id };
   }
   return undefined;

@@ -4,14 +4,20 @@ type: task
 title: Create ideation and requirement Markdown files
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/317
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
+assignee: codex
 criteria: [AC-001, AC-002, AC-005, AC-006]
 ---
 
 # TASK-118 Create ideation and requirement Markdown files
 
-After TASK-115, implement a human-driven creation flow with repository and destination selection, preview before creation, and no silent overwrite. Create an ideation document without a mandatory organization-specific format and a requirement that satisfies the current artifact schema, including a workspace-unique ID. Handle ID and path collisions according to the decision.
+## Current outcome (2026-11-21)
+
+The maintainer requested Verified within the local-creation scope in DEC-027. Creation, repository-local allocation, collision protection, the path confirmation and the tests and limitations are recorded below. The status in this file is effective with the closing PR's merge; a physically disconnected VS Code host has not been tested. Optional shared-root allocation is separate follow-up work in TASK-128.
+
+After TASK-115, implement a human-driven creation flow with repository and destination selection, preview before creation, and no silent overwrite. Create an ideation document without a mandatory organization-specific format and a requirement that satisfies the current artifact schema, including a repository-scoped ID. Handle ID and path collisions according to the decision.
 
 Verify both creation paths, required metadata, collision and cancellation behavior, and offline operation without an agent, board, or GitHub. A named agent owner remains to be assigned.
 
@@ -105,3 +111,65 @@ Computer Use exercised the English confirmation in a Windows VS Code 1.147.0 dev
 ## PR validation (2026-11-21)
 
 Before submitting the current implementation for review, `npm.cmd run check`, `npm.cmd test` (643 Markdown, 122 GitHub, 248 CLI), `npm.cmd run test:author-document`, and `node scripts/test-author-process.cjs` passed. In VS Code 1.147.0 isolated extension hosts, the standard author host, nested repository, multi-repository and multi-repository-root cases passed with simulated dialogs. `npm.cmd run package` and `npm.cmd run package:cli`, followed by `node dist/weaver.js --help`, passed. The actual UI checks and their limitations are recorded above. This PR is implementation evidence, not a claim that disconnected operation, earlier deleted IDs, or cross-domain uniqueness have been verified; keep the task open for those remaining items.
+
+## Post-merge evidence review (2026-11-21)
+
+[PR #355](https://github.com/ebrAIn-Lab-3B/Weaver/pull/355) merged as `4150ab4`; its CI and the [post-merge main CI](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/44824900846) passed. The PR explicitly does not close [issue #317](https://github.com/ebrAIn-Lab-3B/Weaver/issues/317), which remains open, so it does not provide the closing-PR evidence required by DEC-006. No new creation or disconnected-host test was run in this review.
+
+The disconnected VS Code host check remains outstanding. DEC-027 records that a missing history is indistinguishable from first use, that older deleted IDs cannot be recovered from current files, and that independent clones and differently composed workspaces can allocate duplicates. Preserve `.weaver/requirement-ids.txt`; the schema's workspace uniqueness and never-reuse statements still need a product decision in light of these limits. The actual confirmation dialog also abbreviated long paths; whether and how to make the complete paths accessible remains open. Do not mark this task verified until the agreed scope, offline evidence, and DEC-006 completion evidence are in place.
+
+## Repository-qualified identifier direction (2026-11-21)
+
+The maintainer selected repository-local requirement IDs identified across repositories by `owner/repository` plus ID. Identical repository names on different Git servers are an accepted identification limitation. Keep each repository's `.weaver/requirement-ids.txt`; no shared cross-repository history is required. See DEC-027. This decision does not verify disconnected operation, recover IDs deleted before history, or coordinate independent clones.
+
+Before changing allocation, define backward-compatible cross-repository references and local-only repository identity. Update the schema and the validation, task joining and navigation consumers that currently key only by ID, so two repositories with the same requirement ID do not produce a false duplicate or link to the wrong document. Then restrict proposal and recheck to the selected repository and verify same-ID behavior across repositories, same-repository collisions, nested workspaces, and preservation of the local allocation history. Review repository-relative path presentation separately. No implementation or new creation test is claimed by this decision.
+
+## Repository identity implementation in progress (2026-11-21)
+
+Requirement reference resolution now recognizes an optional `requirement_repository` on task files and uses a same-repository match or an unambiguous legacy reference. Validation distinguishes named repositories for requirement IDs; requirement view panels and overview links use the document path where available. Ambiguous legacy references do not select the first requirement. These changes are unverified. Allocation still scans all workspace repositories, and identity for generated requirements without repository metadata, local-only folders, and remaining callers must be addressed before repository-local allocation is enabled. No tests or UI verification were run at the maintainer's request; this task remains open.
+
+## Repository-local allocation and automated checks (2026-11-21)
+
+The implementation now scans and reserves IDs within the selected checkout, or the selected folder outside Git, and excludes nested checkouts. The extension reads a checkout's local Git `origin` configuration when available and otherwise uses its local checkout or workspace-folder scope; no network lookup is used. The workspace loader preserves distinct multi-root paths, task references can specify `requirement_repository`, and ambiguous references fail rather than choosing a first match. The CLI reports an ambiguous requirement and accepts `--requirement-repository` when repository metadata is available. CLI inputs without checkout context or repository metadata cannot disambiguate such references. The previous in-progress paragraph is superseded where it says allocation still scans all repositories.
+
+`npm.cmd run check` and `npm.cmd test` passed (646 Markdown, 122 GitHub, 248 CLI tests); the new tests cover duplicate IDs across repositories, cross-repository references, ambiguous legacy references, and duplicate IDs within a repository. `npm.cmd run test:author-document` passed with simulated VS Code dialogs, and `node scripts/test-author-process.cjs` passed with independent Node processes. Isolated VS Code 1.147.0 extension hosts passed `nested-repository`, `multi-repository`, `multi-repository-root`, and `repository-identity`; the latter loaded two local checkouts with identical requirement IDs and relative file paths. These are automated host checks, not Computer Use. A genuinely network-disconnected VS Code host, the long-path confirmation usability issue, and DEC-006 closing evidence remain open. Preserve allocation histories and reconcile independently allocated IDs; no global or unconditional historical uniqueness is claimed.
+
+## Optional shared root follow-up (2026-11-21)
+
+[DEC-030](../decisions/DEC-030-optional-root-requirement-id-allocation.md) records the maintainer's choice of an optional shared root allocation domain, automatic participation, reviewed initialization, root-first reservation and recoverable staged writes. It also amends DEC-018 to disallow multiple root configuration files on one ancestry. This is a decision, not an implemented or verified feature. Define acceptance criteria and small implementation tasks for configuration discovery, initialization, locking and recovery before implementation; preserve the current uncommitted work and both levels of history. Offline host and Computer Use checks remain deferred.
+
+## Git server-qualified references (2026-11-21)
+
+DEC-027 now records optional Git-server-host qualification for identical `owner/repository` names. Requirement and task artifacts can carry `repository_server`; a cross-repository task reference can carry `requirement_repository` and `requirement_server`. The VS Code and CLI workspace readers obtain origin host and repository from local Git configuration where available, without contacting the server. Host comparison ignores case; URL scheme, credentials and port are not part of the recorded identity. An explicit server never matches a target with an unknown server; unresolved multiple candidates report their paths. The CLI GitHub task-creation workflow refuses a requirement identified on another Git server.
+
+`npm.cmd run check` and `npm.cmd test` passed (648 Markdown, 122 GitHub, 250 CLI tests). Automated tests cover server-qualified matches, ambiguous and unknown hosts, invalid host values, remote URL normalization, serialization and CLI disambiguation. In an isolated VS Code 1.147.0 extension host, `node scripts/test-author-host.js repository-identity` loaded two local checkouts with the same repository name, requirement ID and relative paths but different configured origin hosts; a server-qualified task reference resolved to the intended checkout. `node scripts/test-author-document.cjs` also passed with simulated dialogs. These checks did not use Computer Use, connect to either Git server, verify a genuinely disconnected host, or implement DEC-030 shared allocation. Identical services on the same host and server or repository renames remain limitations; TASK-118 remains open.
+
+## Server address decision (2026-11-21)
+
+DEC-027 now selects server addresses including optional ports and IP addresses. This supersedes the host-only restriction recorded immediately above; it is not implemented by the current host-only parser and comparison. Before claiming the decision implemented, define normalization and default-port behavior, preserve existing references, and exercise same-host different-port identities, IP addresses, SSH/HTTPS endpoint differences, missing addresses and ambiguous references. The existing tests above do not cover the new address decision. The remaining accepted identity and allocation limitations are recorded in DEC-027 and DEC-030.
+
+## Server address implementation and checks (2026-11-21)
+
+The address decision above is implemented: addresses can include DNS names, IPv4, bracketed IPv6 and explicit ports. Normalization compares host names case-insensitively and canonicalizes IPv6 and numeric ports. An explicitly supplied port is retained, even if it is the transport's default; it does not match an omitted port. Git origin parsing does not retain credentials or scheme. Existing host-only references remain valid, but matching a newly port-qualified origin requires a corresponding address update. Server-qualified IPv6 values are quoted when written to task YAML. Invalid addresses, unknown targets and ambiguous references fail safely; the GitHub task-writing workflow remains limited to GitHub.
+
+`npm.cmd run build` and `npm.cmd test` passed (650 Markdown, 122 GitHub, 251 CLI tests). Tests cover different ports on the same host, IPv4 and IPv6, explicit default ports, port omission, malformed addresses, SSH and HTTPS origins, YAML round trips and CLI selection. In an isolated VS Code 1.147.0 extension host, `node scripts/test-author-host.js repository-identity` loaded two checkouts with the same repository and requirement ID but different ports and resolved a server-qualified task to the intended checkout. `node scripts/test-author-document.cjs` passed with simulated dialogs. These checks do not establish equivalence between different SSH/HTTPS endpoints, actual disconnected-host operation, or DEC-030 shared allocation. No Computer Use was performed; TASK-118 remains open.
+
+## Actual multi-repository UI verification (2026-11-21)
+
+In a Windows VS Code 1.147.0 Extension Development Host using an isolated temporary profile and a two-folder Restricted Mode workspace, Computer Use selected each of two separate local checkouts and created `REQ-001.md` through the real creation dialogs. Their local Git origins were `https://git.example:8443/org/shared.git` and `https://git.example:9443/org/shared.git`; no connection to those servers was made as part of the test. Filesystem reads confirmed both documents and a separate `.weaver/requirement-ids.txt` containing `REQ-001` in each checkout.
+
+A task file in the second checkout specified `requirement_repository: org/shared` and `requirement_server: "git.example:8443"`. In the real rendered task view, Computer Use selected **Open requirement** and the requirement view displayed `Verification one` and `repo-one/REQ-001.md`. The Problems panel showed only the two expected empty-task-list warnings and the warning that this test task was not listed in the first requirement; it did not report a duplicate requirement ID. This is a targeted local UI check, not evidence of remote-server operations, all address cases, or disconnected operation.
+
+The actual native creation confirmation again visually abbreviated the middle of both the document and allocation-history paths. Its accessibility text contained the complete paths, but the observed visual problem remains. `npm.cmd run check`, `npm.cmd test` (650 Markdown, 122 GitHub, 251 CLI), `node scripts/test-author-process.cjs`, and the simulated-dialog `node scripts/test-author-host.js multi-repository` passed during this review. A network-disconnected VS Code host was not tested: the Docker daemon was unavailable, and an unprivileged WSL `unshare -n` attempt was denied. Restricted Mode is not a network sandbox. DEC-030 remains unimplemented, and the task remains open for offline evidence, the path usability issue and DEC-006 completion evidence.
+
+## Creation confirmation path fix (2026-11-21)
+
+The confirmation now places the document path and allocation-history path in the detail preview and explicitly wraps each path at 40 Unicode characters. The labels explain that the displayed path is wrapped; joining its lines reconstructs the original. Ideation previews use the same destination-path treatment. English and Korean messages remain in the catalog, and requirement confirmation still warns that a failed creation can consume an ID. An initial attempt that moved paths into the detail without explicit wrapping still abbreviated them in the real Windows dialog; the final wrapping change addresses that observed case.
+
+Computer Use in the isolated Windows VS Code 1.147.0 development host repeated the `REQ-002` creation preview. Both the document path and history path, each longer than 40 characters, appeared across multiple lines without visible ellipses; initial content and the reservation warning remained visible. Escape cancelled the preview, and a filesystem check confirmed that no `REQ-002.md` or new reservation was created. The simulated-dialog nested-repository host test checked that joining preview lines reproduces both actual paths, and the author-command integration checked the ideation preview. `npm.cmd run check`, `npm.cmd test` (650 Markdown, 122 GitHub, 251 CLI), `node scripts/test-author-host.js nested-repository`, and `node scripts/test-author-document.cjs` passed. The visual check covers this Windows host, display and path lengths, not all screen sizes, exceptionally long content or other platforms. Actual network-disconnected host evidence and DEC-006 closing evidence remain open; this task is not marked verified.
+
+## Local creation completion scope (2026-11-21)
+
+The maintainer chose to finish the local-creation review using the existing no-service UI and network-entry-point-denial harness evidence; see DEC-027. This supersedes earlier statements that a physically disconnected VS Code host must be tested before this task can be completed. Such a host remains untested, and neither those checks nor Restricted Mode prove a fully network-disconnected VS Code session. No new test was run for this scope decision.
+
+The repository-local ID, address and confirmation changes remain uncommitted and need review and a merged PR that closes issue #317 under DEC-006. DEC-030's optional shared root allocation is separate follow-up work and is not claimed implemented. Missing or pre-history IDs and independent clones remain subject to the documented limits. Do not mark the issue or task Verified solely on PR #355 or on this scope decision.

@@ -1,9 +1,14 @@
 import * as vscode from 'vscode';
+import * as nodePath from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { repositoryRoot } from './authorDocument';
 import {
   Artifact,
   declaredTaskFieldsOf,
   loadWorkspace,
   parseProcess,
+  repositoryFromRemote,
   rosterGaps,
   Roster,
   RosterRef,
@@ -24,6 +29,17 @@ const PROCESS_FILE_GLOB = '**/.weaver/process.yaml';
 const MAX_PROCESS_FILES = 20;
 
 const PROCESS_FILE_PATH = '.weaver/process.yaml';
+const runFile = promisify(execFile);
+
+/** Local Git configuration is read without contacting the remote. */
+async function repositoryName(root: string): Promise<{ repository: string; server: string } | undefined> {
+  try {
+    const { stdout } = await runFile('git', ['-C', root, 'config', '--get', 'remote.origin.url'], { timeout: 5000, windowsHide: true });
+    return repositoryFromRemote(stdout.trim());
+  } catch {
+    return undefined;
+  }
+}
 
 export interface Loaded extends WorkspaceResult {
   documentLinks: Map<string, DocumentLink[]>;
@@ -38,12 +54,23 @@ export async function loadWorkspaceArtifacts(): Promise<Loaded> {
   const found = await vscode.workspace.findFiles('**/*.md', EXCLUDE, MAX_FILES);
   const decoder = new TextDecoder('utf-8');
   const uris = new Map<string, vscode.Uri>();
+  const rootByDirectory = new Map<string, Promise<string | undefined>>();
+  const nameByRoot = new Map<string, Promise<{ repository: string; server: string } | undefined>>();
   const files = await Promise.all(
     found.map(async (uri) => {
-      const path = vscode.workspace.asRelativePath(uri, false);
+      const path = vscode.workspace.asRelativePath(uri);
       uris.set(path, uri);
       const bytes = await vscode.workspace.fs.readFile(uri);
-      return { path, text: decoder.decode(bytes) };
+      if (uri.scheme !== 'file') return { path, text: decoder.decode(bytes) };
+      const directory = nodePath.dirname(uri.fsPath);
+      let rootPromise = rootByDirectory.get(directory);
+      if (!rootPromise) { rootPromise = repositoryRoot(directory); rootByDirectory.set(directory, rootPromise); }
+      const root = await rootPromise;
+      const scope = root ?? vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
+      let namePromise = root ? nameByRoot.get(root) : undefined;
+      if (root && !namePromise) { namePromise = repositoryName(root); nameByRoot.set(root, namePromise); }
+      const identity = await namePromise;
+      return { path, text: decoder.decode(bytes), ...(scope ? { sourceScope: process.platform === 'win32' ? scope.toLowerCase() : scope } : {}), ...(identity ? { repository: identity.repository, repositoryServer: identity.server } : {}) };
     }),
   );
 
@@ -56,7 +83,7 @@ export async function loadWorkspaceArtifacts(): Promise<Loaded> {
   const processIssues: ValidationIssue[] = [];
   const declared: { root: string; fields: string[] }[] = [];
   for (const uri of processFiles) {
-    const path = vscode.workspace.asRelativePath(uri, false);
+    const path = vscode.workspace.asRelativePath(uri);
     uris.set(path, uri);
     const parsed = parseProcess(path, decoder.decode(await vscode.workspace.fs.readFile(uri)));
     processIssues.push(...parsed.issues);

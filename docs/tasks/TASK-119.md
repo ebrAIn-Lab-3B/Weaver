@@ -4,12 +4,18 @@ type: task
 title: Edit Markdown blocks without losing source content
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/318
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
+assignee: codex
 criteria: [AC-001, AC-002, AC-004, AC-005, AC-006]
 ---
 
 # TASK-119 Edit Markdown blocks without losing source content
+
+## Current outcome (2026-11-21)
+
+The maintainer requested Verified within the accepted DEC-028 scope. Supported editing, Markdown preservation, mode transitions and the real local external-save conflict are evidenced below and in TASK-123 through TASK-127. Input still in transit or in an unfinished IME composition at close may be lost, as explicitly accepted in DEC-028 and REQ-022. The status in this file is effective with the closing PR's merge.
 
 After TASK-115 and TASK-116, implement the agreed rendered block editing and source mode for ideation and requirement files. Preserve diagram source and unsupported constructs when saving; protect unsaved changes when switching or closing. Integrate with ordinary filesystem changes.
 
@@ -68,3 +74,9 @@ The queued save handler uses the workbench save command only while its originati
 ## PR validation (2026-11-21)
 
 Before submitting the save-route change for review, `npm.cmd run check` and `npm.cmd test` passed (643 Markdown, 122 GitHub, 248 CLI). In isolated VS Code 1.147.0 extension hosts, `node scripts/test-author-host.js save-conflict` preserved the external disk text and dirty local model, and `node scripts/test-document-race.js` passed the inline, insert, split, fence and checklist cases. `npm.cmd run package` and `npm.cmd run package:cli`, followed by `node dist/weaver.js --help`, passed. The real rendered-editor conflict observation and accepted close limitation remain recorded above. This PR is implementation evidence; the task remains open pending its remaining review and normal completion evidence.
+
+## Post-merge evidence review (2026-11-21)
+
+The supported editing, mode transitions, Markdown preservation, Korean IME and local conflict evidence is recorded here and in TASK-123 through TASK-127. The actual rendered-editor conflict check above covers both versions in the open session. DEC-028 and REQ-022 explicitly accept the remaining in-transit input and unfinished IME composition limitation at close; a universal save barrier is not a remaining prerequisite. These observations are limited to the scenarios and environments recorded in those tasks.
+
+[PR #355](https://github.com/ebrAIn-Lab-3B/Weaver/pull/355) merged as `4150ab4`; its CI and the [post-merge main CI](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/44824900846) passed. The PR explicitly does not close [issue #318](https://github.com/ebrAIn-Lab-3B/Weaver/issues/318), which remains open. The recorded implementation and acceptance evidence supports completion within the accepted scope, but DEC-006 still requires a merged PR that closes the issue or a human-approved evidence exception reviewed in a PR. This review did not run new editor tests or change the task status.

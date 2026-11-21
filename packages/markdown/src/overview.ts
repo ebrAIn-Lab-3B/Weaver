@@ -2,9 +2,11 @@ import type { FabricRegistry } from './fabric';
 import { KANBAN_COLUMNS, KanbanColumn, KanbanPlacement } from './kanban';
 import type { GuidelineSource } from './guideline';
 import type { Artifact } from './types';
+import { requirementForTask } from './identity';
 
 export interface RequirementLink {
   id: string;
+  repository?: string;
   title: string;
   /** Workspace-relative path of the requirement file. */
   path: string;
@@ -26,14 +28,13 @@ export function normalizeIssueUrl(url: string): string {
  */
 export function requirementsByIssue(artifacts: readonly Artifact[]): Map<string, RequirementLink> {
   const byIssue = new Map<string, RequirementLink>();
-  const requirements = new Map<string, Artifact & { kind: 'requirement' }>();
   for (const artifact of artifacts) {
     if (artifact.kind !== 'requirement') continue;
-    requirements.set(artifact.id, artifact);
     for (const task of artifact.tasks) {
       if (task.issueUrl) {
         byIssue.set(normalizeIssueUrl(task.issueUrl), {
           id: artifact.id,
+          ...(artifact.repository ? { repository: artifact.repository } : {}),
           title: artifact.title,
           path: artifact.path,
           taskId: task.id,
@@ -43,10 +44,11 @@ export function requirementsByIssue(artifacts: readonly Artifact[]): Map<string,
   }
   for (const artifact of artifacts) {
     if (artifact.kind !== 'task' || !artifact.issue) continue;
-    const requirement = requirements.get(artifact.requirement);
+    const requirement = requirementForTask(artifact, artifacts);
     if (!requirement) continue;
     byIssue.set(normalizeIssueUrl(artifact.issue), {
       id: requirement.id,
+      ...(requirement.repository ? { repository: requirement.repository } : {}),
       title: requirement.title,
       path: requirement.path,
       taskId: artifact.id,
@@ -132,6 +134,7 @@ export function foldFinished<T extends { placement: KanbanPlacement; state?: 'op
 /** What to show on the Overview: every card of a requirement, or the one card of a task. */
 export interface FocusTarget {
   requirementId: string;
+  requirementPath?: string;
   taskId?: string;
 }
 
@@ -146,7 +149,7 @@ export function focusCards<T extends { url: string }>(
 ): T[] {
   return cards.filter((card) => {
     const link = links.get(normalizeIssueUrl(card.url));
-    return link !== undefined && link.id === target.requirementId && (target.taskId === undefined || link.taskId === target.taskId);
+    return link !== undefined && link.id === target.requirementId && (target.requirementPath === undefined || link.path === target.requirementPath) && (target.taskId === undefined || link.taskId === target.taskId);
   });
 }
 

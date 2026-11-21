@@ -1,6 +1,6 @@
 # DEC-030: Optional root-level requirement ID allocation
 
-- Status: accepted in principle; implementation and verification pending
+- Status: withdrawn on 2026-11-21; retained for historical context
 - Date: 2026-11-21
 - Related: `REQ-022`, `TASK-118`, [DEC-018](./DEC-018-operating-root-configuration.md), [DEC-027](./DEC-027-markdown-viewing-and-authoring.md)
 
@@ -8,7 +8,11 @@
 
 Requirement IDs are scoped to a repository, and `owner/repository` plus the ID identifies a requirement across repositories (DEC-027). Independent repositories may therefore already contain the same ID. A person may additionally want repositories under one operating root to use distinct new ID numbers without requiring an online service. A root configuration and a personal configuration already exist under DEC-018.
 
-## Decision
+## Withdrawal (2026-11-21)
+
+The maintainer chose repository-local allocation and repository-qualified references, without the optional shared allocation domain. The decision below is retained as the withdrawn proposal and is not an implementation requirement. The proposed change to operating-root discovery is also withdrawn with this decision; DEC-018's existing nearest-root rule remains the baseline. TASK-128 is cancelled, not verified. This does not change the limitations of repository histories, independent clones or nonparticipating writers documented in DEC-027.
+
+## Withdrawn decision
 
 - Keep repository-qualified identity. Root-level allocation is optional; when it is not enabled, repository-local allocation continues. It does not require a central or organization-specific policy.
 - A root's `.weaver/config.yaml` may opt into a shared local requirement ID allocation domain. Repositories beneath that root participate automatically, without a per-repository registration list. The configuration format and user-facing setup are implementation work, not an existing setting.
@@ -24,6 +28,6 @@ Requirement IDs are scoped to a repository, and `owner/repository` plus the ID i
 
 An empty root history is easy to create but ignores existing reservations. A manually authored history makes review explicit but places the discovery burden on the person. The selected approach combines discovery with review and manual historical additions. Writing the repository history before the root history can allow a second participant to reuse an ID after an interruption; writing only the root history loses repository-portable evidence. A network allocation service could coordinate more machines but is outside this local-first decision.
 
-## Verification before completion
+## Former verification plan (withdrawn)
 
 Define acceptance criteria and implementation tasks before changing behavior. Cover initialization with existing duplicates, deleted-ID reservations and partial failures; adding a repository; multiple root configuration conflicts; concurrent creators; interruption and recovery at each durable step; missing or malformed histories; and preservation of repository histories. Test a real network-disconnected VS Code host separately when requested. Normal review and DEC-006 closing evidence remain required; this decision does not mark TASK-118 or REQ-022 verified.

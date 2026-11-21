@@ -40,6 +40,8 @@ The maintainer chose a Git server address rather than a host name alone. Use a h
 
 This decision supersedes the host-only and no-port statements in the preceding section. The implementation normalizes host-name case, IPv6 representations and numeric ports. It retains explicitly supplied ports, including protocol defaults, and treats an omitted port as distinct from an explicit one; it does not assume that SSH and HTTPS ports identify the same service. Existing host-only references remain valid, but a reference without a port does not match an origin that explicitly includes one. The decision does not establish offline host behavior or implement DEC-030.
 
+DEC-030 was subsequently withdrawn and TASK-128 cancelled; shared-root allocation and its proposed change to root discovery are not pending implementation.
+
 ## Creation confirmation paths (2026-11-21)
 
 Creation confirmation displays the destination and, for requirements, the allocation-history path in its detailed preview alongside the initial content. Paths are explicitly broken across lines so the Windows native dialog does not abbreviate the middle of the tested long paths; joining the displayed lines reconstructs the path. The requirement confirmation still warns that an ID may remain reserved after failed creation. See TASK-118 for the actual UI check and its limits.

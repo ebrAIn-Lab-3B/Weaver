@@ -24,3 +24,5 @@ Kanban columns, their order, and the label or state each one maps to come from t
 - Not done as the decision words it: "the lane used last before the editor closed" is approximated by the lane order the person chose (the top lane first); the editor does not record which lane was used last.
 - The editor was not driven by hand against a real repository that has a process file; the page was rendered once to check the text.
 - Split out: reading the lane used last first is tracked as [TASK-064](TASK-064.md). The rest of this task was checked with `npm run check`, `npm test` (markdown 261, github 65, cli 130 passed), and the CLI against this repository's own process file; the Overview was not driven by hand.
+
+On 2026-11-21 the maintainer deferred TASK-064 as a low-priority extension optimization. DEC-015 records the deferral and the current reading order; project-aware priority can be revisited when the application addresses workspace context.

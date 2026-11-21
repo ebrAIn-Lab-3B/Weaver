@@ -59,6 +59,7 @@ Weaver is developed with Weaver, and it is in use: the extension and the `weaver
 
 - **The Overview**: the cards of a GitHub Project of your own, in a lane for each repository, in six columns, with the reason for any gap (no evidence, no status label, idle for long).
 - **The requirement view**: a requirement, its tasks, who owns them, and the evidence of each.
+- **Local document authoring**: create and link ideation and requirement Markdown, edit supported blocks in a rendered view, and use source mode for other Markdown. Requirement IDs are allocated within each repository.
 - **Your configuration**: a setup file on your computer, a setup file for a folder of projects, and a roster of the people and agents you work with.
 - **How a repository tracks its work**: a process file in the repository (columns, evidence, idle days, the fields of a task), and an operating guideline that a repository without a process file can start one from.
 - **The `weaver` tool**: list, show, create a task, move a card, attach evidence, reconcile, and start a process file. A write is shown first and happens only after it is approved.

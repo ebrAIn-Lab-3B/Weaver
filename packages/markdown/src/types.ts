@@ -43,6 +43,8 @@ export interface TaskRef {
 
 export interface RequirementArtifact {
   kind: 'requirement';
+  /** Host-provided local checkout identity; not written to front matter. */
+  sourceScope?: string;
   path: string;
   id: string;
   title: string;
@@ -50,6 +52,8 @@ export interface RequirementArtifact {
   owner?: string;
   storyIds: string[];
   repository?: string;
+  /** Address of the repository's Git server, optionally including a port. */
+  repositoryServer?: string;
   githubProject?: string;
   /** Who recorded acceptance and when (a human decision). */
   acceptedBy?: string;
@@ -61,10 +65,15 @@ export interface RequirementArtifact {
 
 export interface TaskArtifact {
   kind: 'task';
+  /** Host-provided local checkout identity; not written to front matter. */
+  sourceScope?: string;
   path: string;
   id: string;
   title: string;
   requirement: string;
+  /** Repository containing the requirement when it differs from the task's repository. */
+  requirementRepository?: string;
+  requirementServer?: string;
   /** Optional when the task has an Issue link: the Issue is the source (DEC-005). */
   status?: LifecycleStatus;
   assigneeType?: AssigneeType;
@@ -75,6 +84,7 @@ export interface TaskArtifact {
   approvedBy?: string;
   approvedOn?: string;
   repository?: string;
+  repositoryServer?: string;
   branch?: string;
   pullRequest?: string | null;
   issue?: string;

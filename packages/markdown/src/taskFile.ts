@@ -17,6 +17,8 @@ export interface TaskFileInput {
   id: string;
   title: string;
   requirement: string;
+  requirementRepository?: string;
+  requirementServer?: string;
   issueUrl: string;
   issueNumber: number;
   repository: string;
@@ -36,6 +38,8 @@ export function renderTaskFile(input: TaskFileInput): string {
     'type: task',
     `title: ${input.title}`,
     `requirement: ${input.requirement}`,
+    ...(input.requirementRepository ? [`requirement_repository: ${input.requirementRepository}`] : []),
+    ...(input.requirementServer ? [`requirement_server: ${yamlValue(input.requirementServer)}`] : []),
     `issue: ${input.issueUrl}`,
     `repository: ${input.repository}`,
     `assignee_type: ${input.assigneeType}`,

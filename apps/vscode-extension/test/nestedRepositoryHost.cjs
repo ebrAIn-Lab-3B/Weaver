@@ -19,7 +19,8 @@ async function run() {
     };
     await createDocument('requirement', ui);
     assert.match(preview, /id: REQ-002/);
-    assert.ok(review.includes(path.join(path.dirname(root), '.weaver', 'requirement-ids.txt')));
+    assert.ok(preview.replace(/\n/g, '').includes(path.join(path.dirname(root), '.weaver', 'requirement-ids.txt')));
+    assert.ok(preview.replace(/\n/g, '').includes(path.join(root, 'child.md')));
     assert.match(review, /even if creation fails/);
     assert.match(await fs.readFile(path.join(root, 'child.md'), 'utf8'), /id: REQ-002/);
     assert.deepEqual(errors, []);

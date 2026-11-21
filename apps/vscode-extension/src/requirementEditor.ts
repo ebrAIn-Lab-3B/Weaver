@@ -34,7 +34,7 @@ export class RequirementEditorProvider implements vscode.CustomTextEditorProvide
     }
     panel.webview.options = { enableScripts: true };
     await whilePanelAlive(panel, this.load, (loaded) => {
-      const path = vscode.workspace.asRelativePath(document.uri, false);
+      const path = vscode.workspace.asRelativePath(document.uri);
       const requirement = requirementsOf(loaded).find((r) => r.path === path);
       if (!requirement) {
         panel.webview.html = `<body style="padding:24px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)">${escapeHtml(message('ui.msg.not-requirement'))}</body>`;

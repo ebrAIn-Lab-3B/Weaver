@@ -50,7 +50,7 @@ export type TaskDraft =
  */
 export function draftTaskFile(input: {
   card: DraftCard;
-  requirement: { id: string; path: string; text: string };
+  requirement: { id: string; path: string; text: string; repository?: string; repositoryServer?: string };
   taskDirectory: string;
 }): TaskDraft {
   const { card, requirement } = input;
@@ -63,6 +63,8 @@ export function draftTaskFile(input: {
     id: card.taskId,
     title,
     requirement: requirement.id,
+    ...(requirement.repository && (requirement.repository.toLowerCase() !== card.repository.toLowerCase() || requirement.repositoryServer) ? { requirementRepository: requirement.repository } : {}),
+    ...(requirement.repository && requirement.repositoryServer ? { requirementServer: requirement.repositoryServer } : {}),
     issueUrl: card.url,
     issueNumber: card.number,
     repository: card.repository,

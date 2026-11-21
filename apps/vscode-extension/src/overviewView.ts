@@ -357,7 +357,7 @@ export class OverviewView {
     else if (message.type === 'openUrl' && message.url && isOpenableUrl(message.url)) {
       await openPage(message.url);
     } else if (message.type === 'openRequirement' && message.id) {
-      const requirement = this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === message.id);
+      const requirement = this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.path === message.path);
       const uri = requirement && this.loaded?.uris.get(requirement.path);
       if (uri) await vscode.commands.executeCommand('vscode.openWith', uri, REQUIREMENT_EDITOR, vscode.ViewColumn.Active);
     }
@@ -375,7 +375,7 @@ export class OverviewView {
     // A card built from the files has no Issue address; it is named by its requirement and task.
     const named = /^task:([^/]+)\/(.+)$/.exec(url);
     if (named) {
-      const requirement = this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === named[1]);
+      const requirement = this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.path === decodeURIComponent(named[1]));
       if (requirement?.kind === 'requirement' && this.loaded) this.requirements.show(this.loaded, requirement, named[2]);
       return;
     }
@@ -383,13 +383,13 @@ export class OverviewView {
     if (!found) {
       // The board was built from files: the Issue address still names the requirement.
       const link = requirementsByIssue(this.loaded?.artifacts ?? []).get(normalizeIssueUrl(url));
-      const requirement = link && this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === link.id);
+      const requirement = link && this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.path === link.path);
       if (link && requirement?.kind === 'requirement' && this.loaded) this.requirements.show(this.loaded, requirement, link.taskId);
       else if (isOpenableUrl(url)) await openPage(url);
       return;
     }
     const { card, link } = found;
-    const requirement = link && this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.id === link.id);
+    const requirement = link && this.loaded?.artifacts.find((a) => a.kind === 'requirement' && a.path === link.path);
     if (link && requirement?.kind === 'requirement' && this.loaded) {
       this.requirements.show(this.loaded, requirement, link.taskId);
     } else if (isOpenableUrl(card.url)) {

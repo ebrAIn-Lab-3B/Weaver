@@ -1,4 +1,5 @@
 export * from './types';
+export * from './identity';
 export { parseArtifact } from './parse';
 export { requirementDraft, ideationDraft, markdownEditorTarget } from './documentAuthoring';
 export { parseCriteria, parseTasks, sectionItems } from './body';

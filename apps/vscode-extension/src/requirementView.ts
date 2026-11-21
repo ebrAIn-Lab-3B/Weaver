@@ -51,7 +51,7 @@ export class RequirementView {
   private readonly panels = new Set<Panel>();
 
   show(loaded: Loaded, requirement: RequirementArtifact, focusTask?: string): void {
-    const existing = [...this.panels].find((p) => !p.hosted && p.requirement.id === requirement.id);
+    const existing = [...this.panels].find((p) => !p.hosted && p.requirement.path === requirement.path);
     if (existing) {
       existing.panel.reveal(undefined, true);
       existing.focusTask = focusTask;
@@ -87,7 +87,7 @@ export class RequirementView {
       } else if (message.type === 'editDocument' && entry.uri) {
         await vscode.commands.executeCommand('vscode.openWith', entry.uri, 'weaver.markdownAuthor', { viewColumn: entry.hosted ? vscode.ViewColumn.Active : vscode.ViewColumn.One });
       } else if (message.type === 'showOnOverview') {
-        await vscode.commands.executeCommand('weaver.showOnOverview', { requirementId: entry.requirement.id });
+        await vscode.commands.executeCommand('weaver.showOnOverview', { requirementId: entry.requirement.id, requirementPath: entry.requirement.path });
       } else if (message.type === 'openPreview' && entry.uri) {
         await vscode.commands.executeCommand('markdown.showPreviewToSide', entry.uri);
       } else if (message.type === 'openUrl' && message.url && isOpenableUrl(message.url)) {
@@ -122,7 +122,7 @@ export class RequirementView {
   update(loaded: Loaded): void {
     for (const entry of this.panels) {
       const id = entry.requirement.id;
-      const requirement = loaded.artifacts.find((a) => a.kind === 'requirement' && a.id === id);
+      const requirement = loaded.artifacts.find((a) => a.kind === 'requirement' && a.path === entry.requirement.path);
       if (requirement?.kind === 'requirement') {
         this.apply(entry, loaded, requirement);
       } else {

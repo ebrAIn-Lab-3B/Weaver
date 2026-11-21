@@ -130,6 +130,8 @@ Adds ${taskPath} and lists ${id} under ${input.requirement.id}. Issue: ${created
               id,
               title: input.title,
               requirement: input.requirement.id,
+              ...(input.requirement.repository && (input.requirement.repository.toLowerCase() !== input.repository.toLowerCase() || input.requirement.repositoryServer) ? { requirementRepository: input.requirement.repository } : {}),
+              ...(input.requirement.repository && input.requirement.repositoryServer ? { requirementServer: input.requirement.repositoryServer } : {}),
               issueUrl: created.url as string,
               issueNumber: created.number as number,
               repository: input.repository,

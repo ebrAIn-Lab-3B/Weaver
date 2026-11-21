@@ -20,22 +20,22 @@ async function run() {
       showErrorMessage: async text => { errors.push(text); },
     };
     await createDocument('requirement', ui);
-    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-008/);
+    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-001/);
     assert.deepEqual(errors, []);
     await fs.writeFile(path.join(firstRoot, 'legacy.md'), '---\nid: REQ-010\ntype: requirement\ntitle: Legacy\nstatus: draft\n---\n');
     await fs.unlink(target);
     fields.push('Another requirement', 'Outcome', 'Criterion');
     await createDocument('requirement', ui);
-    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-011/);
+    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-002/);
     assert.deepEqual(errors, []);
     const otherHistory = path.join(firstRoot, '.weaver', 'requirement-ids.txt');
     await fs.writeFile(otherHistory, '');
-    fields.push('Blocked by invalid history', 'Outcome', 'Criterion');
+    await fs.unlink(target);
+    fields.push('Other history is invalid', 'Outcome', 'Criterion');
     await createDocument('requirement', ui);
-    assert.match(errors[0], /allocation history is incomplete or invalid/);
-    assert.ok(errors[0].includes(otherHistory));
-    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-011/);
-    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, case: 'multiple repositories and empty history' }));
+    assert.deepEqual(errors, []);
+    assert.match(await fs.readFile(target, 'utf8'), /id: REQ-003/);
+    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, case: 'independent repository histories' }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));
     throw error;

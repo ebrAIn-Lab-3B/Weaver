@@ -7,7 +7,7 @@ export interface Args {
   repeated: Record<string, string[]>;
 }
 
-const VALUE_OPTIONS = new Set(['root', 'repository', 'column', 'lang', 'approve', 'title', 'requirement', 'criteria', 'assignee', 'assignee-type', 'area', 'to', 'pull']);
+const VALUE_OPTIONS = new Set(['root', 'repository', 'requirement-repository', 'requirement-server', 'column', 'lang', 'approve', 'title', 'requirement', 'criteria', 'assignee', 'assignee-type', 'area', 'to', 'pull']);
 const REPEATED_OPTIONS = new Set(['field']);
 const FLAGS = new Set(['text', 'help', 'apply']);
 

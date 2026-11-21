@@ -69,6 +69,7 @@ export function offlineCards(artifacts: readonly Artifact[], registry: FabricReg
         ...(task.issueUrl ? { issueUrl: task.issueUrl } : {}),
         requirement: {
           id: requirement.id,
+          ...(requirement.repository ? { repository: requirement.repository } : {}),
           title: requirement.title,
           path: requirement.path,
           taskId: task.id,

@@ -1,6 +1,7 @@
 import { Notice } from './i18n';
 import { KanbanColumn } from './kanban';
 import { Artifact, AssigneeType, Criterion, RequirementArtifact, TaskArtifact, TaskRef } from './types';
+import { requirementForTask } from './identity';
 
 /** A task from a requirement's list, joined with its task file when there is one (DEC-005). */
 export interface MergedTask extends TaskRef {
@@ -10,8 +11,9 @@ export interface MergedTask extends TaskRef {
 /** Joins the requirement's task list with task files by ID. The list decides order and title. */
 export function mergeTasks(requirement: RequirementArtifact, artifacts: Artifact[]): MergedTask[] {
   const files = new Map<string, TaskArtifact>();
+  const candidates = artifacts.some((artifact) => artifact.kind === 'requirement' && artifact.path === requirement.path) ? artifacts : [...artifacts, requirement];
   for (const artifact of artifacts) {
-    if (artifact.kind === 'task' && artifact.requirement === requirement.id) files.set(artifact.id, artifact);
+    if (artifact.kind === 'task' && requirementForTask(artifact, candidates)?.path === requirement.path) files.set(artifact.id, artifact);
   }
   return requirement.tasks.map((task) => {
     const file = files.get(task.id);

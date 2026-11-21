@@ -192,6 +192,35 @@ describe('planProjectAdd', () => {
 describe('weaver task create', () => {
   const ARGS = ['task', 'create', '--title', 'Add the export button', '--requirement', 'REQ-001', '--criteria', 'AC-001,ac-002', '--assignee', 'claude-code'];
 
+  it('requires a server to disambiguate a requirement and does not modify another Git server', async () => {
+    const source = [
+      { ...FILES[0], repository: 'me/Weaver', repositoryServer: 'github.com' },
+      { ...FILES[0], path: 'other/REQ-001.md', repository: 'me/Weaver', repositoryServer: 'git.example.com' },
+    ];
+    const ambiguous = setup();
+    ambiguous.deps.files = async () => source;
+    expect(await run(ARGS, ambiguous.deps)).toBe(EXIT.usage);
+    expect(JSON.parse(ambiguous.out.join('')).error.code).toBe('cli.requirement-ambiguous');
+    const other = setup();
+    other.deps.files = async () => source;
+    expect(await run([...ARGS, '--requirement-repository', 'me/Weaver', '--requirement-server', 'git.example.com'], other.deps)).toBe(EXIT.usage);
+    expect(JSON.parse(other.out.join('')).error.code).toBe('cli.requirement-other-server');
+    const github = setup();
+    github.deps.files = async () => source;
+    expect(await run([...ARGS, '--requirement-repository', 'me/Weaver', '--requirement-server', 'github.com'], github.deps)).toBe(EXIT.unconfirmed);
+  });
+
+  it('distinguishes server ports before attempting the GitHub-only write workflow', async () => {
+    const s = setup();
+    s.deps.files = async () => [
+      { ...FILES[0], repository: 'me/Weaver', repositoryServer: 'git.example:8443' },
+      { ...FILES[0], path: 'other/REQ-001.md', repository: 'me/Weaver', repositoryServer: 'git.example:9443' },
+    ];
+    expect(await run([...ARGS, '--requirement-repository', 'me/Weaver', '--requirement-server', 'GIT.EXAMPLE:09443'], s.deps)).toBe(EXIT.usage);
+    expect(JSON.parse(s.out.join('')).error).toMatchObject({ code: 'cli.requirement-other-server', message: expect.stringContaining('git.example:9443') });
+    expect(s.writes.filter(w => w.startsWith('REST'))).toEqual([]);
+  });
+
   async function approvedIds() {
     const first = setup();
     await run(ARGS, first.deps);

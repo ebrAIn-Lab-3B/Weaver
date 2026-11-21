@@ -10,6 +10,8 @@
 
 ## Decision
 
+**Amendment (2026-11-21):** [DEC-030](./DEC-030-optional-root-requirement-id-allocation.md) selects at most one operating-root configuration on a folder's ancestry. Multiple root files on that ancestry are to be reported as a conflict instead of silently choosing the nearest. This amendment is not yet implemented; item 2 below describes the existing discovery behavior until that work is completed. The personal configuration remains a separate layer.
+
 1. **A root file.** A folder (an *operating root*, such as `prj` or `ebr_prj`) may hold `.weaver/config.yaml`. It has the keys of the personal file: `project`, `repositories`, `roster`. It is a local file; Weaver never commits it and never writes it without confirmation ([DEC-008](./DEC-008-agent-identity-and-write-confirmation.md)).
 2. **Finding it.** Weaver starts at the folder it runs in (`--root` or the current folder for the tool, the first workspace folder for the editor) and walks up through the parent folders until one holds `.weaver/config.yaml`. The nearest file wins. The walk ends at the top of the file system.
 3. **The personal folder is skipped.** The folder of the personal file (`~/.weaver`, or `WEAVER_HOME`) is not taken as a root file, compared by its resolved path. It is the last layer already; counting it again would name the wrong file as the one that decided and would stack the roster twice. When no root file is found, the personal file applies, as today.

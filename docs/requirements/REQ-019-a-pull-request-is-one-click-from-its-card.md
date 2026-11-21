@@ -32,6 +32,8 @@ A card shows the pull requests that refer to its Issue, each with its state, and
 
 ## Open decisions
 
+[REQ-023](REQ-023-collaboration-evidence.md) extends this entry point with a sourced human review or merge request, changed-file access and review freshness. An open PR by itself does not establish that a person has been asked to act.
+
 Proposed in [DEC-022](../decisions/DEC-022-a-card-carries-its-pull-requests.md): how many pull requests a card shows, and that they are read with the cards. Still open: whether the requirement view loads them by itself or on a press (it has its own read today), and whether `weaver list` gives an agent the same list (a change of the JSON contract).
 
 ## Tasks

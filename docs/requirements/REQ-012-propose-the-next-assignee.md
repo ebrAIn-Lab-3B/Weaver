@@ -34,6 +34,8 @@ Each state has one declared decider. Weaver shows who holds a card and who shoul
 
 Origin: proposal [#162](https://github.com/ebrAIn-Lab-3B/Weaver/issues/162). The shape is decided in the first task of each requirement before any code follows it.
 
+The [collaboration work assessment](../architecture/collaboration-work-alignment.md) identifies an open question about the scope of the per-state decider when a card has several human or agent actions, and separates a proposal from observed execution. It does not amend the criteria above or authorize automatic application.
+
 ## Evidence policy
 
 This requirement is not complete when a task is merely reported as done. Completion requires repository changes, checks, and an explicit review of remaining gaps.

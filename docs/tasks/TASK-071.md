@@ -15,3 +15,7 @@ assignee: claude-code
 Tracked in [Issue #169](https://github.com/ebrAIn-Lab-3B/Weaver/issues/169). Ownership is recorded here; the Kanban column comes from the Issue ([DEC-003](../decisions/DEC-003-board-status-mapping.md), [DEC-005](../decisions/DEC-005-task-files.md)).
 
 Add the per-state decider declaration, show it with the holder and the proposed next assignee, and apply a proposal only after confirmation.
+
+## Collaboration alignment
+
+See the [cross-task assessment](../architecture/collaboration-work-alignment.md). Clarify the scope of a state decider when multiple human or agent actions coexist; keep a proposed assignee separate from observed ownership and execution. The proposed REQ-023 evidence view is read-only, while applying this task's proposal remains a separately confirmed write.

@@ -37,6 +37,8 @@ export interface ProcessConfig {
   };
   /** The task contract of the organization (DEC-016). Absent when the file has no 	ask section, which keeps today's behavior. */
   task?: TaskContract;
+  /** Explicitly selected Project fields to display, without assigning them policy semantics. */
+  collaboration?: { projectFields: string[] };
 }
 
 export const PROCESS_SECTIONS = ['columns', 'evidence', 'stale', 'task'] as const;
@@ -183,12 +185,21 @@ export function parseProcess(path: string, text: string): ProcessParseResult {
     report('error', 'process-unsupported-version', { version: String(data.version) });
     return allDefault();
   }
-  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && field !== 'guideline' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
+  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && field !== 'guideline' && field !== 'collaboration' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
 
   const rosterRef = readRosterEntry(data.roster, (code, args) => report('warning', code, args));
   const guidelineRef = readGuidelineRef(data.guideline, (severity, code, args) => report(severity, code, args), 'guideline');
   const process = defaultProcess();
   const sources = defaultSources();
+  if (data.collaboration !== undefined) {
+    const section = data.collaboration;
+    const fields = isMapping(section) ? section['project-fields'] : undefined;
+    if (!isMapping(section) || Object.keys(section).some((key) => key !== 'project-fields') || !Array.isArray(fields) || fields.length > 20 || fields.some((field) => typeof field !== 'string' || !field.trim()) || new Set(fields.map((field) => typeof field === 'string' ? field.trim().toLowerCase() : '')).size !== fields.length) {
+      report('error', 'process-invalid-collaboration');
+    } else {
+      process.collaboration = { projectFields: fields.map((field) => (field as string).trim()) };
+    }
+  }
   const readers = { columns: readColumns, evidence: readEvidence, stale: readStale, task: readTaskContract } as const;
 
   for (const section of PROCESS_SECTIONS) {

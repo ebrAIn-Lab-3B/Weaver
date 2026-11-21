@@ -19,3 +19,7 @@ Write a decision record: what context a remote agent receives, how it is reached
 ## Deferred
 
 Deferred by the maintainer on 2026-10-30; it is not needed for the current milestone. Recorded direction for when it is picked up again: reach remote agents through webhook-style remote resources. The maintainer has already tried this outside Weaver; the notes from that trial are the starting input for the decision.
+
+## Collaboration alignment
+
+See the [cross-task assessment](../architecture/collaboration-work-alignment.md) for the distinction between handoff, delivery and start, the human handoff question, and the coordination with PALab's producer contract. This assessment does not lift the deferral or decide the protocol.

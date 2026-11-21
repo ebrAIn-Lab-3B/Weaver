@@ -22,7 +22,7 @@ import {
   t,
   RequirementArtifact,
 } from '@ebrain-lab/weaver-markdown';
-import { applyMove, fetchBoardItems, fetchEvidence, fetchIssue, getGitHubToken } from './github';
+import { applyMove, fetchBoardItems, fetchEvidence, fetchIssue, getGitHubSession, getGitHubToken, getStatusToken } from './github';
 import { coverageOf } from './coverage';
 import { currentLocale, message } from './locale';
 import { openPage } from './openPage';
@@ -149,7 +149,7 @@ export class RequirementView {
     this.render(entry);
 
     try {
-      const token = await getGitHubToken(interactive);
+      const token = await getStatusToken(interactive);
       if (!token) {
         entry.status = { byTask: entry.status.byTask, loading: false };
         return;
@@ -379,7 +379,7 @@ export class RequirementView {
     );
     if (choice !== acceptLabel) return;
 
-    const session = await vscode.authentication.getSession('github', ['repo'], { silent: true });
+    const session = await getGitHubSession(false);
     const by = session?.account.label ?? (await vscode.window.showInputBox({ prompt: message('ui.prompt.accepted-by') }));
     if (!by) return;
 

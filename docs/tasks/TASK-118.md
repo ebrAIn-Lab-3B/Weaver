@@ -15,7 +15,7 @@ criteria: [AC-001, AC-002, AC-005, AC-006]
 
 ## Current outcome (2026-11-21)
 
-The maintainer requested Verified within the local-creation scope in DEC-027. Creation, repository-local allocation, collision protection, the path confirmation and the tests and limitations are recorded below. The status in this file is effective with the closing PR's merge; a physically disconnected VS Code host has not been tested. Optional shared-root allocation is separate follow-up work in TASK-128.
+The maintainer requested Verified within the local-creation scope in DEC-027. Creation, repository-local allocation, collision protection, the path confirmation and the tests and limitations are recorded below. [PR #356](https://github.com/ebrAIn-Lab-3B/Weaver/pull/356) merged and closed issue #317, satisfying DEC-006's closing-PR requirement. A physically disconnected VS Code host has not been tested. The proposed shared-root allocation was withdrawn in DEC-030 and TASK-128 was cancelled.
 
 After TASK-115, implement a human-driven creation flow with repository and destination selection, preview before creation, and no silent overwrite. Create an ideation document without a mandatory organization-specific format and a requirement that satisfies the current artifact schema, including a repository-scoped ID. Handle ID and path collisions according to the decision.
 
@@ -135,6 +135,8 @@ The implementation now scans and reserves IDs within the selected checkout, or t
 `npm.cmd run check` and `npm.cmd test` passed (646 Markdown, 122 GitHub, 248 CLI tests); the new tests cover duplicate IDs across repositories, cross-repository references, ambiguous legacy references, and duplicate IDs within a repository. `npm.cmd run test:author-document` passed with simulated VS Code dialogs, and `node scripts/test-author-process.cjs` passed with independent Node processes. Isolated VS Code 1.147.0 extension hosts passed `nested-repository`, `multi-repository`, `multi-repository-root`, and `repository-identity`; the latter loaded two local checkouts with identical requirement IDs and relative file paths. These are automated host checks, not Computer Use. A genuinely network-disconnected VS Code host, the long-path confirmation usability issue, and DEC-006 closing evidence remain open. Preserve allocation histories and reconcile independently allocated IDs; no global or unconditional historical uniqueness is claimed.
 
 ## Optional shared root follow-up (2026-11-21)
+
+**Historical note:** This follow-up was subsequently withdrawn; see DEC-030 and TASK-128. It is not remaining implementation work.
 
 [DEC-030](../decisions/DEC-030-optional-root-requirement-id-allocation.md) records the maintainer's choice of an optional shared root allocation domain, automatic participation, reviewed initialization, root-first reservation and recoverable staged writes. It also amends DEC-018 to disallow multiple root configuration files on one ancestry. This is a decision, not an implemented or verified feature. Define acceptance criteria and small implementation tasks for configuration discovery, initialization, locking and recovery before implementation; preserve the current uncommitted work and both levels of history. Offline host and Computer Use checks remain deferred.
 

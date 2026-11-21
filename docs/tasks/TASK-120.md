@@ -4,6 +4,7 @@ type: task
 title: Link a requirement to its originating ideation document
 requirement: REQ-022
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/319
+status: verified
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 criteria: [AC-003, AC-006]
@@ -22,3 +23,5 @@ Manual feedback on 2026-11-18 confirmed link insertion but found the link invisi
 Manual verification on 2026-11-18: the maintainer confirmed that opening the ideation document link from the requirement view works.
 
 Verification: the maintainer confirmed link insertion, navigation, and content retention after editing, saving, and reopening. PR #321 delivered the implementation and passed CI. The document-links tests pass and cover extraction and rendering of relative links. Code review confirms the link command edits only the requirement and does not call GitHub or an agent.
+
+[PR #322](https://github.com/ebrAIn-Lab-3B/Weaver/pull/322) recorded this evidence and closed issue #319. It reports two passing document-links tests and `git diff --check`. This records the existing verification, not a new disconnected-host test.

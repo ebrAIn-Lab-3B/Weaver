@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMismatches, loadWorkspace, placeIssue, taskIdsOfPull, type MergedPull, type MismatchCard } from '../src';
+import { findMismatches, loadWorkspace, placeIssue, taskIdsOfPull, partialIssuesOfPull, type MergedPull, type MismatchCard } from '../src';
 
 const REPO = 'o/a';
 const url = (n: number) => `https://github.com/o/a/issues/${n}`;
@@ -101,6 +101,11 @@ describe('findMismatches', () => {
       expect(run([pull({})])).toMatchObject([{ kind: 'merged-pr-not-linked', args: { pull: 80, task: 'TASK-033', number: 65 }, url: 'https://github.com/o/a/pull/80' }]);
     });
 
+    it('is quiet for an explicit partial marker for this issue only', () => {
+      expect(run([pull({ partial: [65] })])).toEqual([]);
+      expect(run([pull({ partial: [66] })])).toHaveLength(1);
+    });
+
     it('is quiet when the pull request closes the Issue', () => {
       expect(run([pull({ closes: [65] })])).toEqual([]);
     });
@@ -137,5 +142,13 @@ describe('taskIdsOfPull', () => {
 
   it('does not take a task ID that is only mentioned in the title', () => {
     expect(taskIdsOfPull({ title: 'docs: add TASK-040 and TASK-041 to REQ-006', branch: 'docs/req-006-board-summary' })).toEqual([]);
+  });
+});
+
+
+describe('partialIssuesOfPull', () => {
+  it('recognizes standalone partial markers and excludes quoted and fenced examples', () => {
+    expect(partialIssuesOfPull('Refs #65\nPartial: #65\npartial: #66\n> Partial: #67\n```md\nPartial: #68\n```\nPartial: other/repo#69')).toEqual([65, 66]);
+    expect(partialIssuesOfPull('Refs #65\nFixes #65')).toEqual([]);
   });
 });

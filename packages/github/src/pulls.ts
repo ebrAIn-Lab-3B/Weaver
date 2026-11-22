@@ -1,11 +1,11 @@
-import type { MergedPull, Notice } from '@ebrain-lab/weaver-markdown';
+import { partialIssuesOfPull, type MergedPull, type Notice } from '@ebrain-lab/weaver-markdown';
 import type { Fetch } from './project';
 
 export type PullsResult = { ok: true; pulls: MergedPull[] } | { ok: false; error: Notice };
 
 const API = 'https://api.github.com/graphql';
 
-const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title url headRefName closingIssuesReferences(first:5){nodes{number}}}}}}`;
+const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title url body headRefName closingIssuesReferences(first:5){nodes{number}}}}}}`;
 
 interface Reply {
   data?: {
@@ -16,6 +16,7 @@ interface Reply {
           title: string;
           url: string;
           headRefName: string;
+          body?: string | null;
           closingIssuesReferences: { nodes: { number: number }[] };
         }[];
       };
@@ -56,6 +57,7 @@ export async function readMergedPulls(
         url: pull.url,
         branch: pull.headRefName,
         closes: pull.closingIssuesReferences.nodes.map((issue) => issue.number),
+        ...(partialIssuesOfPull(pull.body).length ? { partial: partialIssuesOfPull(pull.body) } : {}),
       })),
     };
   } catch {

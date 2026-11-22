@@ -231,3 +231,8 @@ task:
 Weaver reads the file through GitHub with the person's token, keeps the last text on the person's computer with its `ETag`, shows its age, and works from it when offline. It never writes to the referenced repository. A missing, unreadable, or partly invalid file gives gaps and warnings, not errors. A personal `roster.contributors` is an overlay: the same id (without regard to case) overrides the fields it sets, an id only in it is added, and it never removes a referenced contributor.
 
 A task file may also name `reviewer`, `approved_by`, and `approved_on`. With a roster, an owner, reviewer, or approver that is not in it, an approver that is an agent, and Verified agent work without a human approval are shown as gaps.
+
+
+### Partial implementation pull requests
+
+A merged pull request that implements only part of an open task can declare the task Issue on its own line in the PR body, for example `Partial: #169`. This marker applies to that Issue in the same repository only. Weaver uses it to distinguish deliberately partial work from a missing closing link in the mismatch report. Ordinary `Refs #169`, quoted text and fenced examples are not this declaration. The marker does not close an Issue, assert verification, or satisfy the configured closing-PR evidence rule; the final PR and any remaining acceptance criteria are still required.

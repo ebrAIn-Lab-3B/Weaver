@@ -5,12 +5,15 @@ import { reachEntries, type Contributor } from './roster';
 export interface NextAssigneeRule {
   decider: string;
   nextRole: string;
+  when?: { projectField: string; values: string[] };
 }
 
 export interface NextAssigneeInput {
   column: KanbanColumn;
   rules: Partial<Record<KanbanColumn, NextAssigneeRule>>;
   contributors: readonly Contributor[];
+  /** Values from a successful, current Project field read. Missing means unknown. */
+  projectFields?: Readonly<Record<string, string>>;
   /** Observed holder, when known. Never treated as a delivery or start. */
   holder?: string;
 }
@@ -22,6 +25,8 @@ export type NextAssigneePlan = {
 } & (
   | { status: 'unconfigured' }
   | { status: 'invalid-rule' }
+  | { status: 'condition-unknown'; field: string }
+  | { status: 'condition-not-met'; field: string }
   | { status: 'no-candidate'; role: string }
   | { status: 'ambiguous-candidate'; role: string; candidates: string[] }
   | { status: 'ambiguous-reach'; role: string; candidate: string }
@@ -37,6 +42,13 @@ export function planNextAssignee(input: NextAssigneeInput): NextAssigneePlan {
   const role = rule.nextRole.trim();
   if (!decider || !role) return { ...base, status: 'invalid-rule' };
   const withDecider = { ...base, decider };
+  if (rule.when) {
+    const { projectField, values } = rule.when;
+    if (!projectField.trim() || !values.length || values.some((value) => !value.trim())) return { ...base, status: 'invalid-rule' };
+    const value = input.projectFields?.[projectField];
+    if (value === undefined || !value.trim()) return { ...withDecider, status: 'condition-unknown', field: projectField };
+    if (!values.includes(value)) return { ...withDecider, status: 'condition-not-met', field: projectField };
+  }
   const matches = input.contributors.filter((c) => c.roles?.includes(role));
   if (matches.length === 0) return { ...withDecider, status: 'no-candidate', role };
   if (matches.length > 1) return { ...withDecider, status: 'ambiguous-candidate', role, candidates: matches.map((c) => c.id) };

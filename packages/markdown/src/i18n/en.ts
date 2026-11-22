@@ -193,6 +193,8 @@ export const en = {
   'ui.overview.assignment-roster-unavailable': 'Next assignee: roster unavailable',
   'ui.overview.assignment-decider': 'Decider: {name}',
   'ui.overview.assignment-proposal': 'Suggested next: {name} ({role})',
+  'ui.overview.assignment-condition-unknown': 'Next assignee: required Project field is unavailable',
+  'ui.overview.assignment-condition-not-met': 'Next assignee: configured condition does not match',
   'ui.overview.assignment-unconfigured': 'Next assignee: not configured for this state',
   'ui.overview.assignment-invalid-rule': 'Next assignee: invalid rule',
   'ui.overview.assignment-no-candidate': 'Next assignee: no matching contributor',

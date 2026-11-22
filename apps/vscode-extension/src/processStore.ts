@@ -89,6 +89,7 @@ export class ProcessStore {
   /** The task contract the repository declares (DEC-016), or undefined when it declares none. */
   taskFor = (repository: string): TaskContract | undefined => this.config(repository)?.task;
   assignmentInvalidFor = (repository: string): boolean => this.config(repository)?.assignmentInvalid === true;
+  assignmentFieldsFor = (repository: string): string[] => [...new Set(Object.values(this.config(repository)?.assignment ?? {}).flatMap((rule) => rule.when ? [rule.when.projectField] : []))];
   assignmentFor = (repository: string): ProcessConfig['assignment'] | undefined => this.config(repository)?.assignment;
   collaborationFieldsFor = (repository: string): readonly string[] => this.config(repository)?.collaboration?.projectFields ?? [];
   collaborationInvalidFor = (repository: string): boolean => this.config(repository)?.collaborationInvalid === true;

@@ -651,7 +651,7 @@ export class OverviewView {
     const sequence = ++this.fieldRequest;
     const registry = this.registry.registry;
     const repositories = registry.repositories.map((r) => r.repository);
-    const names = [...new Set(repositories.flatMap((repository) => [...processStore.collaborationFieldsFor(repository)]))];
+    const names = [...new Set(repositories.flatMap((repository) => [...processStore.collaborationFieldsFor(repository), ...processStore.assignmentFieldsFor(repository)]))];
     if (names.length === 0) { this.fieldRead = undefined; this.render(); return; }
     this.fieldRead = undefined;
     this.fieldFailed = false;
@@ -733,11 +733,11 @@ export class OverviewView {
       const task = requirement?.taskPath ? tasks.get(requirement.taskPath) : undefined;
       const assignmentRules = processStore.assignmentFor(card.repository);
       const roster = rosterOf(this.configuredRoster);
+      const values = this.fieldRead?.cards.get(normalizeIssueUrl(card.url));
       const nextAssignment = assignmentRules && (roster || !assignmentRules[card.placement.column])
-        ? planNextAssignee({ column: card.placement.column, rules: assignmentRules, contributors: roster?.contributors ?? [], holder: task?.assignee })
+        ? planNextAssignee({ column: card.placement.column, rules: assignmentRules, contributors: roster?.contributors ?? [], holder: task?.assignee, projectFields: values })
         : undefined;
       const selectedFields = processStore.collaborationFieldsFor(card.repository);
-      const values = this.fieldRead?.cards.get(normalizeIssueUrl(card.url));
       const fieldsRead = this.fieldRead && values && selectedFields.every((name) => this.fieldRead?.names.has(name));
       const taskFile = requirement ? undefined : this.taskFiles.get(normalizeIssueUrl(card.url));
       return {

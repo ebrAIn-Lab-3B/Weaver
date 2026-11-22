@@ -36,4 +36,6 @@ assert.match(render(undefined, 'ko', null, undefined, proposal), /다음 담당�
 assert.match(render(undefined, 'en', null, undefined, { column: 'Backlog', status: 'unconfigured' }), /not configured for this state/);
 assert.match(render(undefined, 'ko', null, undefined, undefined, 'roster'), /참여자 목록을 읽을 수 없음/);
 assert.match(render(undefined, 'en', null, undefined, undefined, 'invalid'), /invalid rule/);
+assert.match(render(undefined, 'en', null, undefined, { column: 'Ready', status: 'condition-unknown', field: 'Type' }), /required Project field is unavailable/);
+assert.match(render(undefined, 'ko', null, undefined, { column: 'Ready', status: 'condition-not-met', field: 'Type' }), /설정된 조건에 해당하지 않음/);
 console.log('Overview participant rendering passed');

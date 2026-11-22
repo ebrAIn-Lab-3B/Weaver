@@ -23,3 +23,7 @@ See the [cross-task assessment](../architecture/collaboration-work-alignment.md)
 ## Closure work
 
 See the [evidence and remaining work](../architecture/collaboration-work-alignment.md#evidence-and-remaining-work-for-task-016-task-071-and-task-072) for the concrete steps and outstanding decisions. Existing acceptance criteria and ownership remain unchanged.
+
+## Planning slice
+
+The first implementation provides a read-only planner that receives an organization-supplied state rule and roster. It keeps the observed holder separate, reports missing and ambiguous candidates or multiple label reaches, and does not perform writes. It does not yet read process configuration, show a card, surface human actions or apply a proposal after confirmation. The task and REQ-012 criteria remain open until those paths and their verification are complete.

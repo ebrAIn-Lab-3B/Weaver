@@ -30,6 +30,44 @@ describe('confirmed proposal workflow', () => {
       expect(confirm).not.toHaveBeenCalled(); expect(write).not.toHaveBeenCalled();
     }
   });
+  it('requires a new, issue-specific human execution check when the source is unknown', async () => {
+    const unknown: ProposalSnapshot = { ...base, activeExecution: 'unknown' };
+    const write = vi.fn(), confirm = vi.fn().mockResolvedValue(true);
+    const confirmExecution = vi.fn(async () => ({ issueUrl: base.issueUrl, actor: 'person', source: 'agent session', checkedAt: new Date().toISOString() }));
+    const result = await applyConfirmedProposal(unknown, { readFresh: async () => unknown, confirmExecution, confirm, write });
+    expect(result).toMatchObject({ status: 'applied', executionAttestation: { actor: 'person', source: 'agent session' } });
+    expect(confirmExecution).toHaveBeenCalledOnce(); expect(write).toHaveBeenCalledOnce();
+    const stale = await applyConfirmedProposal(unknown, { readFresh: async () => unknown, confirmExecution: async () => ({ issueUrl: base.issueUrl, actor: 'person', source: 'old', checkedAt: '2020-01-01T00:00:00Z' }), confirm, write: vi.fn() });
+    expect(stale).toEqual({ status: 'rejected', reason: 'unavailable' });
+  });
+  it('never accepts a manual check for a different Issue, an empty source, or known active work', async () => {
+    const unknown: ProposalSnapshot = { ...base, activeExecution: 'unknown' };
+    for (const details of [{ issueUrl: 'https://github.com/a/b/issues/2', source: 'session' }, { issueUrl: base.issueUrl, source: ' ' }]) {
+      const write = vi.fn();
+      const result = await applyConfirmedProposal(unknown, { readFresh: async () => unknown, confirmExecution: async () => ({ ...details, actor: 'person', checkedAt: new Date().toISOString() }), confirm: async () => true, write });
+      expect(result).toEqual({ status: 'rejected', reason: 'unavailable' }); expect(write).not.toHaveBeenCalled();
+    }
+    const active: ProposalSnapshot = { ...base, activeExecution: 'yes' };
+    const confirmExecution = vi.fn(), write = vi.fn();
+    const result = await applyConfirmedProposal(active, { readFresh: async () => active, confirmExecution, confirm: async () => true, write });
+    expect(result).toEqual({ status: 'rejected', reason: 'execution-active' }); expect(confirmExecution).not.toHaveBeenCalled(); expect(write).not.toHaveBeenCalled();
+  });
+  it('does not reuse a manual check after the execution observation changes', async () => {
+    const unknown: ProposalSnapshot = { ...base, activeExecution: 'unknown' };
+    const readFresh = vi.fn().mockResolvedValueOnce(unknown).mockResolvedValueOnce({ ...unknown, activeExecution: 'no' });
+    const write = vi.fn();
+    const result = await applyConfirmedProposal(unknown, { readFresh, confirmExecution: async () => ({ issueUrl: base.issueUrl, actor: 'person', source: 'agent session', checkedAt: new Date().toISOString() }), confirm: async () => true, write });
+    expect(result).toEqual({ status: 'rejected', reason: 'changed' }); expect(write).not.toHaveBeenCalled();
+  });
+  it('does not reuse a human execution check after a long confirmation delay', async () => {
+    vi.useFakeTimers();
+    try {
+      const unknown: ProposalSnapshot = { ...base, activeExecution: 'unknown' };
+      const write = vi.fn();
+      const result = await applyConfirmedProposal(unknown, { readFresh: async () => unknown, confirmExecution: async () => ({ issueUrl: base.issueUrl, actor: 'person', source: 'agent session', checkedAt: new Date().toISOString() }), confirm: async () => { vi.advanceTimersByTime(120_001); return true; }, write });
+      expect(result).toEqual({ status: 'rejected', reason: 'unavailable' }); expect(write).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
   it('shows the existing and proposed human assignees, and rejects an agent without a label', async () => {
     const human: ProposalSnapshot = { ...base, plan: { column: 'Ready', status: 'proposal', decider: 'owner', role: 'build', candidate: 'person', kind: 'human', issueAssignee: 'new' } };
     const confirm = vi.fn().mockResolvedValue(true), write = vi.fn();

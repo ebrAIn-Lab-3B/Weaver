@@ -46,7 +46,7 @@ if (multiRepository) {
   fs.writeFileSync(workspaceArg, JSON.stringify({ folders: [{ path: firstFolder }, { path: second }] }));
 }
 const result = path.join(temp, 'result.json');
-const testFile = process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
+const testFile = process.argv[2] === 'assignment-proposal' ? 'assignmentProposalHost.cjs' : process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
 const output = fs.openSync(path.join(temp, 'stdout.log'), 'w');
 const errors = fs.openSync(path.join(temp, 'stderr.log'), 'w');
 const executable = process.env.WEAVER_VSCODE_EXECUTABLE || path.join(process.env.LOCALAPPDATA, 'Programs', 'Microsoft VS Code', 'Code.exe');

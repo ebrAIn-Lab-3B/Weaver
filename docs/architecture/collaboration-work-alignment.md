@@ -1,6 +1,6 @@
 # Collaboration work alignment
 
-This is a working assessment, not a decision to change any task's owner, status, policy, or approval boundary. It compares [PALab REQ-011](https://github.com/blcktgr73/palab-platform/blob/main/docs/requirements/REQ-011-collaboration-evidence.md), [Weaver REQ-023](../requirements/REQ-023-collaboration-evidence.md), [REQ-002](../requirements/REQ-002-contributors-and-agents.md), and [REQ-012](../requirements/REQ-012-propose-the-next-assignee.md). PALab REQ-011 and Weaver REQ-023 are on main and remain draft requirements. Review the current versions again before settling a contract.
+Earlier sections are historical snapshots; the current reconciliation below supersedes their task-status and remaining-work statements. This is a working assessment, not a decision to change any task's owner, status, policy, or approval boundary. It compares [PALab REQ-011](https://github.com/blcktgr73/palab-platform/blob/main/docs/requirements/REQ-011-collaboration-evidence.md), [Weaver REQ-023](../requirements/REQ-023-collaboration-evidence.md), [REQ-002](../requirements/REQ-002-contributors-and-agents.md), and [REQ-012](../requirements/REQ-012-propose-the-next-assignee.md). PALab REQ-011 and Weaver REQ-023 are on main and remain draft requirements. Review the current versions again before settling a contract.
 
 | Work | Existing responsibility | Relationship to collaboration | Boundary and status |
 | --- | --- | --- | --- |
@@ -107,3 +107,29 @@ The user requested progress toward closing these tasks. Keep the existing Issues
 For the next decision, a per-transition decider is a candidate for TASK-071: it can decide a state change without making that actor the performer of every concurrent request. It is not an accepted change to REQ-012, whose present criterion says one decider per state. Multiple explicit actions still need independent owners and source links. Compare this candidate with PALab's action-specific human decisions before revising the requirement. Do not use TASK-072 as a reason to postpone TASK-071's separately confirmed write.
 
 HealthBridge's `approved` label remains the common resume signal, not evidence of the separate risk approval itself. Agent-base adoption remains subsequent to the Weaver/PALab work.
+
+
+## Current reconciliation (2026-11-23 KST)
+
+| Record | Current evidence and boundary |
+|---|---|
+| TASK-016 / [#39](https://github.com/ebrAIn-Lab-3B/Weaver/issues/39) | Open, Project Todo, human-owned and deferred. The HealthBridge example does not decide a portable handoff or satisfy REQ-002 AC-005/006. |
+| TASK-071 / [#169](https://github.com/ebrAIn-Lab-3B/Weaver/issues/169) | Closed, Project Done. Its task file records the confirmed human assignment and Morpheus delivery and acknowledgement in sandbox #79 and #82. These do not establish atomic exclusion or finish REQ-012. |
+| TASK-072 / [#170](https://github.com/ebrAIn-Lab-3B/Weaver/issues/170) | Open, Project Todo. Automatic assignment remains blocked; the existing manual confirmation and execution check remain mandatory. |
+| TASK-130 / [#388](https://github.com/ebrAIn-Lab-3B/Weaver/issues/388) | Closed, Project Done; [PR #389](https://github.com/ebrAIn-Lab-3B/Weaver/pull/389) implements a narrow task-status link. Its host click evidence is in the task file. REQ-023 remains draft. |
+
+REQ-012 still has unconfigured states, the unresolved per-state versus per-action decider scope, broader human-action discovery, and the automatic-assignment guard. REQ-023 still needs a configured producer contract for explicit actions, review and merge requests, source freshness and conflicts, and verification of those paths. Neither closed Issue proves either requirement complete.
+
+### Finding human work in existing records
+
+The card links to its Issue, task participants and known PRs, and displays configured Project fields. An explicit task-file decision status links to that task; Project fields are projections and a PR or participant alone is not a request. The [HealthBridge #13 review request](https://github.com/blcktgr73/HealthBridge/issues/13#issuecomment-7078698875) identifies a PR, tests, review and merge decisions in the Issue; its subsequent independent test is distinct from human review. The Issue is now closed, so this historical request must not be treated as current without a fresh check. PALab's [REQ-011](https://github.com/blcktgr73/palab-platform/blob/main/docs/requirements/REQ-011-collaboration-evidence.md) describes the existing Issue brief, linked decision, Project fields and PR evidence. Free-form comments do not yet provide a policy-neutral machine-readable current-action contract; agree that producer contract before adding a parser or duplicate record.
+
+### Participant update choice
+
+Today a person edits and saves the configured task participant before a separately confirmed Issue action. This keeps the repository record authoritative and makes the diff reviewable, but takes an extra step. A possible later improvement is a previewed, separately confirmed edit of only the configured participant field, with dirty-file and stale-source checks; then reread the saved file and retain the existing separate Issue-action confirmation. A file write and GitHub write cannot be treated as one atomic transaction: a failure must leave the partial result visible and require inspection before retry. Decide whether this convenience is wanted, who may authorize the repository edit, and how unsaved changes and partial failures are handled before implementation. It must not dispatch by itself.
+
+### Router prerequisites
+
+The [router source at c1882eb](https://github.com/blcktgr73/palab-event-router/blob/c1882ebb8e0bbe0b1677927cc48e7e960aed801f/webhook_router.py), PALab [REQ-011](https://github.com/blcktgr73/palab-platform/blob/main/docs/requirements/REQ-011-collaboration-evidence.md) and [PR #147](https://github.com/blcktgr73/palab-platform/pull/147) document existing claim, retry, gated hold and per-bot Ready scan limits, and the operational check of separate risk approval. Manual dispatch does not inherit the scan limit; delivery before claim admits duplicates; a shared `approved` signal is not automatic scope or revision validation. Sandbox #82 demonstrates one confirmed delivery and acknowledgement, not exclusive execution. No repeat dispatch was performed here.
+
+Before proposing unattended assignment, the responsible owners must decide identity and attribution with shared accounts, allowed unattended scope and hop limit, guarantees across Weaver and the actual router path including duplicate delivery, claim, recovery and simultaneous runs, and how approval freshness is established. Verify only the gaps against those chosen guarantees and operational path. Existing evidence does not authorize unattended execution, and agent-base remains a later goal.

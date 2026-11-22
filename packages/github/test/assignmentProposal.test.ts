@@ -18,10 +18,10 @@ const context: FreshAssignmentContext = {
   readExecution: async () => 'no',
 };
 
-function mockedFetch(options: { projectType?: string; projectLabels?: string[]; processStatus?: number } = {}): typeof fetch {
+function mockedFetch(options: { projectType?: string; projectLabels?: string[]; processStatus?: number; processBody?: string } = {}): typeof fetch {
   return vi.fn(async (input, init) => {
     const target = String(input);
-    if (target.includes('/contents/')) return new Response(processText, { status: options.processStatus ?? 200 });
+    if (target.includes('/contents/')) return new Response(options.processBody ?? processText, { status: options.processStatus ?? 200 });
     if (target.endsWith('/issues/7')) return Response.json({ number: 7, title: 'Work', html_url: url, state: 'open', labels: [{ name: 'status:ready' }], assignees: [] });
     if (target.endsWith('/graphql')) {
       const query = JSON.parse(String(init?.body)).query as string;
@@ -36,6 +36,23 @@ describe('fresh assignment snapshot', () => {
   it('reads issue, process and condition field, preserving the context versions', async () => {
     const result = await readAssignmentSnapshot('token', { owner: 'example', number: 1 }, url, context, mockedFetch({ projectType: 'feature' }));
     expect(result).toMatchObject({ issueState: 'open', activeExecution: 'no', conditionFields: { Type: 'feature' }, rosterVersion: '["roster-1","task-1"]', plan: { status: 'proposal', candidate: 'worker', label: 'work:agent', holder: 'current' } });
+  });
+  it('passes the roster reference from the freshly read process to the host', async () => {
+    const readRoster = vi.fn(context.readRoster);
+    const fetcher = mockedFetch({ projectType: 'feature' });
+    await readAssignmentSnapshot('t', { owner: 'example', number: 1 }, url, { ...context, readRoster }, fetcher);
+    expect(readRoster).toHaveBeenCalledWith(undefined);
+  });
+  it('uses the actual roster reference in the fresh process and rejects an invalid reference', async () => {
+    const readRoster = vi.fn(context.readRoster);
+    const ref = { repository: 'example/people', path: 'roster.yaml', ref: 'main' };
+    const processBody = processText + '\nroster:\n  from: {repository: example/people, path: roster.yaml, ref: main}\n';
+    await readAssignmentSnapshot('t', { owner: 'example', number: 1 }, url, { ...context, readRoster }, mockedFetch({ projectType: 'feature', processBody }));
+    expect(readRoster).toHaveBeenCalledWith(ref);
+    const invalid = processText + '\nroster:\n  from: {repository: bad, path: roster.yaml}\n';
+    readRoster.mockClear();
+    expect(await readAssignmentSnapshot('t', { owner: 'example', number: 1 }, url, { ...context, readRoster }, mockedFetch({ projectType: 'feature', processBody: invalid }))).toBeUndefined();
+    expect(readRoster).not.toHaveBeenCalled();
   });
   it('does not infer a proposal for missing or nonmatching Project fields', async () => {
     expect((await readAssignmentSnapshot('t', { owner: 'example', number: 1 }, url, context, mockedFetch()))?.plan.status).toBe('condition-unknown');

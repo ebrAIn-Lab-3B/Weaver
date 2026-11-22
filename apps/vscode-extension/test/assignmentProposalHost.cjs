@@ -31,7 +31,7 @@ async function run() {
       return { ...snapshot, rosterVersion: holder.version };
     };
     github.writeProposalAction = async (_token, action) => { writes.push(action); };
-    const input = { issueUrl, taskId: 'TASK-001', taskUri: doc.uri, project: { owner: 'example', number: 1 }, displayed: plan, auditFolder: path.join(root, 'audit') };
+    const input = { issueUrl, taskId: 'TASK-001', taskUri: doc.uri, project: { owner: 'example', number: 1 }, displayed: plan, auditUri: vscode.Uri.file(path.join(root, 'audit')) };
     const inputs = () => ['Human tester', 'test execution source'];
     let answers = inputs(), warnings = [], infos = [];
     let onWarning = async (_message, _options, choice) => choice;
@@ -43,10 +43,23 @@ async function run() {
     await applyCardProposal(input, ui);
     assert.equal(writes.length, 1); assert.equal(writes[0].label, 'work:reviewer'); assert.equal(reads, 3);
     assert.equal(warnings.length, 2); assert.equal(infos.length, 1);
-    const logs = (await fs.readFile(path.join(root, 'audit', 'assignment-actions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
-    assert.deepEqual(logs.map(item => item.event), ['attempt', 'completed']);
-    assert.equal(logs[0].executionAttestation.actor, 'Human tester');
+    const logDir = path.join(root, 'audit', 'assignment-actions');
+    const files = await fs.readdir(logDir);
+    const logs = await Promise.all(files.map(async file => JSON.parse(await fs.readFile(path.join(logDir, file), 'utf8'))));
+    assert.deepEqual(logs.map(item => item.event).sort(), ['attempt', 'completed']);
+    assert.equal(logs.find(item => item.event === 'attempt').executionAttestation.actor, 'Human tester');
     assert.equal(doc.isDirty, false); assert.equal(doc.getText(), source);
+
+    writes = []; reads = 0; answers = inputs(); warnings = []; onWarning = async (_message, _options, choice) => choice;
+    const userDataInput = { ...input, auditUri: vscode.Uri.file(path.join(root, 'user-data-audit')).with({ scheme: 'vscode-userdata' }) };
+    await applyCardProposal(userDataInput, ui);
+    assert.equal(writes.length, 1);
+    const userDataRecords = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(userDataInput.auditUri, 'assignment-actions'));
+    assert.equal(userDataRecords.length, 2);
+
+    writes = []; reads = 0; answers = inputs(); warnings = []; onWarning = async (_message, _options, choice) => choice;
+    await applyCardProposal({ ...input, auditUri: vscode.Uri.parse('missing-provider:/audit') }, ui);
+    assert.equal(writes.length, 0); assert.equal(warnings.length, 3);
 
     writes = []; reads = 0; answers = inputs(); warnings = []; onWarning = async () => undefined;
     await applyCardProposal(input, ui); assert.equal(writes.length, 0); assert.equal(warnings.length, 1);
@@ -103,7 +116,7 @@ async function run() {
       return choice;
     };
     await applyCardProposal(linkedInput, ui); assert.equal(writes.length, 0); assert.equal(reqDoc.isDirty, false);
-    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, cases: ['confirmed-mock-write', 'cancel', 'dirty-before', 'dirty-during-confirmation', 'requirement-link', 'requirement-dirty-during-confirmation', 'requirement-saved-during-confirmation'], realGitHubWrites: 0 }));
+    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, cases: ['confirmed-mock-write', 'user-data-audit', 'audit-unavailable', 'cancel', 'dirty-before', 'dirty-during-confirmation', 'requirement-link', 'requirement-dirty-during-confirmation', 'requirement-saved-during-confirmation'], realGitHubWrites: 0 }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));
     throw error;

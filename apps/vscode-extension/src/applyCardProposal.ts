@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
-import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { applyConfirmedProposal, rootConfigCandidates, type ExecutionAttestation, type NextAssigneePlan, type ProposalAction } from '@ebrain-lab/weaver-markdown';
 import { readAssignmentSnapshot, readFreshEffectiveRoster, readFreshLocalRoster, readFreshTaskHolder, writeProposalAction } from '@ebrain-lab/weaver-github';
@@ -12,7 +11,7 @@ import { message } from './locale';
 /** Apply only when the existing task owner already matches; do not silently modify the file. */
 export async function applyCardProposal(input: {
   issueUrl: string; taskId: string; taskUri: vscode.Uri; requirement?: { id: string; uri: vscode.Uri }; project: { owner: string; number: number };
-  displayed: NextAssigneePlan; auditFolder: string;
+  displayed: NextAssigneePlan; auditUri: vscode.Uri;
 }, ui: Pick<typeof vscode.window, 'showInputBox' | 'showWarningMessage' | 'showInformationMessage'> = vscode.window): Promise<void> {
   const start = workspaceStartFolder();
   if (!start || input.taskUri.scheme !== 'file' || input.displayed.status !== 'proposal') {
@@ -53,11 +52,13 @@ export async function applyCardProposal(input: {
     void ui.showWarningMessage(message('ui.assignment-apply-owner-first')); return;
   }
   let check: ExecutionAttestation | undefined;
-  const logPath = path.join(input.auditFolder, 'assignment-actions.jsonl');
+  const logDir = vscode.Uri.joinPath(input.auditUri, 'assignment-actions');
+  const logPath = logDir.scheme === 'file' || logDir.scheme === 'vscode-userdata' ? logDir.fsPath : logDir.toString();
   const id = randomUUID();
-  const log = async (event: unknown) => {
-    await fs.mkdir(input.auditFolder, { recursive: true });
-    await fs.appendFile(logPath, `${JSON.stringify(event)}\n`, 'utf8');
+  const log = async (event: { event: string; [key: string]: unknown }) => {
+    await vscode.workspace.fs.createDirectory(logDir);
+    const file = vscode.Uri.joinPath(logDir, `${id}-${event.event}.json`);
+    await vscode.workspace.fs.writeFile(file, Buffer.from(`${JSON.stringify(event)}\n`, 'utf8'));
   };
   const result = await applyConfirmedProposal(shown, {
     readFresh,

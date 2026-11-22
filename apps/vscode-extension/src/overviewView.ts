@@ -231,7 +231,7 @@ export class OverviewView {
     private readonly requirements: RequirementView,
     /** Reads the workspace files again (TASK-073). Refreshing must not rely on a document having been saved. */
     private readonly rereadFiles: () => Promise<unknown> = async () => undefined,
-    private readonly auditFolder?: string,
+    private readonly auditFolder?: vscode.Uri,
   ) {
     this.hidden = new Set(store.get<string[]>(HIDDEN_KEY, []));
     this.collapsed = new Set(store.get<string[]>(COLLAPSED_KEY, []));
@@ -378,6 +378,7 @@ export class OverviewView {
   private async applyProposal(url: string): Promise<void> {
     if (this.applyingProposal) return;
     if (!this.auditFolder || this.registry.kind !== 'ok' || !this.loaded) {
+      log(`assignment unavailable: audit=${Boolean(this.auditFolder)} registry=${this.registry.kind} loaded=${Boolean(this.loaded)}`);
       void vscode.window.showWarningMessage(text('ui.assignment-apply-unavailable')); return;
     }
     const state = this.state();
@@ -386,12 +387,13 @@ export class OverviewView {
     const link = card?.requirement;
     const uri = link?.taskPath ? this.loaded.uris.get(link.taskPath) : undefined;
     if (!card || card.state !== 'open' || !card.nextAssignment || card.nextAssignment.status !== 'proposal' || !link || !uri) {
+      log(`assignment unavailable: card=${Boolean(card)} state=${card?.state ?? 'missing'} proposal=${card?.nextAssignment?.status ?? 'missing'} link=${Boolean(link)} taskUri=${Boolean(uri)}`);
       void vscode.window.showWarningMessage(text('ui.assignment-apply-unavailable')); return;
     }
     this.applyingProposal = true;
     try {
       const requirementUri = this.loaded.uris.get(link.path);
-      await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, ...(requirementUri ? { requirement: { id: link.id, uri: requirementUri } } : {}), project: this.registry.registry.project, displayed: card.nextAssignment, auditFolder: this.auditFolder });
+      await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, ...(requirementUri ? { requirement: { id: link.id, uri: requirementUri } } : {}), project: this.registry.registry.project, displayed: card.nextAssignment, auditUri: this.auditFolder });
       await this.refreshAll();
     } finally { this.applyingProposal = false; }
   }

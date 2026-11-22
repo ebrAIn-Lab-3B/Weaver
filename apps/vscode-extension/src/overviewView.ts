@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import {
+  KANBAN_COLUMNS,
   clonesWithoutCards,
   effectiveRepositories,
   applyLaneOrder,
@@ -41,6 +42,7 @@ import { fetchEvidence, getGitHubToken } from './github';
 import { openInSystemBrowser, openPage } from './openPage';
 import { makeTaskFile } from './makeTaskFile';
 import { markVerified } from './markVerified';
+import { applyCardProposal } from './applyCardProposal';
 import { updateFolder } from './updateFolder';
 import { startProcessFile } from './startProcessFile';
 import { log } from './log';
@@ -127,6 +129,7 @@ async function personalGuideline(): Promise<DeclaredGuideline | undefined> {
 /** The Overview Kanban: one lane per registered repository, columns by stage, cards linked to requirements (REQ-006). */
 export class OverviewView {
   private panel: vscode.WebviewPanel | undefined;
+  private applyingProposal = false;
   private loaded: Loaded | undefined;
   private configuredRoster: Roster | undefined;
   private registry: Registry = { kind: 'none' };
@@ -228,6 +231,7 @@ export class OverviewView {
     private readonly requirements: RequirementView,
     /** Reads the workspace files again (TASK-073). Refreshing must not rely on a document having been saved. */
     private readonly rereadFiles: () => Promise<unknown> = async () => undefined,
+    private readonly auditFolder?: string,
   ) {
     this.hidden = new Set(store.get<string[]>(HIDDEN_KEY, []));
     this.collapsed = new Set(store.get<string[]>(COLLAPSED_KEY, []));
@@ -343,6 +347,7 @@ export class OverviewView {
     else if (message.type === 'updateFolder' && message.url) await this.updateFolderOf(message.url);
     else if (message.type === 'makeTaskFile' && message.url) await this.makeTaskFileOf(message.url);
     else if (message.type === 'markVerified' && message.url) await this.markCardVerified(message.url);
+    else if (message.type === 'applyProposal' && message.url) await this.applyProposal(message.url);
     else if (message.type === 'showAll') {
       this.hidden.clear();
       void this.store.update(HIDDEN_KEY, []);
@@ -368,6 +373,26 @@ export class OverviewView {
       const uri = requirement && this.loaded?.uris.get(requirement.path);
       if (uri) await vscode.commands.executeCommand('vscode.openWith', uri, REQUIREMENT_EDITOR, vscode.ViewColumn.Active);
     }
+  }
+
+  private async applyProposal(url: string): Promise<void> {
+    if (this.applyingProposal) return;
+    if (!this.auditFolder || this.registry.kind !== 'ok' || !this.loaded) {
+      void vscode.window.showWarningMessage(text('ui.assignment-apply-unavailable')); return;
+    }
+    const state = this.state();
+    if (state.kind !== 'ready') return;
+    const card = state.lanes.flatMap((lane) => KANBAN_COLUMNS.flatMap((column) => lane.columns[column])).find((item) => normalizeIssueUrl(item.url) === normalizeIssueUrl(url));
+    const link = card?.requirement;
+    const uri = link?.taskPath ? this.loaded.uris.get(link.taskPath) : undefined;
+    if (!card || card.state !== 'open' || !card.nextAssignment || card.nextAssignment.status !== 'proposal' || !link || !uri) {
+      void vscode.window.showWarningMessage(text('ui.assignment-apply-unavailable')); return;
+    }
+    this.applyingProposal = true;
+    try {
+      await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, project: this.registry.registry.project, displayed: card.nextAssignment, auditFolder: this.auditFolder });
+      await this.refreshAll();
+    } finally { this.applyingProposal = false; }
   }
 
   private find(url: string): { card: ProjectCard; link?: RequirementLink } | undefined {
@@ -735,7 +760,7 @@ export class OverviewView {
       const roster = rosterOf(this.configuredRoster);
       const values = this.fieldRead?.cards.get(normalizeIssueUrl(card.url));
       const nextAssignment = assignmentRules && (roster || !assignmentRules[card.placement.column])
-        ? planNextAssignee({ column: card.placement.column, rules: assignmentRules, contributors: roster?.contributors ?? [], holder: task?.assignee, projectFields: values })
+        ? planNextAssignee({ column: card.placement.column, rules: assignmentRules, contributors: roster?.contributors ?? [], holder: task?.assignee, reviewer: task?.reviewer, projectFields: values })
         : undefined;
       const selectedFields = processStore.collaborationFieldsFor(card.repository);
       const fieldsRead = this.fieldRead && values && selectedFields.every((name) => this.fieldRead?.names.has(name));

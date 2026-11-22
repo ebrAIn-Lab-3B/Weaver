@@ -27,6 +27,10 @@ describe('fresh task holder', () => {
     expect(await readFreshTaskHolder({ ...identity, taskId: 'TASK-002' }, async () => task)).toBeUndefined();
     expect(await readFreshTaskHolder(identity, async () => task.replace('repository: example/repo', 'repository: other/repo'))).toBeUndefined();
   });
+  it('reads a reviewer without replacing the implementation owner', async () => {
+    const result = await readFreshTaskHolder(identity, async () => task.replace('assignee: worker', 'reviewer: reviewer\nassignee: worker'));
+    expect(result).toMatchObject({ holder: 'worker', reviewer: 'reviewer' });
+  });
   it('keeps a valid task without an owner distinct from an unreadable task', async () => {
     const result = await readFreshTaskHolder(identity, async () => task.replace('assignee: worker\n', '').replace('assignee_type: agent\n', ''));
     expect(result).toEqual({ version: expect.any(String) });

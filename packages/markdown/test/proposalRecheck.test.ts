@@ -25,6 +25,11 @@ describe('assignment proposal recheck', () => {
       { ...snapshot, plan: { ...snapshot.plan, candidate: 'someone-else' } as ProposalSnapshot['plan'] },
     ]) expect(recheckAssignmentProposal(snapshot, fresh)).toEqual({ ok: false, reason: 'changed' });
   });
+  it('stops if the configured participant role or recorded participant changes', () => {
+    const shown: ProposalSnapshot = { ...snapshot, plan: { ...snapshot.plan, taskField: 'reviewer', taskParticipant: 'reviewer' } };
+    const changed: ProposalSnapshot = { ...shown, plan: { ...shown.plan, taskField: 'reviewer', taskParticipant: 'other' } };
+    expect(recheckAssignmentProposal(shown, changed)).toEqual({ ok: false, reason: 'changed' });
+  });
   it('cannot apply a missing or newly nonmatching condition', () => {
     expect(recheckAssignmentProposal(snapshot, { ...snapshot, plan: { column: 'Ready', status: 'condition-unknown', field: 'Type' } })).toEqual({ ok: false, reason: 'not-actionable' });
   });

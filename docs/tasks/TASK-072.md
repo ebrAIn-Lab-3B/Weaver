@@ -19,3 +19,7 @@ Research and decide bot identity, unattended runs, the hop limit, and coordinati
 ## Collaboration alignment
 
 See the [cross-task assessment](../architecture/collaboration-work-alignment.md). Coordinate the automatic-assignment prerequisites with separate router work on delivery, concurrency, recovery and approval freshness. Completing this task alone does not establish router safety or authorize an unattended run or deployment.
+
+## Closure work
+
+See the [evidence and remaining work](../architecture/collaboration-work-alignment.md#evidence-and-remaining-work-for-task-016-task-071-and-task-072) for the concrete steps and outstanding decisions. Existing acceptance criteria and ownership remain unchanged.

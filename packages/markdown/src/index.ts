@@ -40,3 +40,4 @@ export * from './process';
 export * from './taskContract';
 export * from './nextAssignee';
 export * from './proposalRecheck';
+export * from './applyProposal';

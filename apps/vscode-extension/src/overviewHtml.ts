@@ -108,7 +108,9 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       ? `<button class="req" data-req="${e(card.requirement.id)}" data-req-path="${e(card.requirement.path)}" title="${e(tt('ui.overview.open-requirement', { id: card.requirement.id, title: card.requirement.title }))}">${e(card.requirement.id)}</button>`
       : '';
     const stale = card.stale.length
-      ? `<div class="stale">${card.stale.map((notice) => `<span class="stale-chip ${notice.code.slice('stale.'.length)}">${e(formatNotice(notice, locale))}</span>`).join('')}</div>`
+      ? `<div class="stale">${card.stale.map((notice) => notice.code === 'stale.needs-decision' && card.requirement?.taskPath
+        ? `<a href="#" data-file="${e(card.requirement.taskPath)}" class="stale-chip needs-decision">${e(formatNotice(notice, locale))}</a>`
+        : `<span class="stale-chip ${notice.code.slice('stale.'.length)}">${e(formatNotice(notice, locale))}</span>`).join('')}</div>`
       : '';
     const pulls = (card.pulls ?? []).length
       ? `<div class="pulls">${(card.pulls ?? [])

@@ -43,6 +43,6 @@ export function staleNotices(input: StaleInput, now: Date, idleDays: number = DE
     notices.push({ code: 'stale.no-evidence' });
   }
 
-  if (input.needsDecision && input.column !== 'Verified') notices.push({ code: 'stale.needs-decision' });
+  if (input.needsDecision && input.state !== 'closed' && input.column !== 'Verified') notices.push({ code: 'stale.needs-decision' });
   return notices;
 }

@@ -24,3 +24,6 @@ This slice uses the existing task status, rather than inferring a request from P
 ## Verification evidence
 
 `npm run check` and `npm test` passed. The tests cover an open and a closed Issue with an explicit decision-wait task status, both languages, a task path that needs HTML escaping, no participant, an absent task path, and unrelated notices. The link uses the existing `openFile` message and workspace file lookup; a physical click in the installed extension has not yet been independently checked. No arbitrary Issue text or organization-specific Project field is interpreted as a decision request.
+
+
+On 2026-11-23 KST, installed Weaver 0.1.23 in VS Code displayed the decision-wait link on open Issue #170 after temporarily adding `status: needs-human-decision` to the local TASK-072 file as a synthetic fixture. Clicking the link opened that exact task file in the editor. The temporary status was removed afterward; it was not a real decision request and no Issue, Project, dispatch or agent was changed. This checks the installed click path, not an end-to-end review or merge request.

@@ -27,3 +27,5 @@ See the [evidence and remaining work](../architecture/collaboration-work-alignme
 ## Planning slice
 
 The first implementation provides a read-only planner that receives an organization-supplied state rule and roster. It keeps the observed holder separate, reports missing and ambiguous candidates or multiple label reaches, and does not perform writes. It does not yet read process configuration, show a card, surface human actions or apply a proposal after confirmation. The task and REQ-012 criteria remain open until those paths and their verification are complete.
+
+The process file can declare partial `assignment` rules and the Overview displays a read-only proposal when the roster is available. Invalid and unconfigured states and unavailable or ambiguous candidates are shown separately. Applying proposals after confirmation and full extension-host verification remain outstanding.

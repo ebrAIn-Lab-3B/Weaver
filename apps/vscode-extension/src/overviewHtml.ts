@@ -14,7 +14,7 @@ import {
   ValidationIssue,
   validationKey,
 } from '@ebrain-lab/weaver-markdown';
-import type { CardPull } from '@ebrain-lab/weaver-markdown';
+import type { CardPull, NextAssigneePlan } from '@ebrain-lab/weaver-markdown';
 import { escapeHtml } from './requirementHtml';
 
 /** A card of the Overview: a Project item, with the requirement it belongs to when the files say so. */
@@ -45,6 +45,9 @@ export interface OverviewCard {
   taskFile?: 'on-github' | 'absent';
   /** Values recorded in the local task file, not proof of work or a review request. */
   participants?: { path: string; assignee?: string; kind?: 'human' | 'agent'; reviewer?: string };
+  /** A read-only proposal derived from configured rules and roster. */
+  nextAssignment?: NextAssigneePlan;
+  assignmentUnavailable?: 'invalid' | 'roster';
   /** Selected Project values, or no timestamp when the read is unavailable. */
   projectFields?: { at?: string; invalid?: boolean; failed?: boolean; values: { name: string; value?: string }[] };
 }
@@ -154,6 +157,12 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
         ? `<div class="muted small">${e(tt('ui.overview.project-fields', { time: card.projectFields.at }))}${card.projectFields.values.map((field) => `<div>${e(tt('ui.overview.project-field', { field: field.name, value: field.value ?? tt('ui.overview.project-field-unknown') }))}</div>`).join('')}</div>`
         : `<div class="muted small">${e(tt('ui.overview.project-fields-pending'))}</div>`
       : '';
+    const next = card.nextAssignment;
+    const assignment = card.assignmentUnavailable
+      ? `<div class="warn small">${e(tt(card.assignmentUnavailable === 'invalid' ? 'ui.overview.assignment-invalid-rule' : 'ui.overview.assignment-roster-unavailable'))}</div>`
+      : next
+      ? `<div class="muted small">${next.decider ? `<div>${e(tt('ui.overview.assignment-decider', { name: next.decider }))}</div>` : ''}<div>${e(next.status === 'proposal' ? tt('ui.overview.assignment-proposal', { name: next.candidate, role: next.role }) : tt(`ui.overview.assignment-${next.status}` as MessageKey))}</div></div>`
+      : '';
     const participants = card.participants;
     const taskPeople = participants && (participants.assignee || participants.reviewer)
       ? `<div class="small"><a href="#" data-file="${e(participants.path)}">${e(tt('ui.overview.task-participants'))}</a>${participants.assignee ? `<div>${e(tt('ui.overview.task-owner', { name: participants.assignee, kind: participants.kind ? tt(`ui.overview.participant.${participants.kind}` as MessageKey) : tt('ui.overview.participant.unknown') }))}</div>` : ''}${participants.reviewer ? `<div>${e(tt('ui.overview.task-reviewer', { name: participants.reviewer }))}</div>` : ''}</div>`
@@ -164,7 +173,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
         <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
-        <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${boardStatus}${projectFields}${taskPeople}${assignees}
+        <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${boardStatus}${projectFields}${taskPeople}${assignees}${assignment}
       </div>`;
   };
 

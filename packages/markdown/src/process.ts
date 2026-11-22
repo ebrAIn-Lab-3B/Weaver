@@ -6,6 +6,7 @@ import { KANBAN_COLUMNS, KanbanColumn, LABEL_FOR_COLUMN } from './kanban';
 import { DEFAULT_STALE_DAYS } from './stale';
 import { readTaskContract, TaskContract } from './taskContract';
 import type { ValidationIssue } from './types';
+import type { NextAssigneeRule } from './nextAssignee';
 
 export const COLUMN_SOURCES = ['labels', 'board-status'] as const;
 export type ColumnSource = (typeof COLUMN_SOURCES)[number];
@@ -37,6 +38,8 @@ export interface ProcessConfig {
   };
   /** The task contract of the organization (DEC-016). Absent when the file has no 	ask section, which keeps today's behavior. */
   task?: TaskContract;
+  /** Optional per-state proposal rules; an absent state is not inferred. */
+  assignment?: Partial<Record<KanbanColumn, NextAssigneeRule>>;
   /** Explicitly selected Project fields to display, without assigning them policy semantics. */
   collaboration?: { projectFields: string[] };
 }
@@ -185,12 +188,28 @@ export function parseProcess(path: string, text: string): ProcessParseResult {
     report('error', 'process-unsupported-version', { version: String(data.version) });
     return allDefault();
   }
-  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && field !== 'guideline' && field !== 'collaboration' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
+  for (const field of Object.keys(data)) if (field !== 'version' && field !== 'roster' && field !== 'guideline' && field !== 'collaboration' && field !== 'assignment' && !(PROCESS_SECTIONS as readonly string[]).includes(field)) report('warning', 'unknown-field', { field });
 
   const rosterRef = readRosterEntry(data.roster, (code, args) => report('warning', code, args));
   const guidelineRef = readGuidelineRef(data.guideline, (severity, code, args) => report(severity, code, args), 'guideline');
   const process = defaultProcess();
   const sources = defaultSources();
+  if (data.assignment !== undefined) {
+    const value = data.assignment;
+    const rules: Partial<Record<KanbanColumn, NextAssigneeRule>> = {};
+    let invalid = !isMapping(value);
+    if (isMapping(value)) {
+      for (const [column, entry] of Object.entries(value)) {
+        if (!isColumn(column) || !isMapping(entry) || Object.keys(entry).some((key) => key !== 'decider' && key !== 'next-role') || !str(entry.decider) || !str(entry['next-role'])) {
+          invalid = true;
+        } else {
+          rules[column] = { decider: str(entry.decider) as string, nextRole: str(entry['next-role']) as string };
+        }
+      }
+    }
+    if (invalid) report('error', 'process-invalid-assignment');
+    else process.assignment = rules;
+  }
   if (data.collaboration !== undefined) {
     const section = data.collaboration;
     const fields = isMapping(section) ? section['project-fields'] : undefined;

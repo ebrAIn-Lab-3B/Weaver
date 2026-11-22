@@ -24,14 +24,14 @@ const sorted = (items: readonly string[]): string[] => [...items].sort();
 const fields = (value: Readonly<Record<string, string>>): string => JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
 
 /** Fail closed when a shown proposal is no longer current. This function never performs a write. */
-export function recheckAssignmentProposal(shown: ProposalSnapshot, fresh: ProposalSnapshot | undefined): ProposalRecheck {
+export function recheckAssignmentProposal(shown: ProposalSnapshot, fresh: ProposalSnapshot | undefined, options: { manualExecutionCheck?: boolean } = {}): ProposalRecheck {
   if (!fresh || !shown.processVersion || !shown.rosterVersion || !fresh.processVersion || !fresh.rosterVersion || !shown.conditionFields || !fresh.conditionFields) return { ok: false, reason: 'unavailable' };
   if (fresh.issueState !== 'open') return { ok: false, reason: 'closed' };
   // Configuration supplies this observation; an unreadable execution source fails closed.
-  if (fresh.activeExecution === 'unknown' || shown.activeExecution === 'unknown') return { ok: false, reason: 'unavailable' };
   if (fresh.activeExecution === 'yes' || shown.activeExecution === 'yes') return { ok: false, reason: 'execution-active' };
+  if (!options.manualExecutionCheck && (fresh.activeExecution === 'unknown' || shown.activeExecution === 'unknown')) return { ok: false, reason: 'unavailable' };
   if (shown.plan.status !== 'proposal' || fresh.plan.status !== 'proposal') return { ok: false, reason: 'not-actionable' };
-  if (shown.issueUrl !== fresh.issueUrl || shown.issueState !== fresh.issueState ||
+  if (shown.issueUrl !== fresh.issueUrl || shown.issueState !== fresh.issueState || shown.activeExecution !== fresh.activeExecution ||
       shown.processVersion !== fresh.processVersion || shown.rosterVersion !== fresh.rosterVersion || fields(shown.conditionFields) !== fields(fresh.conditionFields) ||
       JSON.stringify(sorted(shown.labels)) !== JSON.stringify(sorted(fresh.labels)) ||
       JSON.stringify(sorted(shown.assignees)) !== JSON.stringify(sorted(fresh.assignees)) ||

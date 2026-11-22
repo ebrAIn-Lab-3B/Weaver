@@ -20,6 +20,12 @@ describe('fresh local roster', () => {
     expect(await readFreshLocalRoster(start, personalPath, files({ [root]: { status: 'read', text: 'project: [' }, [personalPath]: { status: 'read', text: text('personal') } }))).toBeUndefined();
     expect(await readFreshLocalRoster(start, personalPath, files({ [personalPath]: { status: 'failed' } }))).toBeUndefined();
   });
+  it('does not ignore malformed roster references or roles', async () => {
+    const invalidRef = 'project: {owner: example, number: 1}\nroster:\n  from: {repository: invalid, path: roster.yaml}\n';
+    const invalidRoles = 'project: {owner: example, number: 1}\nroster:\n  contributors:\n    - {id: person, kind: human, roles: broken}\n';
+    expect(await readFreshLocalRoster(start, personalPath, files({ [personalPath]: { status: 'read', text: invalidRef } }))).toBeUndefined();
+    expect(await readFreshLocalRoster(start, personalPath, files({ [personalPath]: { status: 'read', text: invalidRoles } }))).toBeUndefined();
+  });
   it('fingerprints changed local source text and preserves its shared reference', async () => {
     const config = 'project: {owner: example, number: 1}\nroster:\n  from: {repository: example/people, path: roster.yaml}\n';
     const a = await readFreshLocalRoster(start, personalPath, files({ [personalPath]: { status: 'read', text: config } }));

@@ -30,6 +30,8 @@ export async function readFreshLocalRoster(
     const root = rootText && rootPath ? parseRootConfig(rootPath, rootText) : undefined;
     const user = personalText ? parseConfig(personalPath, personalText) : undefined;
     if ((root && !root.config) || (user && !user.config)) return undefined;
+    // A malformed reference, role or reach could silently change the chosen candidate.
+    if ([...(root?.issues ?? []), ...(user?.issues ?? [])].some((issue) => issue.code.startsWith('roster-invalid-'))) return undefined;
     const rootRoster = root?.config?.roster;
     const userRoster = user?.config?.roster;
     const roster = stackRosters([{ name: 'root', roster: rootRoster }, { name: 'personal', roster: userRoster }])?.roster;

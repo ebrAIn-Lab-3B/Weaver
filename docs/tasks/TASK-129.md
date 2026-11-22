@@ -7,6 +7,8 @@ issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/362
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 assignee: codex
+approved_by: blcktgr73
+approved_on: 2026-11-22
 criteria: [AC-001, AC-004]
 ---
 
@@ -42,6 +44,8 @@ On 2026-11-21 a read-only call to `readProject` against PALab Ops Kanban returne
 On 2026-11-22 the user supplied a screenshot of the installed experimental VSIX showing HealthBridge Issue #2 with Project status `Backlog`, the Project field read time, and `Owner: Neo`. [HealthBridge PR #6](https://github.com/blcktgr73/HealthBridge/pull/6) had merged the field selection. This is evidence of the configuration-to-card path for that visible field. The screenshot cuts off the next field, so it does not verify `Human required` in the UI or card #3. It also shows the existing missing-status-label warning; the HealthBridge process currently uses label-based columns. The warning is not proof that the Project status was missing. Offline and snapshot presentation, source-link interaction, asynchronous refresh races, cached configuration freshness, partial access and the end-to-end producer flow remain unverified.
 
 ## Verification for this task
+
+On 2026-11-22, the user requested Verified after reviewing the implementation and supplied `blcktgr73` as the human approver in the development conversation. The record applies to this task's participant display and the evidence below; it is not an approval for router operation or a different scope.
 
 [PR #363](https://github.com/ebrAIn-Lab-3B/Weaver/pull/363) merged the implementation as commit `e3208a3`; its [CI run](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/44919083836) passed the check, tests and packaging. The PR records a separate local run of `test:overview-participants`, including reviewer and differing Issue-assignee rendering; this separate script was not a CI step. The user's Weaver screenshot showed TASK-016's task-file owner `blcktgr73` as human; a later screenshot showed TASK-016.md open with the same recorded owner. The latter does not independently establish how the file was opened. In the installed VS Code view, the accessibility tree showed HealthBridge Issues #2 and #3 with `Owner: Neo` and `Human required: Decision`; this confirms those fields were presented, not the correctness of the underlying decision or execution.
 

@@ -38,3 +38,4 @@ export * from './processStart';
 export * from './repositoryList';
 export * from './process';
 export * from './taskContract';
+export * from './nextAssignee';

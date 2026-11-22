@@ -163,6 +163,24 @@ describe('requirementsByIssue', () => {
     expect(map.get('https://github.com/o/a/issues/3')).toBeUndefined();
     expect(map.get('https://github.com/o/a/issues/99')).toBeUndefined();
   });
+
+  it('links the local task file when only the requirement list records its Issue', () => {
+    const artifacts = loadWorkspace([
+      { path: 'REQ-001.md', text: '---\nid: REQ-001\ntype: requirement\ntitle: First\nstatus: draft\n---\n\n## Tasks\n- `TASK-001` Work — [Issue](https://github.com/o/a/issues/1)\n' },
+      { path: 'TASK-001.md', text: '---\nid: TASK-001\ntype: task\ntitle: Work\nrequirement: REQ-001\nstatus: draft\nassignee: human-one\n---\n' },
+    ]).artifacts;
+    expect(requirementsByIssue(artifacts).get('https://github.com/o/a/issues/1')?.taskPath).toBe('TASK-001.md');
+  });
+
+  it('does not attach a task file to a different Issue when the two links conflict', () => {
+    const artifacts = loadWorkspace([
+      { path: 'REQ-001.md', text: '---\nid: REQ-001\ntype: requirement\ntitle: First\nstatus: draft\n---\n\n## Tasks\n- `TASK-001` Work — [Issue](https://github.com/o/a/issues/1)\n' },
+      { path: 'TASK-001.md', text: '---\nid: TASK-001\ntype: task\ntitle: Work\nrequirement: REQ-001\nissue: https://github.com/o/a/issues/2\n---\n' },
+    ]).artifacts;
+    const links = requirementsByIssue(artifacts);
+    expect(links.get('https://github.com/o/a/issues/1')?.taskPath).toBeUndefined();
+    expect(links.get('https://github.com/o/a/issues/2')?.taskPath).toBe('TASK-001.md');
+  });
 });
 
 describe('foldFinished', () => {

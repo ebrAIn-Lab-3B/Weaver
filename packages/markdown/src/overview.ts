@@ -3,6 +3,7 @@ import { KANBAN_COLUMNS, KanbanColumn, KanbanPlacement } from './kanban';
 import type { GuidelineSource } from './guideline';
 import type { Artifact } from './types';
 import { requirementForTask } from './identity';
+import { mergeTasks } from './tasks';
 
 export interface RequirementLink {
   id: string;
@@ -30,7 +31,7 @@ export function requirementsByIssue(artifacts: readonly Artifact[]): Map<string,
   const byIssue = new Map<string, RequirementLink>();
   for (const artifact of artifacts) {
     if (artifact.kind !== 'requirement') continue;
-    for (const task of artifact.tasks) {
+    for (const task of mergeTasks(artifact, [...artifacts])) {
       if (task.issueUrl) {
         byIssue.set(normalizeIssueUrl(task.issueUrl), {
           id: artifact.id,
@@ -38,6 +39,8 @@ export function requirementsByIssue(artifacts: readonly Artifact[]): Map<string,
           title: artifact.title,
           path: artifact.path,
           taskId: task.id,
+          // Do not attach a file to a different Issue if the two records conflict.
+          ...(task.file && (!task.file.issue || normalizeIssueUrl(task.file.issue) === normalizeIssueUrl(task.issueUrl)) ? { taskPath: task.file.path } : {}),
         });
       }
     }

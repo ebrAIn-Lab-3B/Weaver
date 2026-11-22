@@ -129,6 +129,9 @@ export class OverviewView {
   private read: ProjectRead | undefined;
   /** When `read` was read from GitHub, as an ISO date (DEC-011). */
   private readAt: string | undefined;
+  private fieldRead?: { names: Set<string>; at: string; cards: Map<string, Record<string, string>> };
+  private fieldRequest = 0;
+  private fieldFailed = false;
   private phase: 'sign-in' | 'loading' | 'error' | 'ready' = 'loading';
   private error: Notice | undefined;
   /** Newest request wins, so a slow answer cannot overwrite a newer one. */
@@ -494,6 +497,9 @@ export class OverviewView {
 
   private async load(interactive: boolean): Promise<void> {
     const request = ++this.request;
+    this.fieldRequest += 1;
+    this.fieldRead = undefined;
+    this.fieldFailed = false;
     const started = Date.now();
     log(`load #${request} start (interactive=${interactive})`);
     this.registry = await readRegistry();
@@ -568,7 +574,10 @@ export class OverviewView {
     this.reading = new Set(result.ok ? repositories.filter((name) => !processStore.has(name)) : []);
     this.token = token;
     this.render();
-    if (result.ok) void this.readProcesses(token, request, repositories);
+    if (result.ok) {
+      void this.refreshProjectFields(token, request);
+      void this.readProcesses(token, request, repositories);
+    }
     if (result.ok) void this.checkTaskFiles(token, request);
     void this.readRoster(token);
   }
@@ -596,7 +605,10 @@ export class OverviewView {
     const kept = repositories.filter((name) => processStore.has(name));
     if (kept.length) {
       void processStore.refresh(token, kept).then((changed) => {
-        if (changed && request === this.request) this.render();
+        if (changed && request === this.request) {
+          this.render();
+          void this.refreshProjectFields(token, request);
+        }
       });
     }
     await this.readPending(request);
@@ -620,10 +632,32 @@ export class OverviewView {
         // A lane whose file could not be read keeps today's defaults rather than waiting for ever.
         for (const name of batch) this.reading.delete(name);
         this.render();
+        void this.refreshProjectFields(token, this.request);
       }
     } finally {
       this.readingBusy = false;
     }
+  }
+
+  /** Read only explicitly selected fields; a later configuration or board read wins. */
+  private async refreshProjectFields(token: string, request: number): Promise<void> {
+    if (this.registry.kind !== 'ok' || this.phase !== 'ready') return;
+    const sequence = ++this.fieldRequest;
+    const registry = this.registry.registry;
+    const repositories = registry.repositories.map((r) => r.repository);
+    const names = [...new Set(repositories.flatMap((repository) => [...processStore.collaborationFieldsFor(repository)]))];
+    if (names.length === 0) { this.fieldRead = undefined; this.render(); return; }
+    this.fieldRead = undefined;
+    this.fieldFailed = false;
+    this.render();
+    const result = await readProject(token, registry.project, repositories, undefined, names);
+    if (request !== this.request || sequence !== this.fieldRequest) return;
+    this.fieldRead = result.ok ? {
+      names: new Set(names), at: new Date().toISOString(),
+      cards: new Map(result.read.cards.map((card) => [normalizeIssueUrl(card.url), card.fields ?? {}])),
+    } : undefined;
+    this.fieldFailed = !result.ok;
+    this.render();
   }
 
   /** The cards placed with the rules of each repository's process, which may have changed since they were read. */
@@ -636,11 +670,23 @@ export class OverviewView {
     if (this.registry.kind === 'invalid') return { kind: 'registry-invalid', issues: this.registry.issues };
     if (this.phase === 'sign-in') return { kind: 'sign-in' };
     if (this.phase === 'loading') return { kind: 'loading' };
+    const tasks = new Map(
+      (this.loaded?.artifacts ?? []).flatMap((a) => (a.kind === 'task' ? [[a.path, a] as const] : [])),
+    );
+    const participantsFor = (path: string | undefined): OverviewCard['participants'] => {
+      const task = path ? tasks.get(path) : undefined;
+      return task && (task.assignee || task.reviewer)
+        ? { path: task.path, assignee: task.assignee, kind: task.assigneeType, reviewer: task.reviewer }
+        : undefined;
+    };
     if (this.phase === 'error' && this.error) {
       // GitHub could not be read: show the last board read (DEC-011), or else the board the files give.
       if (this.read && this.readAt) {
         const links = requirementsByIssue(this.loaded?.artifacts ?? []);
-        const cards: OverviewCard[] = this.placed(this.read.cards).map((card) => ({ ...card, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] }));
+        const cards: OverviewCard[] = this.placed(this.read.cards).map((card) => {
+          const requirement = links.get(normalizeIssueUrl(card.url));
+          return { ...card, requirement, participants: participantsFor(requirement?.taskPath), stale: [] };
+        });
         const lanes = applyLaneOrder(buildLanes(this.registry.registry, cards), this.order);
         return { kind: 'error', error: this.error, offline: { lanes, collapsed: [...this.collapsed], snapshotAge: snapshotAge(this.readAt, new Date()) } };
       }
@@ -656,6 +702,7 @@ export class OverviewView {
             taskId: c.taskId,
             placement: { column: c.column, gaps: c.statusUnknown ? [{ code: 'gap.offline-no-status' }] : [] },
             requirement: c.requirement,
+            participants: participantsFor(c.requirement.taskPath),
             stale: [],
             fromFiles: true,
           }),
@@ -674,17 +721,19 @@ export class OverviewView {
     // Cards of a lane whose process is not read yet are not judged: they would be judged by guessed rules.
     const checkedCards = placedCards.filter((card) => !this.reading.has(card.repository));
     const checkedRepositories = this.registry.registry.repositories.map((r) => r.repository).filter((name) => !this.reading.has(name));
-    const tasks = new Map(
-      (this.loaded?.artifacts ?? []).flatMap((a) => (a.kind === 'task' ? [[a.path, a] as const] : [])),
-    );
     const cards: OverviewCard[] = placedCards.map((card) => {
       if (this.reading.has(card.repository)) return { ...card, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] };
       const requirement = links.get(normalizeIssueUrl(card.url));
       const task = requirement?.taskPath ? tasks.get(requirement.taskPath) : undefined;
+      const selectedFields = processStore.collaborationFieldsFor(card.repository);
+      const values = this.fieldRead?.cards.get(normalizeIssueUrl(card.url));
+      const fieldsRead = this.fieldRead && values && selectedFields.every((name) => this.fieldRead?.names.has(name));
       const taskFile = requirement ? undefined : this.taskFiles.get(normalizeIssueUrl(card.url));
       return {
         ...card,
         requirement,
+        participants: participantsFor(requirement?.taskPath),
+        ...(processStore.collaborationInvalidFor(card.repository) ? { projectFields: { invalid: true, values: [] } } : selectedFields.length ? { projectFields: fieldsRead ? { at: this.fieldRead!.at, values: selectedFields.map((name) => ({ name, value: values![name] })) } : { failed: this.fieldFailed, values: [] } } : {}),
         ...(taskFile ? { taskFile } : {}),
         focus: focused.has(normalizeIssueUrl(card.url)),
         stale: staleNotices(

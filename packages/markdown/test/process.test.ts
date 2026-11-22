@@ -31,6 +31,20 @@ describe('the defaults are today\'s behavior', () => {
 });
 
 describe('parseProcess: a file that holds nothing, or something partial', () => {
+  it('reads optional collaboration Project fields without introducing organization defaults', () => {
+    const result = parse('version: 1\ncollaboration:\n  project-fields: ["Coordinator", "Waiting"]\n');
+    expect(result.process.collaboration).toEqual({ projectFields: ['Coordinator', 'Waiting'] });
+    expect(result.issues).toEqual([]);
+    expect(parse('version: 1\n').process.collaboration).toBeUndefined();
+  });
+
+  it('rejects malformed, unknown, or duplicate collaboration fields visibly', () => {
+    for (const text of ['collaboration: {project-fields: wrong}', 'collaboration: {project-fields: [A, a]}', 'collaboration: {project-fields: [""]}', 'collaboration: {project-fields: [A], unknown: true}']) {
+      const result = parse(text);
+      expect(result.process.collaboration).toBeUndefined();
+      expect(result.issues.map((issue) => issue.code)).toContain('process-invalid-collaboration');
+    }
+  });
   it('means all defaults for no file content, an empty file, or only a version', () => {
     for (const text of ['', '   \n', 'version: 1\n', '# only a comment\n']) {
       const result = parse(text);

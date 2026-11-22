@@ -34,8 +34,11 @@ A maintainer can assign a task to a human or an agent, hand it over with its con
 - `TASK-014` Define the contributor roster and pick owners from it — [GitHub Issue #37](https://github.com/ebrAIn-Lab-3B/Weaver/issues/37)
 - `TASK-015` Record reviewers and human approval of agent work — [GitHub Issue #38](https://github.com/ebrAIn-Lab-3B/Weaver/issues/38)
 - `TASK-016` Decide the agent handoff contract — [GitHub Issue #39](https://github.com/ebrAIn-Lab-3B/Weaver/issues/39)
+- `TASK-129` Show task-file participants on the Kanban card — [GitHub Issue #362](https://github.com/ebrAIn-Lab-3B/Weaver/issues/362)
 
 Tasks that implement the handoff are added after `TASK-016` records the contract decision. `TASK-016` is deferred, so `AC-005` and `AC-006` stay open while `TASK-013` to `TASK-015` go first.
+
+Collaboration policy is owned by each organization. Align the evidence semantics with [PALab REQ-011](https://github.com/blcktgr73/palab-platform/blob/main/docs/requirements/REQ-011-collaboration-evidence.md), without making PALab's fields or rules Weaver defaults. [The proposed REQ-023](https://github.com/ebrAIn-Lab-3B/Weaver/pull/361) covers a broader evidence view; TASK-129 is only a first, read-only slice. Adoption in agent-base is a subsequent goal, after the contracts and their behavior have been validated; this work does not change that repository.
 
 ## Evidence policy
 

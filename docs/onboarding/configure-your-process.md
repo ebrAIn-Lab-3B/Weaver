@@ -6,7 +6,7 @@ The file lives in the repository, in Git, and is the only place the process is s
 
 ## What the file can set
 
-Four sections. Each one is optional, and a field you leave out keeps its default.
+Each section is optional, and a field you leave out keeps its default.
 
 | Section | What it decides | Default |
 | --- | --- | --- |
@@ -14,6 +14,16 @@ Four sections. Each one is optional, and a field you leave out keeps its default
 | `evidence` | Whether a pull request is expected in Review and Verified, whether Verified needs a merged pull request that closes the Issue, and whether a task's `evidence_exception` counts. | all expected, exceptions honored |
 | `stale` | How many days without a change make an open card idle. | 14 |
 | `task` | The fields a task of your organization carries (owner, priority, a blocker, and so on), which are required, which values are allowed, and where each one lives. | no fields, one task file per card |
+| `collaboration` | Select Project fields to show on Overview cards, without assigning policy meaning to their values. | no extra fields |
+
+For example, a repository may opt in to selected Project fields:
+
+```yaml
+collaboration:
+  project-fields: ["Coordinator", "Waiting"]
+```
+
+Names must match the Project field names. The list can contain at most 20 distinct, non-empty names. Weaver reads text and single-select values after loading the board and shows the read time. An empty or unsupported value is shown as unavailable or empty; it is not proof that the field is absent. A failed read and an invalid selection are reported separately. The values are read-only: naming a field does not make it a decision, a request, a start, or an approval. The repository's default-branch process file controls this selection; an unmerged local change does not activate it. Offline or cached board views do not currently show these extra values.
 
 The six columns (Backlog, Ready, In progress, Blocked, Review, Verified) and their order are fixed in version 1. A repository maps its own work onto them.
 

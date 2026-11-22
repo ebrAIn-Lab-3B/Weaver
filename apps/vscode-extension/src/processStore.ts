@@ -13,7 +13,7 @@ export interface ProcessSummary {
   process: ProcessConfig;
 }
 
-type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource>; guidelineRef?: GuidelineRef };
+type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource>; guidelineRef?: GuidelineRef; collaborationInvalid?: boolean };
 
 /**
  * The process of each repository (DEC-015), kept between runs so the Overview can draw its first
@@ -59,7 +59,7 @@ export class ProcessStore {
     const entry = this.entries.get(key);
     if (!entry || entry.missing) return undefined;
     const result = parseProcess(`${repository}/.weaver/process.yaml`, entry.text);
-    const config = { ...result.process, sources: result.sources, ...(result.guidelineRef ? { guidelineRef: result.guidelineRef } : {}) };
+    const config = { ...result.process, sources: result.sources, ...(result.guidelineRef ? { guidelineRef: result.guidelineRef } : {}), ...(result.issues.some((issue) => issue.code === 'process-invalid-collaboration') ? { collaborationInvalid: true } : {}) };
     this.parsed.set(key, config);
     return config;
   }
@@ -88,6 +88,8 @@ export class ProcessStore {
   evidenceFor = (repository: string): EvidenceRules | undefined => this.config(repository)?.evidence;
   /** The task contract the repository declares (DEC-016), or undefined when it declares none. */
   taskFor = (repository: string): TaskContract | undefined => this.config(repository)?.task;
+  collaborationFieldsFor = (repository: string): readonly string[] => this.config(repository)?.collaboration?.projectFields ?? [];
+  collaborationInvalidFor = (repository: string): boolean => this.config(repository)?.collaborationInvalid === true;
 
   /** The idle days the repository's file sets, or none when it leaves them to the default. */
   staleDaysFor = (repository: string): number | undefined => {

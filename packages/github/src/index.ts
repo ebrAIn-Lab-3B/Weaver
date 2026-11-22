@@ -15,3 +15,4 @@ export * from './pageState';
 export * from './repositoryFolder';
 export * from './size';
 export * from './assignmentProposal';
+export * from './freshAssignmentRoster';

@@ -1,11 +1,11 @@
-import { parseIssueUrl, parseProcess, placeIssue, planNextAssignee, type Contributor, type ProposalAction, type ProposalSnapshot } from '@ebrain-lab/weaver-markdown';
+import { parseIssueUrl, parseProcess, placeIssue, planNextAssignee, type Contributor, type ProposalAction, type ProposalSnapshot, type RosterRef } from '@ebrain-lab/weaver-markdown';
 import { fetchIssue, setIssueAssignees, type FetchFn } from './issue';
 import { fetchProcessFile } from './processFile';
 import { readProject, type Fetch } from './project';
 
 export interface FreshAssignmentContext {
   /** Read the effective roster from its source, not a stale cached copy. */
-  readRoster(): Promise<{ contributors: readonly Contributor[]; version: string } | undefined>;
+  readRoster(reference: RosterRef | undefined): Promise<{ contributors: readonly Contributor[]; version: string } | undefined>;
   /** Read the task holder and an exact version; even an absent task must be represented explicitly. */
   readHolder(): Promise<{ holder?: string; version: string } | undefined>;
   /** Organization-supplied execution observation; absence is unknown, never assumed idle. */
@@ -26,13 +26,15 @@ export async function readAssignmentSnapshot(
   if (!ref) return undefined;
   const repository = `${ref.owner}/${ref.repo}`;
   try {
-    const [issue, processFile, roster, holder, activeExecution] = await Promise.all([
+    const [issue, processFile, holder, activeExecution] = await Promise.all([
       fetchIssue(token, issueUrl, fetchImpl), fetchProcessFile(token, repository, {}, fetchImpl),
-      context.readRoster(), context.readHolder(), context.readExecution(issueUrl),
+      context.readHolder(), context.readExecution(issueUrl),
     ]);
-    if (!issue.ok || processFile.status !== 'read' || !roster?.version || !holder?.version) return undefined;
+    if (!issue.ok || processFile.status !== 'read' || !holder?.version) return undefined;
     const process = parseProcess(`${repository}/.weaver/process.yaml`, processFile.text);
-    if (process.issues.some((item) => item.severity === 'error') || !process.process.assignment) return undefined;
+    if (process.issues.some((item) => item.severity === 'error' || item.code === 'roster-invalid-reference' || (item.code === 'process-section-not-a-mapping' && item.args?.section === 'roster')) || !process.process.assignment) return undefined;
+    const roster = await context.readRoster(process.rosterRef);
+    if (!roster?.version) return undefined;
     const fields = [...new Set(Object.values(process.process.assignment).flatMap((rule) => rule.when ? [rule.when.projectField] : []))];
     const board = await readProject(token, project, [repository], fetchImpl as unknown as Fetch, fields);
     if (!board.ok) return undefined;

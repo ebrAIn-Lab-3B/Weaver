@@ -11,7 +11,7 @@ import { message } from './locale';
 
 /** Apply only when the existing task owner already matches; do not silently modify the file. */
 export async function applyCardProposal(input: {
-  issueUrl: string; taskId: string; taskUri: vscode.Uri; project: { owner: string; number: number };
+  issueUrl: string; taskId: string; taskUri: vscode.Uri; requirement?: { id: string; uri: vscode.Uri }; project: { owner: string; number: number };
   displayed: NextAssigneePlan; auditFolder: string;
 }, ui: Pick<typeof vscode.window, 'showInputBox' | 'showWarningMessage' | 'showInformationMessage'> = vscode.window): Promise<void> {
   const start = workspaceStartFolder();
@@ -21,9 +21,10 @@ export async function applyCardProposal(input: {
   const token = await getGitHubToken(true, ['repo', 'project']);
   if (!token) return;
   const readHolder = async () => {
-    const dirty = () => vscode.workspace.textDocuments.some((doc) => doc.uri.toString() === input.taskUri.toString() && doc.isDirty);
+    const dirty = () => vscode.workspace.textDocuments.some((doc) => (doc.uri.toString() === input.taskUri.toString() || (input.requirement && doc.uri.toString() === input.requirement.uri.toString())) && doc.isDirty);
+    if (input.requirement && input.requirement.uri.scheme !== 'file') return undefined;
     if (dirty()) return undefined;
-    const holder = await readFreshTaskHolder({ path: input.taskUri.fsPath, taskId: input.taskId, issueUrl: input.issueUrl });
+    const holder = await readFreshTaskHolder({ path: input.taskUri.fsPath, taskId: input.taskId, issueUrl: input.issueUrl, ...(input.requirement ? { requirement: { path: input.requirement.uri.fsPath, id: input.requirement.id } } : {}) });
     return dirty() ? undefined : holder;
   };
   const readFresh = () => readAssignmentSnapshot(token, input.project, input.issueUrl, {

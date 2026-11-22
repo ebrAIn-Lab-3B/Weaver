@@ -390,7 +390,8 @@ export class OverviewView {
     }
     this.applyingProposal = true;
     try {
-      await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, project: this.registry.registry.project, displayed: card.nextAssignment, auditFolder: this.auditFolder });
+      const requirementUri = this.loaded.uris.get(link.path);
+      await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, ...(requirementUri ? { requirement: { id: link.id, uri: requirementUri } } : {}), project: this.registry.registry.project, displayed: card.nextAssignment, auditFolder: this.auditFolder });
       await this.refreshAll();
     } finally { this.applyingProposal = false; }
   }

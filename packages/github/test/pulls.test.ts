@@ -23,6 +23,12 @@ describe('readMergedPulls', () => {
     });
   });
 
+  it('reads an explicit partial-work marker without treating it as a closing reference', async () => {
+    const item = { ...node(80, []), body: 'Refs #65\nPartial: #65' };
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { nodes: [item] } } } }));
+    expect(result).toMatchObject({ ok: true, pulls: [{ closes: [], partial: [65] }] });
+  });
+
   it('asks for the owner, the name, and the limit', async () => {
     let variables: unknown;
     const spy: Fetch = async (_url, init) => {

@@ -50,6 +50,8 @@ export interface MergedPull {
   branch: string;
   /** Issue numbers the pull request closes, as GitHub records them. */
   closes: number[];
+  /** Issues explicitly identified as partial work, not a closing claim. */
+  partial?: number[];
 }
 
 /** The board Status each column folds into (DEC-003). */
@@ -78,6 +80,25 @@ export function taskIdsOfPull(pull: Pick<MergedPull, 'title' | 'branch'>): strin
   const trailing = /\(((?:TASK-\d{3,})(?:\s*,\s*TASK-\d{3,})*)\)\s*$/.exec(pull.title);
   if (trailing) for (const id of trailing[1].match(/TASK-\d{3,}/g) ?? []) ids.add(id);
   return [...ids];
+}
+
+/** An explicit standalone marker for partial work. Code blocks and quotations are not declarations. */
+export function partialIssuesOfPull(body: string | null | undefined): number[] {
+  const result = new Set<number>();
+  let fence: string | undefined;
+  for (const line of (body ?? '').split(/\r?\n/)) {
+    const boundary = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (boundary) {
+      const mark = boundary[1];
+      if (!fence) fence = mark;
+      else if (mark[0] === fence[0] && mark.length >= fence.length) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+    const match = /^ {0,3}Partial:\s*#([1-9]\d*)\s*$/i.exec(line);
+    if (match && Number.isSafeInteger(Number(match[1]))) result.add(Number(match[1]));
+  }
+  return [...result];
 }
 
 export interface MismatchInput {
@@ -169,7 +190,7 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     for (const taskId of taskIdsOfPull(pull)) {
       if (exceptions.has(taskId)) continue;
       const card = cards.find((c) => c.taskId === taskId && c.repository.toLowerCase() === pull.repository.toLowerCase());
-      if (card && card.state !== 'closed' && !pull.closes.includes(card.number) && !closingNotRequired.has(pull.repository.toLowerCase())) {
+      if (card && card.state !== 'closed' && !pull.closes.includes(card.number) && !pull.partial?.includes(card.number) && !closingNotRequired.has(pull.repository.toLowerCase())) {
         found.push({
           kind: 'merged-pr-not-linked',
           subject: taskId,

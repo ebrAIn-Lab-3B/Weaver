@@ -19,3 +19,7 @@ Add the per-state decider declaration, show it with the holder and the proposed 
 ## Collaboration alignment
 
 See the [cross-task assessment](../architecture/collaboration-work-alignment.md). Clarify the scope of a state decider when multiple human or agent actions coexist; keep a proposed assignee separate from observed ownership and execution. The proposed REQ-023 evidence view is read-only, while applying this task's proposal remains a separately confirmed write.
+
+## Closure work
+
+See the [evidence and remaining work](../architecture/collaboration-work-alignment.md#evidence-and-remaining-work-for-task-016-task-071-and-task-072) for the concrete steps and outstanding decisions. Existing acceptance criteria and ownership remain unchanged.

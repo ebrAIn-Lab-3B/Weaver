@@ -23,3 +23,7 @@ Deferred by the maintainer on 2026-10-30; it is not needed for the current miles
 ## Collaboration alignment
 
 See the [cross-task assessment](../architecture/collaboration-work-alignment.md) for the distinction between handoff, delivery and start, the human handoff question, and the coordination with PALab's producer contract. This assessment does not lift the deferral or decide the protocol.
+
+## Closure work
+
+See the [evidence and remaining work](../architecture/collaboration-work-alignment.md#evidence-and-remaining-work-for-task-016-task-071-and-task-072) for the concrete steps and outstanding decisions. Existing acceptance criteria and ownership remain unchanged.

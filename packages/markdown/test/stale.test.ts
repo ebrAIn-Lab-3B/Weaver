@@ -54,6 +54,8 @@ describe('staleNotices', () => {
   it('marks a card that waits for a human decision, unless it is already verified', () => {
     expect(codes({ column: 'Blocked', needsDecision: true })).toEqual(['stale.needs-decision']);
     expect(codes({ column: 'Verified', needsDecision: true, pullCount: 1 })).toEqual([]);
+    expect(codes({ column: 'Blocked', state: 'closed', needsDecision: true })).toEqual([]);
+    expect(codes({ column: 'Blocked', state: 'open', needsDecision: true })).toEqual(['stale.needs-decision']);
   });
 
   it('gives the three reasons apart, in a fixed order', () => {

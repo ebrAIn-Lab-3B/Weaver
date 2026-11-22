@@ -23,6 +23,10 @@ The Issue, task file, Project and PR already carry the collaboration record. A p
 - Make an explicitly recorded human review or merge request discoverable with a link to the PR and changed files or its Files changed view. Keep review, checks, merge and approval distinct; a missing check is not a pass. If a PR changed after a review, indicate that the review's applicability needs checking when the relevant revisions are available.
 - Keep the view read-only and policy-neutral. Support English and Korean. Verify the configured field and action presentation, source links, missing or inaccessible data and stale or conflicting values with synthetic fixtures and a VS Code extension-host check. Record which real workflow stages were actually observed.
 
+## Tasks
+
+- `TASK-130` Link explicit human decision waits to their task — [GitHub Issue #388](https://github.com/ebrAIn-Lab-3B/Weaver/issues/388)
+
 ## Boundaries and next steps
 
 1. Compare the existing Issue and card records with real development-agent and review-agent workflows. First establish how an explicit current action is recorded and linked; do not impose a new parallel handoff document or treat arbitrary free text as authoritative without a producer contract.

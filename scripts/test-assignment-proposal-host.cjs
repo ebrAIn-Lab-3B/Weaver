@@ -10,7 +10,8 @@ const plan = { column: 'Ready', status: 'proposal', decider: 'owner', role: 'bui
 const issueUrl = 'https://github.com/example/repo/issues/1';
 const base = { issueUrl, issueState: 'open', activeExecution: 'unknown', labels: ['ready'], assignees: [], conditionFields: { Type: 'feature' }, processVersion: 'p1', rosterVersion: 'r1', plan };
 const vscode = {
-  workspace: { textDocuments: [] },
+  Uri: { file: (file) => ({ scheme: 'file', fsPath: file, toString: () => file }), joinPath: (uri, ...parts) => { const file = path.join(uri.fsPath, ...parts); return { scheme: uri.scheme, fsPath: file, toString: () => file }; } },
+  workspace: { textDocuments: [], fs: { createDirectory: uri => fs.mkdir(uri.fsPath, { recursive: true }), writeFile: (uri, data) => fs.writeFile(uri.fsPath, data) } },
   window: {
     showInputBox: async () => scenario.inputs.shift(),
     showWarningMessage: async (title, _options, choice) => { scenario.messages.push(title); return scenario.cancel ? undefined : choice; },
@@ -41,16 +42,19 @@ Module._load = function(request, parent, main) {
 const { applyCardProposal } = require('../apps/vscode-extension/dist/applyCardProposal');
 async function run() {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'weaver-proposal-host-'));
-  const input = { issueUrl, taskId: 'TASK-001', taskUri, project: { owner: 'example', number: 1 }, displayed: plan, auditFolder: folder };
+  const input = { issueUrl, taskId: 'TASK-001', taskUri, project: { owner: 'example', number: 1 }, displayed: plan, auditUri: vscode.Uri.file(folder) };
   scenario = { inputs: ['Alice', 'agent console'], messages: [], writes: [], reads: 0 };
   await applyCardProposal(input);
   assert.equal(scenario.writes.length, 1);
   assert.equal(scenario.reads, 3);
-  const records = (await fs.readFile(path.join(folder, 'assignment-actions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
-  assert.deepEqual(records.map((item) => item.event), ['attempt', 'completed']);
-  assert.equal(records[0].executionAttestation.actor, 'Alice');
-  assert.equal(records[0].executionAttestation.source, 'agent console');
-  assert.equal(records[0].action.label, 'work:worker');
+  const logDir = path.join(folder, 'assignment-actions');
+  const readRecords = async () => Promise.all((await fs.readdir(logDir)).map(async file => JSON.parse(await fs.readFile(path.join(logDir, file), 'utf8'))));
+  const records = await readRecords();
+  assert.deepEqual(records.map((item) => item.event).sort(), ['attempt', 'completed']);
+  const attempt = records.find(item => item.event === 'attempt');
+  assert.equal(attempt.executionAttestation.actor, 'Alice');
+  assert.equal(attempt.executionAttestation.source, 'agent console');
+  assert.equal(attempt.action.label, 'work:worker');
   const reviewPlan = { ...plan, column: 'Review', candidate: 'reviewer', role: 'review', label: 'work:review', holder: 'builder', taskField: 'reviewer', taskParticipant: 'reviewer' };
   scenario = { inputs: ['Alice', 'agent console'], messages: [], writes: [], reads: 0, task: { version: 'task', holder: 'builder', reviewer: 'reviewer' }, snapshot: { ...base, plan: reviewPlan } };
   await applyCardProposal({ ...input, displayed: reviewPlan });
@@ -61,12 +65,14 @@ async function run() {
   await applyCardProposal(input); assert.equal(scenario.writes.length, 0);
   scenario = { inputs: ['Alice', 'agent console'], messages: [], writes: [], reads: 0, failWrite: true };
   await applyCardProposal(input); assert.equal(scenario.writes.length, 1);
-  const updated = (await fs.readFile(path.join(folder, 'assignment-actions.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
-  assert.deepEqual(updated.slice(-2).map((item) => item.event), ['attempt', 'outcome-unknown']);
+  const updated = await readRecords();
+  const unknown = updated.find(item => item.event === 'outcome-unknown');
+  assert.ok(unknown);
+  assert.ok(updated.some(item => item.id === unknown.id && item.event === 'attempt'));
   assert.ok(scenario.messages.some((item) => item.startsWith('ui.assignment-apply-write-unknown')));
   const notFolder = path.join(folder, 'not-a-directory'); await fs.writeFile(notFolder, 'x');
   scenario = { inputs: ['Alice', 'agent console'], messages: [], writes: [], reads: 0 };
-  await applyCardProposal({ ...input, auditFolder: notFolder }); assert.equal(scenario.writes.length, 0);
+  await applyCardProposal({ ...input, auditUri: vscode.Uri.file(notFolder) }); assert.equal(scenario.writes.length, 0);
   scenario = { inputs: [], messages: [], writes: [], reads: 0 };
   await applyCardProposal({ ...input, displayed: { ...plan, taskField: 'reviewer', taskParticipant: 'other' } });
   assert.equal(scenario.writes.length, 0);

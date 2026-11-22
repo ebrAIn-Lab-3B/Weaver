@@ -14,3 +14,4 @@ export * from './processStart';
 export * from './pageState';
 export * from './repositoryFolder';
 export * from './size';
+export * from './assignmentProposal';

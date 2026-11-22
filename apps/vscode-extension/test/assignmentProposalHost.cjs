@@ -28,7 +28,7 @@ async function run() {
       if (!holder || !await context.readRoster(undefined)) return undefined;
       assert.equal(holder.holder, 'builder'); assert.equal(holder.reviewer, 'reviewer');
       reads++;
-      return snapshot;
+      return { ...snapshot, rosterVersion: holder.version };
     };
     github.writeProposalAction = async (_token, action) => { writes.push(action); };
     const input = { issueUrl, taskId: 'TASK-001', taskUri: doc.uri, project: { owner: 'example', number: 1 }, displayed: plan, auditFolder: path.join(root, 'audit') };
@@ -71,7 +71,39 @@ async function run() {
       return choice;
     };
     await applyCardProposal(input, ui); assert.equal(writes.length, 0); assert.equal(reopened.isDirty, true);
-    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, cases: ['confirmed-mock-write', 'cancel', 'dirty-before', 'dirty-during-confirmation'], realGitHubWrites: 0 }));
+    // A task can inherit its Issue link from the requirement; both documents must remain saved.
+    const linkedTaskPath = path.join(root, 'TASK-002.md');
+    const reqPath = path.join(root, 'REQ-002.md');
+    const linkedTask = source.replace('TASK-001', 'TASK-002').replace('requirement: REQ-001', 'requirement: REQ-002').replace(`issue: ${issueUrl}\n`, 'status: draft\n');
+    const requirement = `---\nid: REQ-002\ntype: requirement\ntitle: Example\nstatus: draft\nrepository: example/repo\n---\n\n## Tasks\n\n- \`TASK-002\` Work — [Issue #1](${issueUrl})\n`;
+    await fs.writeFile(linkedTaskPath, linkedTask, 'utf8'); await fs.writeFile(reqPath, requirement, 'utf8');
+    const linkedDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(linkedTaskPath));
+    const reqDoc = await vscode.workspace.openTextDocument(vscode.Uri.file(reqPath));
+    const linkedInput = { ...input, taskId: 'TASK-002', taskUri: linkedDoc.uri, requirement: { id: 'REQ-002', uri: reqDoc.uri } };
+    writes = []; reads = 0; answers = inputs(); warnings = []; onWarning = async (_message, _options, choice) => choice;
+    await applyCardProposal(linkedInput, ui); assert.equal(writes.length, 1);
+    writes = []; reads = 0; answers = inputs(); warnings = [];
+    onWarning = async (_message, _options, choice) => {
+      if (warnings.length === 2) {
+        const concurrent = new vscode.WorkspaceEdit(); concurrent.insert(reqDoc.uri, new vscode.Position(reqDoc.lineCount, 0), '\nUnsaved requirement change\n');
+        assert.equal(await vscode.workspace.applyEdit(concurrent), true);
+      }
+      return choice;
+    };
+    await applyCardProposal(linkedInput, ui); assert.equal(writes.length, 0); assert.equal(reqDoc.isDirty, true);
+    const restoreRequirement = new vscode.WorkspaceEdit();
+    restoreRequirement.replace(reqDoc.uri, new vscode.Range(new vscode.Position(0, 0), reqDoc.positionAt(reqDoc.getText().length)), requirement);
+    assert.equal(await vscode.workspace.applyEdit(restoreRequirement), true); await reqDoc.save();
+    writes = []; reads = 0; answers = inputs(); warnings = [];
+    onWarning = async (_message, _options, choice) => {
+      if (warnings.length === 2) {
+        const concurrent = new vscode.WorkspaceEdit(); concurrent.insert(reqDoc.uri, new vscode.Position(reqDoc.lineCount, 0), '\nSaved requirement change\n');
+        assert.equal(await vscode.workspace.applyEdit(concurrent), true); assert.equal(await reqDoc.save(), true);
+      }
+      return choice;
+    };
+    await applyCardProposal(linkedInput, ui); assert.equal(writes.length, 0); assert.equal(reqDoc.isDirty, false);
+    await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, cases: ['confirmed-mock-write', 'cancel', 'dirty-before', 'dirty-during-confirmation', 'requirement-link', 'requirement-dirty-during-confirmation', 'requirement-saved-during-confirmation'], realGitHubWrites: 0 }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));
     throw error;

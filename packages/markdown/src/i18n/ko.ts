@@ -192,6 +192,8 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.assignment-roster-unavailable': '다음 담당자: 참여자 목록을 읽을 수 없음',
   'ui.overview.assignment-decider': '결정자: {name}',
   'ui.overview.assignment-proposal': '다음 담당자 제안: {name} ({role})',
+  'ui.overview.assignment-condition-unknown': '다음 담당자: 필요한 Project 필드가 확인되지 않음',
+  'ui.overview.assignment-condition-not-met': '다음 담당자: 설정된 조건에 해당하지 않음',
   'ui.overview.assignment-unconfigured': '다음 담당자: 이 상태의 규칙이 설정되지 않음',
   'ui.overview.assignment-invalid-rule': '다음 담당자: 규칙이 올바르지 않음',
   'ui.overview.assignment-no-candidate': '다음 담당자: 해당 역할의 참여자가 없음',

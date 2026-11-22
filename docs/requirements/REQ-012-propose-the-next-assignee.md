@@ -50,3 +50,6 @@ The [collaboration work assessment](../architecture/collaboration-work-alignment
 ## Evidence policy
 
 This requirement is not complete when a task is merely reported as done. Completion requires repository changes, checks, and an explicit review of remaining gaps.
+
+
+A state rule may additionally require a Project field to match one of its configured values. For example, `when: {project-field: Type, in: [feature, bug]}` can restrict a Ready proposal to the organization's chosen work types. Weaver reads that configured field even if it is not selected for display. A missing or unreadable field yields an unknown condition; a different value yields a non-matching condition. Neither produces an assignee proposal or authorizes an action. Project field names and values are organization configuration, never Weaver defaults.

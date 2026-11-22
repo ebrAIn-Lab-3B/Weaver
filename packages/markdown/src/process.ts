@@ -200,10 +200,15 @@ export function parseProcess(path: string, text: string): ProcessParseResult {
     let invalid = !isMapping(value);
     if (isMapping(value)) {
       for (const [column, entry] of Object.entries(value)) {
-        if (!isColumn(column) || !isMapping(entry) || Object.keys(entry).some((key) => key !== 'decider' && key !== 'next-role') || !str(entry.decider) || !str(entry['next-role'])) {
+        if (!isColumn(column) || !isMapping(entry) || Object.keys(entry).some((key) => key !== 'decider' && key !== 'next-role' && key !== 'when') || !str(entry.decider) || !str(entry['next-role'])) {
           invalid = true;
         } else {
-          rules[column] = { decider: str(entry.decider) as string, nextRole: str(entry['next-role']) as string };
+          const when = entry.when;
+          if (when !== undefined && (!isMapping(when) || Object.keys(when).some((key) => key !== 'project-field' && key !== 'in') || !str(when['project-field']) || !Array.isArray(when.in) || when.in.length === 0 || when.in.some((v) => !str(v)))) {
+            invalid = true;
+            continue;
+          }
+          rules[column] = { decider: str(entry.decider) as string, nextRole: str(entry['next-role']) as string, ...(isMapping(when) ? { when: { projectField: str(when['project-field']) as string, values: (when.in as string[]).map((v) => v.trim()) } } : {}) };
         }
       }
     }

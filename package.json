@@ -20,6 +20,7 @@
     "dev:docs": "npm run build && node scripts/dev.js docs",
     "package": "npm run build && npm run package -w @ebrain-lab/weaver-vscode-extension",
     "package:cli": "npm run build && npm run bundle -w @ebrain-lab/weaver-cli",
-    "dev:overview": "npm run build && node scripts/dev.js examples/overview.code-workspace"
+    "dev:overview": "npm run build && node scripts/dev.js examples/overview.code-workspace",
+    "test:assignment-host": "npm run build && node scripts/test-author-host.js assignment-proposal"
   }
 }

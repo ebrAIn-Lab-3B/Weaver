@@ -21,6 +21,8 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run package
+      - run: node scripts/test-overview-participants.cjs
+      - run: node scripts/test-assignment-proposal-host.cjs
       - name: Bundle the weaver tool and run it once
         run: |
           npm run package:cli

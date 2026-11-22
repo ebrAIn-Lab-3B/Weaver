@@ -7,7 +7,7 @@ export interface FreshAssignmentContext {
   /** Read the effective roster from its source, not a stale cached copy. */
   readRoster(reference: RosterRef | undefined): Promise<{ contributors: readonly Contributor[]; version: string } | undefined>;
   /** Read the task holder and an exact version; even an absent task must be represented explicitly. */
-  readHolder(): Promise<{ holder?: string; version: string } | undefined>;
+  readHolder(): Promise<{ holder?: string; reviewer?: string; version: string } | undefined>;
   /** Organization-supplied execution observation; absence is unknown, never assumed idle. */
   readExecution(issueUrl: string): Promise<'yes' | 'no' | 'unknown'>;
 }
@@ -43,7 +43,7 @@ export async function readAssignmentSnapshot(
     const column = placeIssue({ ...issue.issue, boardStatus: card.boardStatus }, process.process.columns);
     if (column.gaps.length) return undefined;
     const conditionFields = card.fields ?? {};
-    const plan = planNextAssignee({ column: column.column, rules: process.process.assignment, contributors: roster.contributors, holder: holder.holder, projectFields: conditionFields });
+    const plan = planNextAssignee({ column: column.column, rules: process.process.assignment, contributors: roster.contributors, holder: holder.holder, reviewer: holder.reviewer, projectFields: conditionFields });
     return {
       issueUrl: issue.issue.url, issueState: issue.issue.state, labels: issue.issue.labels, assignees: issue.issue.assignees,
       activeExecution, conditionFields, processVersion: processFile.text,

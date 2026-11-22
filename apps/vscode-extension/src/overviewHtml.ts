@@ -161,7 +161,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     const assignment = card.assignmentUnavailable
       ? `<div class="warn small">${e(tt(card.assignmentUnavailable === 'invalid' ? 'ui.overview.assignment-invalid-rule' : 'ui.overview.assignment-roster-unavailable'))}</div>`
       : next
-      ? `<div class="muted small">${next.decider ? `<div>${e(tt('ui.overview.assignment-decider', { name: next.decider }))}</div>` : ''}<div>${e(next.status === 'proposal' ? tt('ui.overview.assignment-proposal', { name: next.candidate, role: next.role }) : tt(`ui.overview.assignment-${next.status}` as MessageKey))}</div></div>`
+      ? `<div class="muted small">${next.decider ? `<div>${e(tt('ui.overview.assignment-decider', { name: next.decider }))}</div>` : ''}<div>${e(next.status === 'proposal' ? tt('ui.overview.assignment-proposal', { name: next.candidate, role: next.role }) : tt(`ui.overview.assignment-${next.status}` as MessageKey))}</div>${next.status === 'proposal' && card.state === 'open' && !card.fromFiles && card.url ? !next.taskField ? `<div>${e(tt('ui.assignment-apply-no-field'))}</div>` : (next.kind === 'human' ? Boolean(next.issueAssignee) : Boolean(next.label)) ? `<button data-apply-proposal="${e(card.url)}">${e(tt('ui.assignment-apply-button'))}</button>` : `<div>${e(tt('ui.assignment-apply-no-route'))}</div>` : ''}</div>`
       : '';
     const participants = card.participants;
     const taskPeople = participants && (participants.assignee || participants.reviewer)
@@ -348,7 +348,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     });
   }
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified],[data-update-folder],[data-make-task-file]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified],[data-apply-proposal],[data-update-folder],[data-make-task-file]');
     if (!target) return;
     event.preventDefault();
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
@@ -362,6 +362,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     if (target.dataset.updateFolder) vscode.postMessage({ type: 'updateFolder', url: target.dataset.updateFolder });
     if (target.dataset.makeTaskFile) vscode.postMessage({ type: 'makeTaskFile', url: target.dataset.makeTaskFile });
     if (target.dataset.markVerified) vscode.postMessage({ type: 'markVerified', url: target.dataset.markVerified });
+    if (target.dataset.applyProposal) vscode.postMessage({ type: 'applyProposal', url: target.dataset.applyProposal });
     if (target.dataset.moveLane) vscode.postMessage({ type: 'moveLane', id: target.dataset.moveLane, delta: Number(target.dataset.delta) });
   });
   document.addEventListener('contextmenu', (event) => {

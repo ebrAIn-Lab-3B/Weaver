@@ -37,6 +37,7 @@ export function recheckAssignmentProposal(shown: ProposalSnapshot, fresh: Propos
       JSON.stringify(sorted(shown.assignees)) !== JSON.stringify(sorted(fresh.assignees)) ||
       shown.plan.column !== fresh.plan.column || shown.plan.holder !== fresh.plan.holder ||
       shown.plan.decider !== fresh.plan.decider || shown.plan.role !== fresh.plan.role ||
+      shown.plan.taskField !== fresh.plan.taskField || shown.plan.taskParticipant !== fresh.plan.taskParticipant ||
       shown.plan.candidate !== fresh.plan.candidate || shown.plan.kind !== fresh.plan.kind ||
       shown.plan.issueAssignee !== fresh.plan.issueAssignee || shown.plan.label !== fresh.plan.label) return { ok: false, reason: 'changed' };
   return { ok: true };

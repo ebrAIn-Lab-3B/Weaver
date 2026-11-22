@@ -5,6 +5,8 @@ import { reachEntries, type Contributor } from './roster';
 export interface NextAssigneeRule {
   decider: string;
   nextRole: string;
+  /** Explicit task-file participant the proposed action refers to. */
+  taskField?: 'assignee' | 'reviewer';
   when?: { projectField: string; values: string[] };
 }
 
@@ -16,12 +18,15 @@ export interface NextAssigneeInput {
   projectFields?: Readonly<Record<string, string>>;
   /** Observed holder, when known. Never treated as a delivery or start. */
   holder?: string;
+  reviewer?: string;
 }
 
 export type NextAssigneePlan = {
   column: KanbanColumn;
   holder?: string;
   decider?: string;
+  taskField?: 'assignee' | 'reviewer';
+  taskParticipant?: string;
 } & (
   | { status: 'unconfigured' }
   | { status: 'invalid-rule' }
@@ -41,7 +46,8 @@ export function planNextAssignee(input: NextAssigneeInput): NextAssigneePlan {
   const decider = rule.decider.trim();
   const role = rule.nextRole.trim();
   if (!decider || !role) return { ...base, status: 'invalid-rule' };
-  const withDecider = { ...base, decider };
+  const participant = rule.taskField === 'assignee' ? input.holder : rule.taskField === 'reviewer' ? input.reviewer : undefined;
+  const withDecider = { ...base, decider, ...(rule.taskField ? { taskField: rule.taskField } : {}), ...(participant ? { taskParticipant: participant } : {}) };
   if (rule.when) {
     const { projectField, values } = rule.when;
     if (!projectField.trim() || !values.length || values.some((value) => !value.trim())) return { ...base, status: 'invalid-rule' };

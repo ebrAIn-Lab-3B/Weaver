@@ -41,9 +41,10 @@ assignment:
   Review:
     decider: Neo
     next-role: reviewer
+    task-field: reviewer
 ```
 
-State names are Weaver columns; `decider` and `next-role` are organization-supplied strings. An absent state is explicitly unconfigured, not inferred. Partial configuration is allowed for incremental adoption; this does not satisfy AC-001 for the remaining states. The roster must identify exactly one matching contributor before a proposal is shown. Multiple candidates or agent label reaches are reported, not chosen. A configured state decider is not necessarily the performer of each concurrent action. Configuration and proposals do not authorize a write or dispatch. The confirmed application and human-action portions remain open.
+`task-field` can be `assignee` or `reviewer` and identifies which existing task-file participant must match the proposed contributor before applying an Issue action. If omitted, the proposal remains read-only. This keeps the implementation owner and reviewer distinct. State names are Weaver columns; `decider` and `next-role` are organization-supplied strings. An absent state is explicitly unconfigured, not inferred. Partial configuration is allowed for incremental adoption; this does not satisfy AC-001 for the remaining states. The roster must identify exactly one matching contributor before a proposal is shown. Multiple candidates or agent label reaches are reported, not chosen. A configured state decider is not necessarily the performer of each concurrent action. Configuration and proposals do not authorize a write or dispatch. The confirmed application and human-action portions remain open.
 
 The [collaboration work assessment](../architecture/collaboration-work-alignment.md) identifies an open question about the scope of the per-state decider when a card has several human or agent actions, and separates a proposal from observed execution. It does not amend the criteria above or authorize automatic application.
 
@@ -53,3 +54,6 @@ This requirement is not complete when a task is merely reported as done. Complet
 
 
 A state rule may additionally require a Project field to match one of its configured values. For example, `when: {project-field: Type, in: [feature, bug]}` can restrict a Ready proposal to the organization's chosen work types. Weaver reads that configured field even if it is not selected for display. A missing or unreadable field yields an unknown condition; a different value yields a non-matching condition. Neither produces an assignee proposal or authorizes an action. Project field names and values are organization configuration, never Weaver defaults.
+
+
+The Overview can review a single proposed Issue-assignee change or configured agent label for a directly linked, saved task whose configured task participant already matches the candidate. It rereads the sources and asks for an Issue-specific human execution check and separate action confirmation. A local action log records the attempt before the write and its outcome; an unclear result must be checked before retrying. The screen does not change task-file participants, infer that a manual check proves exclusive execution, or bypass a configured approval gate. Requirement-only links, changing task ownership through this proposal, surfacing all human actions, and real extension-host verification remain open.

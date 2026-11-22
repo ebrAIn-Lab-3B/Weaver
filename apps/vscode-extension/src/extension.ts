@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext): void {
   processStore.init(context.globalState);
   rosterStore.init(context.globalState);
   const view = new RequirementView();
-  const overview = new OverviewView(context.globalState, view, () => refresh());
+  const overview = new OverviewView(context.globalState, view, () => refresh(), context.globalStorageUri.scheme === 'file' ? context.globalStorageUri.fsPath : undefined);
 
   // Tells the menus whether the active file is a Weaver document (TASK-018).
   let latest: Loaded | undefined;

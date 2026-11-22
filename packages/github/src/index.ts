@@ -17,3 +17,4 @@ export * from './size';
 export * from './assignmentProposal';
 export * from './freshAssignmentRoster';
 export * from './freshTaskHolder';
+export * from './freshLocalRoster';

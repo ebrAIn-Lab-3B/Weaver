@@ -30,6 +30,8 @@ import {
   staleNotices,
   LaneGuideline,
   ValidationIssue,
+  planNextAssignee,
+  type Roster,
 } from '@ebrain-lab/weaver-markdown';
 import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
 import { promises as fs } from 'node:fs';
@@ -45,7 +47,8 @@ import { log } from './log';
 import { currentLocale, message as text } from './locale';
 import { OverviewCard, OverviewState, renderOverviewHtml } from './overviewHtml';
 import { processStore } from './processStore';
-import { rosterStore } from './rosterStore';
+import { rosterStore, rosterOf } from './rosterStore';
+import { readConfigRoster } from './configRoster';
 import { saveRepositoryList, scanClones } from './repositoryStore';
 import { readRootConfig, rememberRootFile } from './rootConfig';
 import { readUserConfig } from './userConfig';
@@ -125,6 +128,7 @@ async function personalGuideline(): Promise<DeclaredGuideline | undefined> {
 export class OverviewView {
   private panel: vscode.WebviewPanel | undefined;
   private loaded: Loaded | undefined;
+  private configuredRoster: Roster | undefined;
   private registry: Registry = { kind: 'none' };
   private read: ProjectRead | undefined;
   /** When `read` was read from GitHub, as an ISO date (DEC-011). */
@@ -503,6 +507,8 @@ export class OverviewView {
     const started = Date.now();
     log(`load #${request} start (interactive=${interactive})`);
     this.registry = await readRegistry();
+    this.configuredRoster = await readConfigRoster();
+    if (request !== this.request) return;
     log(`load #${request} registry ${this.registry.kind}${this.registry.kind === 'ok' ? `, ${this.registry.registry.repositories.length} repositories, source ${this.registry.source}` : ''}`);
     if (this.registry.kind !== 'ok') {
       this.read = undefined;
@@ -725,6 +731,11 @@ export class OverviewView {
       if (this.reading.has(card.repository)) return { ...card, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] };
       const requirement = links.get(normalizeIssueUrl(card.url));
       const task = requirement?.taskPath ? tasks.get(requirement.taskPath) : undefined;
+      const assignmentRules = processStore.assignmentFor(card.repository);
+      const roster = rosterOf(this.configuredRoster);
+      const nextAssignment = assignmentRules && (roster || !assignmentRules[card.placement.column])
+        ? planNextAssignee({ column: card.placement.column, rules: assignmentRules, contributors: roster?.contributors ?? [], holder: task?.assignee })
+        : undefined;
       const selectedFields = processStore.collaborationFieldsFor(card.repository);
       const values = this.fieldRead?.cards.get(normalizeIssueUrl(card.url));
       const fieldsRead = this.fieldRead && values && selectedFields.every((name) => this.fieldRead?.names.has(name));
@@ -733,6 +744,8 @@ export class OverviewView {
         ...card,
         requirement,
         participants: participantsFor(requirement?.taskPath),
+        ...(nextAssignment ? { nextAssignment } : {}),
+        ...(processStore.assignmentInvalidFor(card.repository) ? { assignmentUnavailable: 'invalid' as const } : assignmentRules?.[card.placement.column] && !roster ? { assignmentUnavailable: 'roster' as const } : {}),
         ...(processStore.collaborationInvalidFor(card.repository) ? { projectFields: { invalid: true, values: [] } } : selectedFields.length ? { projectFields: fieldsRead ? { at: this.fieldRead!.at, values: selectedFields.map((name) => ({ name, value: values![name] })) } : { failed: this.fieldFailed, values: [] } } : {}),
         ...(taskFile ? { taskFile } : {}),
         focus: focused.has(normalizeIssueUrl(card.url)),

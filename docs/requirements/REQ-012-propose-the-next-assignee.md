@@ -34,6 +34,17 @@ Each state has one declared decider. Weaver shows who holds a card and who shoul
 
 Origin: proposal [#162](https://github.com/ebrAIn-Lab-3B/Weaver/issues/162). The shape is decided in the first task of each requirement before any code follows it.
 
+A repository may configure the states it is ready to use in its default-branch `.weaver/process.yaml`:
+
+```yaml
+assignment:
+  Review:
+    decider: Neo
+    next-role: reviewer
+```
+
+State names are Weaver columns; `decider` and `next-role` are organization-supplied strings. An absent state is explicitly unconfigured, not inferred. Partial configuration is allowed for incremental adoption; this does not satisfy AC-001 for the remaining states. The roster must identify exactly one matching contributor before a proposal is shown. Multiple candidates or agent label reaches are reported, not chosen. A configured state decider is not necessarily the performer of each concurrent action. Configuration and proposals do not authorize a write or dispatch. The confirmed application and human-action portions remain open.
+
 The [collaboration work assessment](../architecture/collaboration-work-alignment.md) identifies an open question about the scope of the per-state decider when a card has several human or agent actions, and separates a proposal from observed execution. It does not amend the criteria above or authorize automatic application.
 
 ## Evidence policy

@@ -2,10 +2,10 @@ const assert = require('node:assert/strict');
 const { renderOverviewHtml } = require('../apps/vscode-extension/dist/overviewHtml');
 const { KANBAN_COLUMNS } = require('@ebrain-lab/weaver-markdown');
 
-function render(participants, locale = 'en', boardStatus = 'Ready <test>', projectFields) {
+function render(participants, locale = 'en', boardStatus = 'Ready <test>', projectFields, nextAssignment, assignmentUnavailable) {
   const card = {
     repository: 'example/project', number: 1, title: 'Work', url: 'https://github.com/example/project/issues/1',
-    assignees: ['other'], ...(boardStatus === null ? {} : { boardStatus }), placement: { column: 'Backlog', gaps: [] }, stale: [], participants, projectFields,
+    assignees: ['other'], ...(boardStatus === null ? {} : { boardStatus }), placement: { column: 'Backlog', gaps: [] }, stale: [], participants, projectFields, nextAssignment, assignmentUnavailable,
   };
   const columns = Object.fromEntries(KANBAN_COLUMNS.map((name) => [name, name === 'Backlog' ? [card] : []]));
   return renderOverviewHtml({ kind: 'ready', projectTitle: 'Board', lanes: [{ repository: card.repository, title: 'Project', total: 1, blocked: 0, columns }], skipped: 0, hidden: [], collapsed: [], mismatches: [], skippedChecks: [], reading: [], focusActive: false, showFinished: true, finished: {} }, 'nonce', 'source', locale);
@@ -30,4 +30,10 @@ assert.match(render(undefined, 'ko', null, { values: [] }), /Project 필드: 아
 assert.match(render(undefined, 'en', null, { failed: true, values: [] }), /Project fields could not be read/);
 assert.match(render(undefined, 'en', null, { invalid: true, values: [] }), /Project field configuration is invalid/);
 assert.doesNotMatch(render(undefined), /Task file participants/);
+const proposal = { column: 'Backlog', status: 'proposal', decider: '<Neo>', candidate: '<dev>', kind: 'agent', role: 'builder' };
+assert.match(render(undefined, 'en', null, undefined, proposal), /Decider: &lt;Neo&gt;/);
+assert.match(render(undefined, 'ko', null, undefined, proposal), /다음 담당자 제안: &lt;dev&gt; \(builder\)/);
+assert.match(render(undefined, 'en', null, undefined, { column: 'Backlog', status: 'unconfigured' }), /not configured for this state/);
+assert.match(render(undefined, 'ko', null, undefined, undefined, 'roster'), /참여자 목록을 읽을 수 없음/);
+assert.match(render(undefined, 'en', null, undefined, undefined, 'invalid'), /invalid rule/);
 console.log('Overview participant rendering passed');

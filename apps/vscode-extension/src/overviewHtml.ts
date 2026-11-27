@@ -158,12 +158,13 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     const taskPeople = participants && (participants.assignee || participants.reviewer)
       ? `<div class="small"><a href="#" data-file="${e(participants.path)}">${e(tt('ui.overview.task-participants'))}</a>${participants.assignee ? `<div>${e(tt('ui.overview.task-owner', { name: participants.assignee, kind: participants.kind ? tt(`ui.overview.participant.${participants.kind}` as MessageKey) : tt('ui.overview.participant.unknown') }))}</div>` : ''}${participants.reviewer ? `<div>${e(tt('ui.overview.task-reviewer', { name: participants.reviewer }))}</div>` : ''}</div>`
       : '';
+    const taskId = card.requirement?.taskId ?? card.taskId;
     const title = e(card.title.replace(TASK_PREFIX, ''));
     const titleHtml = card.requirement
       ? `<a class="title" href="#" data-open="${e(card.url || `task:${encodeURIComponent(card.requirement.path)}/${card.requirement.taskId}`)}" title="${e(tt('ui.overview.open-task', { id: card.requirement.id, task: card.requirement.taskId }))}">${title}</a>`
       : `<a class="title" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">${title}</a>`;
     return `<div class="card${card.placement.gaps.length ? ' has-gap' : ''}${card.stale.length ? ' is-stale' : ''}${card.focus ? ' focus' : ''}"${card.url && !card.fromFiles ? ` data-card="${e(card.url)}"` : ''}>
-        <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${card.taskId ? ` <span class="muted small">${e(card.taskId)}</span>` : ''} ${requirement}</div>
+        <div class="top">${card.url ? `<a class="tag" href="#" data-url="${e(card.url)}" title="${e(tt('ui.overview.open-issue', { number: card.number }))}">#${card.number}</a>` : ''}${taskId ? ` <span class="muted small">${e(taskId)}</span>` : ''} ${requirement}</div>
         <div>${titleHtml}</div>${labels}${pulls}${noTaskFile}${gaps}${markVerified}${stale}${boardStatus}${projectFields}${taskPeople}${assignees}
       </div>`;
   };

@@ -67,6 +67,7 @@ The board `Status` column is derived from the labels and Issue state ([DEC-003](
 
 Notes:
 
+- Overview cards show the linked task ID alongside the issue and requirement IDs, including when the issue title does not name the task.
 - `assigned` and `needs-human-decision` have no column of their own. The card shows the owner or the pending decision instead.
 - `accepted` is a human decision recorded in the requirement or verification record. The Issue only reaches `verified`.
 - A closed Issue without verification evidence is a verification gap, whatever its label says.

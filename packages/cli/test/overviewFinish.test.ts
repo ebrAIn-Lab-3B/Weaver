@@ -34,6 +34,23 @@ function html(cards: OverviewCard[], locale: 'en' | 'ko' = 'en'): string {
 const requirement = { id: 'REQ-018', title: 'T', path: 'docs/requirements/REQ-018.md', taskId: 'TASK-098' };
 const pull = (number: number, state: 'open' | 'merged' | 'closed') => ({ number, url: `https://github.com/o/r/pull/${number}`, title: `PR ${number}`, state });
 
+describe('task identifier on an overview card', () => {
+  it('shows the linked task for an issue without a task identifier in its title', () => {
+    const page = html([card({ taskId: undefined, title: 'A plain Issue', requirement })]);
+    expect(page).toContain('<span class="muted small">TASK-098</span>');
+  });
+
+  it('prefers the task linked to the requirement when the title names a different task', () => {
+    const page = html([card({ taskId: 'TASK-099', requirement })]);
+    expect(page).toContain('<span class="muted small">TASK-098</span>');
+    expect(page).not.toContain('<span class="muted small">TASK-099</span>');
+  });
+
+  it('shows the issue title task when no requirement is linked', () => {
+    expect(html([card()])).toContain('<span class="muted small">TASK-098</span>');
+  });
+});
+
 describe('the line of a card that has no task file (REQ-020, DEC-023 item 3)', () => {
   it('says that there is no task file in this folder and what to do, for a card that names a task', () => {
     const page = html([card()]);

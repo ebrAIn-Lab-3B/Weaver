@@ -106,6 +106,7 @@ export function setup(options: { token?: string | undefined; registry?: string; 
         if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') return JSON.stringify({ url: 'https://github.com/me/Weaver/pull/200', state: 'OPEN', headRefName: createdPullBranch });
         if (command === 'gh' && args[0] === 'pr') return JSON.stringify([{ title: 'docs: add TASK-040 x', headRefName: 'docs/task-040-x' }]);
         if (command === 'gh') return 'main\n';
+        if (args[0] === 'config' && args[1] === '--get' && args[2] === 'remote.origin.url') return 'https://github.com/me/Weaver.git\n';
         if (args[0] === 'rev-parse') return '/work\n';
         return '';
       },

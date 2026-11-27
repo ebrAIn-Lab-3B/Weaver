@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { createHash } from 'crypto';
 import { Artifact, Locale, RequirementArtifact, TaskFieldPlan } from '@ebrain-lab/weaver-markdown';
 import { addIssueToProject, createIssue, fetchIssue, fetchIssueBody, NoticeError, readProject, setProjectField, type Fetch, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction } from './actions';
@@ -16,6 +17,8 @@ export interface TaskCreateInput {
   locale: Locale;
   project: { owner: string; number: number };
   requirement: RequirementArtifact;
+  /** Source text used in the plan, checked against the default branch before editing. */
+  requirementText?: string;
   repository: string;
   title: string;
   criteria: string[];
@@ -37,6 +40,7 @@ export interface TaskCreateInput {
   fetch?: Fetch;
   /** Re-read the approved process before each mutation; a changed or failed read refuses the write. */
   revalidateProcess?: () => Promise<boolean>;
+  revalidateCheckout?: () => Promise<boolean>;
   /** Effective process bound to approvals, even when its fields are not shown in an action summary. */
   approvalProcess?: unknown;
   /** Explicitly identified existing Issue, after the caller validates its association. */
@@ -55,8 +59,9 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
   const created: { number?: number; url?: string; item?: string } = input.resume ? { number: input.resume.number, url: input.resume.url, item: input.resume.item } : {};
   const reason = input.resume ? { code: 'cli.task-create.resume-reason' as const } : { code: 'cli.task-create.reason' as const };
   const reservations = taskReservationRefs(input.repository, input.requirement.id, input.requirement.repository, input.requirement.repositoryServer, input.title, id);
-  const intent = JSON.stringify({ repository: input.repository.toLowerCase(), project: input.project, requirement: { id: input.requirement.id, title: input.requirement.title, path: input.requirement.path, repository: input.requirement.repository, repositoryServer: input.requirement.repositoryServer }, id, title: input.title, criteria: input.criteria, assigneeType: input.assigneeType, assignee: input.assignee, area: input.area, contract: input.contract, initialLabel: input.initialLabel, initialBoardStatus: input.initialBoardStatus, process: input.approvalProcess, taskPath, resumeIssue: input.resume?.url, resumeItem: input.resume?.item });
+  const intent = JSON.stringify({ repository: input.repository.toLowerCase(), project: input.project, requirement: { id: input.requirement.id, title: input.requirement.title, path: input.requirement.path, repository: input.requirement.repository, repositoryServer: input.requirement.repositoryServer, textHash: input.requirementText === undefined ? null : createHash('sha256').update(input.requirementText.replace(/\r\n/g, '\n')).digest('hex') }, id, title: input.title, criteria: input.criteria, assigneeType: input.assigneeType, assignee: input.assignee, area: input.area, contract: input.contract, initialLabel: input.initialLabel, initialBoardStatus: input.initialBoardStatus, process: input.approvalProcess, taskPath, resumeIssue: input.resume?.url, resumeItem: input.resume?.item });
   const checkProcess = async () => {
+    if (input.revalidateCheckout && !(await input.revalidateCheckout())) throw new NoticeError({ code: 'cli.task-create.checkout-unsafe', args: { repository: input.repository } });
     if (input.revalidateProcess && !(await input.revalidateProcess())) throw new NoticeError({ code: 'cli.task-create.process-unsafe', args: { repository: input.repository } });
     if (input.resume && !(await input.resume.revalidate())) throw new NoticeError({ code: 'cli.task-create.resume-unsafe', args: { repository: input.repository } });
   };
@@ -216,13 +221,19 @@ ${attribution(input.locale, input.login)}`,
         body: `${attribution(input.locale, input.login)}
 
 Adds ${taskPath} and lists ${id} under ${input.requirement.id}. Issue: ${created.url}`,
+        beforePush: checkProcess,
         edit: async ({ work, top, base }) => {
+          await checkProcess();
           const relative = path.relative(top, path.resolve(input.root, input.requirement.path)).split(path.sep).join('/');
+          const taskRelative = path.relative(top, path.resolve(input.root, taskPath)).split(path.sep).join('/');
+          if ([relative, taskRelative].some((value) => value === '..' || value.startsWith('../') || path.posix.isAbsolute(value) || path.win32.isAbsolute(value))) throw new NoticeError({ code: 'cli.task-create.files-conflict', args: { path: taskPath } });
           const requirementText = await system.readText(path.join(work, relative));
+          const existingTask = await system.readText(path.join(work, taskRelative));
+          if (input.requirementText !== undefined && (requirementText === undefined || requirementText.replace(/\r\n/g, '\n') !== input.requirementText.replace(/\r\n/g, '\n'))) throw new NoticeError({ code: 'cli.task-create.requirement-changed', args: { path: relative } });
+          if (existingTask !== undefined || (requirementText !== undefined && (new RegExp(`\\b${id}\\b`, 'i').test(requirementText) || requirementText.toLowerCase().includes((created.url as string).toLowerCase())))) throw new NoticeError({ code: 'cli.task-create.files-conflict', args: { path: taskPath } });
           const updated = requirementText === undefined ? undefined : addTaskToRequirement(requirementText, taskListLine(id, input.title, created.number as number, created.url as string));
           if (updated === undefined) throw new NoticeError({ code: 'cli.err.no-tasks-section', args: { path: relative, base } });
           await system.writeFile(path.join(work, relative), updated);
-          const taskRelative = path.relative(top, path.resolve(input.root, taskPath)).split(path.sep).join('/');
           await system.writeFile(
             path.join(work, taskRelative),
             renderTaskFile({

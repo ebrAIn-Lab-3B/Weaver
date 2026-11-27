@@ -64,7 +64,10 @@ void run(process.argv.slice(2), {
   system: {
     run: runProgram,
     tempDir: async () => path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'weaver-')), 'work'),
-    readText: (file) => fs.readFile(file, 'utf8').then((text) => text, () => undefined),
+    readText: (file) => fs.readFile(file, 'utf8').catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return undefined;
+      throw error;
+    }),
     writeFile: async (file, text) => {
       await fs.mkdir(path.dirname(file), { recursive: true });
       await fs.writeFile(file, text, 'utf8');

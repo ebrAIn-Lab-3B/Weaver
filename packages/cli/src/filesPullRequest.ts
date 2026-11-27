@@ -9,6 +9,8 @@ export interface FilesPullRequest {
   title: string;
   body: string;
   commitMessage: string;
+  /** Optional final authorization and target check immediately before pushing. */
+  beforePush?(): Promise<void>;
   /** Changes the files inside the new worktree. `top` is the checkout's top-level folder, `base` the default branch. */
   edit(worktree: { work: string; top: string; base: string }): Promise<void>;
 }
@@ -29,6 +31,7 @@ export async function openFilesPullRequest(input: FilesPullRequest): Promise<str
     await input.edit({ work, top, base });
     await system.run('git', ['add', '-A'], { cwd: work });
     await system.run('git', ['commit', '-m', input.commitMessage], { cwd: work });
+    if (input.beforePush) await input.beforePush();
     await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work });
     return (await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body])).trim();
   } finally {

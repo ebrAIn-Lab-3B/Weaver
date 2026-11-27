@@ -16,6 +16,7 @@ import {
   effectiveRepositories,
   planTaskFields,
   parseIssueUrl,
+  repositoryFromRemote,
   Setup,
   taskIdsOfPull,
   t,
@@ -182,7 +183,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     return confirmAndRun(plan.actions, plan.skipped);
   }
 
-  const workspace = loadWorkspace(await deps.files(root));
+  const workspaceFiles = await deps.files(root);
+  const workspace = loadWorkspace(workspaceFiles);
   const artifacts: Artifact[] = workspace.artifacts;
   const workspaceComplete = !workspace.issues.some((issue) => issue.severity === 'error' && !artifacts.some((artifact) => artifact.path === issue.path));
   if (args.command === 'task') {
@@ -190,6 +192,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (matches.length > 1) return fail(EXIT.usage, 'cli.requirement-ambiguous', { id: args.options.requirement });
     const requirement = matches.length === 1 ? matches[0] : undefined;
     if (!requirement) return fail(EXIT.notFound, 'cli.requirement-not-found', { id: args.options.requirement });
+    const sourceFiles = workspaceFiles.filter((file) => file.path === requirement.path);
+    if (sourceFiles.length !== 1) return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository: requirement.repository ?? '' });
     if (requirement.repositoryServer && requirement.repositoryServer.toLowerCase() !== 'github.com') return fail(EXIT.usage, 'cli.requirement-other-server', { server: requirement.repositoryServer });
     const title = args.options.title.trim();
     if (!title || /[:\n]/.test(title)) return fail(EXIT.usage, 'cli.bad-title');
@@ -201,6 +205,13 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (unknown) return fail(EXIT.usage, 'cli.unknown-criterion', { criterion: unknown, requirement: requirement.id });
     const assigneeType = args.options['assignee-type'] ?? 'agent';
     if (assigneeType !== 'human' && assigneeType !== 'agent') return fail(EXIT.usage, 'cli.bad-assignee-type');
+    const checkoutSafe = async (): Promise<boolean> => {
+      try {
+        const origin = repositoryFromRemote((await deps.system.run('git', ['config', '--get', 'remote.origin.url'], { cwd: root })).trim());
+        return !!origin && sameServer(origin.server, 'github.com') && origin.repository.toLowerCase() === repository.toLowerCase();
+      } catch { return false; }
+    };
+    if (!(await checkoutSafe())) return fail(EXIT.failed, 'cli.task-create.checkout-unsafe', { repository });
     // The task contract of the repository (DEC-016). Without a file or a `task` section nothing changes.
     const given: Record<string, string> = {};
     for (const entry of args.repeated.field ?? []) {
@@ -288,6 +299,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       let statusRestored = false;
       const restoredFields = new Set<string>();
       const revalidate = async () => {
+        if (!(await checkoutSafe())) return false;
         const current = await fetchIssue(token, issue.url, deps.fetch as unknown as FetchFn | undefined);
         const currentBody = await fetchIssueBody(token, repository, ref.number, deps.fetch as unknown as FetchFn | undefined).catch(() => undefined);
         if (!current.ok || current.issue.title !== issue.title || current.issue.state !== issue.state || JSON.stringify([...current.issue.labels].sort()) !== JSON.stringify([...issue.labels].sort()) || currentBody !== body) return false;
@@ -313,7 +325,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
           const top = (await deps.system.run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).trim();
           const taskPath = path.relative(top, path.resolve(root, taskDirectory, `${id}.md`)).split(path.sep).join('/');
           const requirementPath = path.relative(top, path.resolve(root, requirement.path)).split(path.sep).join('/');
-          if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value))) throw new Error('Path outside repository');
+          if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value) || path.win32.isAbsolute(value))) throw new Error('Path outside repository');
           const expectedTask = renderTaskFile({ id, title, requirement: requirement.id, ...(requirement.repository && (requirement.repository.toLowerCase() !== repository.toLowerCase() || requirement.repositoryServer) ? { requirementRepository: requirement.repository } : {}), ...(requirement.repository && requirement.repositoryServer ? { requirementServer: requirement.repositoryServer } : {}), issueUrl: issue.url, issueNumber: ref.number, repository, criteria, assigneeType, assignee: args.options.assignee, fileFields: contract?.fileFields, sections: contract?.sections });
           const check = { token, repository, branch: `docs/${id.toLowerCase()}-${slugOf(title)}`, taskId: id, taskPath, requirementPath, expectedTask, expectedRequirementLine: taskListLine(id, title, ref.number, issue.url), fetch: deps.fetch };
           const merged = await observeMergedTaskPull(check).catch(() => undefined);
@@ -364,7 +376,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
             const top = (await deps.system.run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).trim();
             const taskPath = path.relative(top, path.resolve(root, taskDirectory, `${id}.md`)).split(path.sep).join('/');
             const requirementPath = path.relative(top, path.resolve(root, requirement.path)).split(path.sep).join('/');
-            if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value))) throw new Error('Path outside repository');
+            if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value) || path.win32.isAbsolute(value))) throw new Error('Path outside repository');
             const expectedTask = renderTaskFile({ id, title, requirement: requirement.id, ...(requirement.repository && (requirement.repository.toLowerCase() !== repository.toLowerCase() || requirement.repositoryServer) ? { requirementRepository: requirement.repository } : {}), ...(requirement.repository && requirement.repositoryServer ? { requirementServer: requirement.repositoryServer } : {}), issueUrl: issue.url, issueNumber: ref.number, repository, criteria, assigneeType, assignee: args.options.assignee, fileFields: contract?.fileFields, sections: contract?.sections });
             const check = { token, repository, branch, taskId: id, taskPath, requirementPath, expectedTask, expectedRequirementLine: taskListLine(id, title, ref.number, issue.url), fetch: deps.fetch };
             await verifyTaskFiles(check, head);
@@ -451,6 +463,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       locale,
       project: setup.project,
       requirement,
+      requirementText: sourceFiles[0].text,
       repository,
       title,
       criteria,
@@ -468,6 +481,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       root,
       system: deps.system,
       fetch: deps.fetch,
+      revalidateCheckout: checkoutSafe,
       revalidateProcess: async () => {
         const [current] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
         return !!current && current.file === processReport.file && !current.issues.some((issue) => issue.severity === 'error') && JSON.stringify(current.process) === JSON.stringify(processReport.process);

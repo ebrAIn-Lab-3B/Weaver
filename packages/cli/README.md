@@ -41,6 +41,8 @@ The Issue creation action first creates two persistent `weaver/reservations/` br
 
 Initial file-PR creation and recovery of an already pushed branch share a separate persistent `recover-pr-task-*` reservation, shown in their approval plans. If an attempt ends before its PR can be confirmed, inspect the prior executor, branch and PR before deciding how to recover; the reservation is not automatically removed or taken over.
 
+Run task creation from a checkout whose `origin` identifies the target GitHub repository. Before a file PR is pushed, Weaver checks the checkout target again and requires the default-branch requirement to match the source used for approval; existing task files or task/Issue references stop the operation for review.
+
 New Issues carry a registration marker. If a retry sees matching title candidates, it reports their URLs and whether their markers match; it never selects one automatically. If the Issue list is delayed but the operation reservation is visible, it stops before presenting a new creation plan. First establish that an earlier creator has stopped, then inspect the candidate and pass a confirmed URL to `--resume-issue`. A failed or hidden read is not proof of absence.
 
 After a matching file PR is merged, resume can report registration `done` only after reading the selected Project and Issue, checking the PR's merge commit is in the default-branch history, and verifying both file links at an unchanged default-branch revision. This means registration is observed, not that the task's work or verification evidence is complete.

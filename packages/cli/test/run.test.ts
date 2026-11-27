@@ -291,7 +291,8 @@ describe('weaver task create', () => {
     expect(logged.map((l) => l.action)).toEqual(['issue.create', 'project.add', 'files.pull-request']);
 
     const git = shell.filter((s) => s.command === 'git').map((s) => s.args.slice(0, 2).join(' '));
-    expect(git).toEqual(['ls-remote --heads', 'ls-remote --heads', 'rev-parse --show-toplevel', 'fetch origin', 'worktree add', 'add -A', 'commit -m', 'push -u', 'worktree remove']);
+    expect(git.filter((entry) => entry !== 'config --get')).toEqual(['ls-remote --heads', 'ls-remote --heads', 'rev-parse --show-toplevel', 'fetch origin', 'worktree add', 'add -A', 'commit -m', 'push -u', 'worktree remove']);
+    expect(git.filter((entry) => entry === 'config --get').length).toBeGreaterThanOrEqual(4);
     expect(shell.find((s) => s.args[0] === 'worktree' && s.args[1] === 'add')?.args).toContain('origin/main');
     expect(shell.find((s) => s.args[0] === 'pr' && s.args[1] === 'create')?.args).toContain('docs/task-041-add-the-export-button');
     expect(shell.find((s) => s.args[0] === 'commit')?.args[2]).toContain('Made by the Weaver steward on behalf of @me.');
@@ -318,6 +319,70 @@ describe('weaver task create', () => {
     expect(result.actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'done', 'failed']);
     expect(result.actions[2].message).toBe('push rejected');
     expect(shell.some((s) => s.args[0] === 'worktree' && s.args[1] === 'remove')).toBe(true);
+  });
+
+  it('refuses a target whose checkout origin is different or unavailable before writing', async () => {
+    for (const origin of ['https://github.com/me/Other.git', 'https://git.example/me/Weaver.git', '']) {
+      const s = setup();
+      const original = s.deps.system.run;
+      s.deps.system.run = async (command, args, options) => command === 'git' && args[0] === 'config' ? origin : original(command, args, options);
+      expect(await run(ARGS, s.deps)).toBe(EXIT.failed);
+      expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.checkout-unsafe');
+      expect(s.writes.filter((entry) => entry.startsWith('REST') || entry.startsWith('RESERVE'))).toEqual([]);
+    }
+  });
+
+  it('stops subsequent writes if the checkout origin changes after Issue creation', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.system.run;
+    let reads = 0;
+    s.deps.system.run = async (command, args, options) => {
+      if (command === 'git' && args[0] === 'config') return ++reads < 4 ? 'https://github.com/me/Weaver.git' : 'https://github.com/me/Other.git';
+      return original(command, args, options);
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((action: { outcome: string }) => action.outcome)).toEqual(['done', 'failed', 'skipped']);
+    expect(actions[0].identifiers.issue).toBe('https://github.com/me/Weaver/issues/77');
+    expect(s.writes.some((entry) => entry.includes('addProjectV2ItemById'))).toBe(false);
+  });
+
+  it('rechecks the checkout origin immediately before pushing the file branch', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.system.run;
+    let reads = 0;
+    s.deps.system.run = async (command, args, options) => {
+      if (command === 'git' && args[0] === 'config') return ++reads < 8 ? 'https://github.com/me/Weaver.git' : 'https://github.com/me/Other.git';
+      return original(command, args, options);
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions.map((action: { outcome: string }) => action.outcome)).toEqual(['done', 'done', 'failed']);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'worktree' && call.args[1] === 'remove')).toBe(true);
+  });
+
+  it('does not overwrite an existing task file or add a duplicate requirement entry', async () => {
+    const ids = (await approvedIds()).join(',');
+    for (const conflict of ['file', 'requirement', 'unreadable'] as const) {
+      const s = setup();
+      const original = s.deps.system.readText;
+      s.deps.system.readText = async (file) => {
+        if (file.endsWith('TASK-041.md')) {
+          if (conflict === 'unreadable') throw new Error('permission denied');
+          if (conflict === 'file') return 'existing task';
+        }
+        const text = await original(file);
+        return conflict === 'requirement' && file.endsWith('REQ-001.md') ? `${text}\n- \`TASK-041\` already recorded\n` : text;
+      };
+      expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+      const actions = JSON.parse(s.out.join('')).actions;
+      expect(actions[2].outcome).toBe('failed');
+      if (conflict === 'requirement') expect(actions[2].message).toContain('differs from the approved source');
+      expect(s.written).toEqual([]);
+      expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+    }
   });
 
   it('skips the card and the pull request when the Issue was not created', async () => {

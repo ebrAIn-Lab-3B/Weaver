@@ -159,6 +159,7 @@ export async function executeActions(actions: readonly PlannedAction[], ctx: Exe
     const entry = { time: ctx.now().toISOString(), actor: ctx.actor, ...(ctx.onBehalfOf ? { onBehalfOf: ctx.onBehalfOf } : {}), action: action.kind, target: action.target, reason: formatNotice(action.reason, 'en') };
     try {
       const details = await action.run();
+      if (action.identifiers) result.identifiers = { ...result.identifiers, ...action.identifiers };
       if (details) result.identifiers = { ...result.identifiers, ...details.identifiers };
       result.outcome = 'done';
       await ctx.log.append({ ...entry, outcome: 'done' });

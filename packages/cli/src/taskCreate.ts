@@ -113,6 +113,7 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
     reason,
     dependsOn: input.resume ? [] : [issue],
     run: async () => {
+      card.identifiers = { ...card.identifiers, ...(created.url ? { issue: created.url } : {}), ...(created.item ? { projectItem: created.item } : {}) };
       await checkProcess();
       if (!created.url) throw new NoticeError({ code: 'cli.err.issue-not-created' });
       created.item = await addIssueToProject(input.token, input.project, created.url, input.fetch);
@@ -127,7 +128,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
 
   // A field that lives on the board is set after the card exists, one action each, so the plan shows it.
   const fields = [...(input.initialBoardStatus && (!input.resume?.item || input.resume.needsInitialStatus) ? [{ field: 'Status', value: input.initialBoardStatus }] : []), ...(input.contract?.projectFields ?? []).filter((field) => !input.resume?.item || input.resume.pendingProjectFields?.includes(field.field))];
-  const fieldActions: PlannedAction[] = fields.map((f): PlannedAction => ({
+  const fieldActions: PlannedAction[] = fields.map((f): PlannedAction => {
+    const action: PlannedAction = {
     kind: 'project.field',
     target: `${input.repository} ${id}`,
     identifiers: { task: id, project: `${input.project.owner}/${input.project.number}`, field: f.field, value: f.value, ...(input.resume ? { issue: input.resume.url, ...(input.resume.item ? { projectItem: input.resume.item } : {}) } : {}) },
@@ -136,6 +138,7 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
     reason,
     dependsOn: input.resume?.item ? [] : [card],
     run: async () => {
+      action.identifiers = { ...action.identifiers, ...(created.url ? { issue: created.url } : {}), ...(created.item ? { projectItem: created.item } : {}) };
       await checkProcess();
       if (!created.item) throw new NoticeError({ code: 'github.err.no-data' });
       if (f.field === 'Status' && input.initialBoardStatus) {
@@ -168,7 +171,9 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       if (await observe() !== f.value) throw new NoticeError({ code: 'cli.task-create.field-unverified', args: { field: f.field } });
       input.resume?.onFieldRestored?.(f.field);
     },
-  }));
+    };
+    return action;
+  });
 
   const branch = `docs/${id.toLowerCase()}-${slugOf(input.title)}`;
   const recoveryReservation = `refs/heads/weaver/reservations/recover-pr-${id.toLowerCase()}`;
@@ -198,6 +203,7 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
     reason,
     dependsOn: input.resume ? (input.resume.item ? fieldActions : [card, ...fieldActions]) : [issue, card, ...fieldActions],
     run: async () => {
+      files.identifiers = { ...files.identifiers, ...(created.url ? { issue: created.url } : {}), ...(created.item ? { projectItem: created.item } : {}) };
       await checkProcess();
       if (!created.url || created.number === undefined) throw new NoticeError({ code: 'cli.err.issue-not-created' });
       const { system } = input;

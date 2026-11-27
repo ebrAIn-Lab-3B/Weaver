@@ -336,6 +336,7 @@ describe('weaver task create', () => {
     const result = JSON.parse(out.join(''));
     expect(result.actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'done', 'failed']);
     expect(result.actions[2].message).toBe('push rejected');
+    expect(result.actions[2].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM' });
     expect(shell.some((s) => s.args[0] === 'worktree' && s.args[1] === 'remove')).toBe(true);
   });
 
@@ -397,6 +398,7 @@ describe('weaver task create', () => {
       expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
       const actions = JSON.parse(s.out.join('')).actions;
       expect(actions[2].outcome).toBe('failed');
+      expect(actions[2].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM' });
       if (conflict === 'requirement') expect(actions[2].message).toContain('differs from the approved source');
       expect(s.written).toEqual([]);
       expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
@@ -433,6 +435,22 @@ describe('weaver task create', () => {
       expect(actions[0].message).toContain('could not be verified');
       expect(s.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
     }
+  });
+
+  it('retains the Issue identity when the Project addition response is lost', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init.body && init.body.includes('addProjectV2ItemById')) throw new Error('response lost');
+      return original(url, init);
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions[1].outcome).toBe('failed');
+    expect(actions[1].identifiers.issue).toBe('https://github.com/me/Weaver/issues/77');
+    expect(actions[1].identifiers.projectItem).toBeUndefined();
+    expect(actions[2].outcome).toBe('skipped');
   });
 
   it('retains the Project item ID and stops when the new membership is not observed', async () => {
@@ -693,6 +711,7 @@ describe('weaver task create with a task contract (DEC-016)', () => {
     const { deps, out, posted, written } = withContract();
     expect(await run([...BASE, ...FIELDS, '--approve', ids], deps)).toBe(EXIT.unconfirmed);
     expect(JSON.parse(out.join('')).status).toBe('pending');
+    expect(JSON.parse(out.join('')).actions[2].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM', field: 'Priority' });
     expect((posted.find((p) => p.url.endsWith('/issues'))?.body as { labels: string[] }).labels).toEqual(['task', 'status:backlog', 'owner:alpha']);
     expect(posted.find((p) => p.url === 'field')?.body.variables).toEqual({ p: 'PROJECT', i: 'ITEM', f: 'FIELD', o: 'OPT1' });
     const task = written.find((w) => w.file.endsWith('TASK-041.md'))?.text ?? '';
@@ -710,6 +729,7 @@ describe('weaver task create with a task contract (DEC-016)', () => {
       expect(await run([...BASE, ...FIELDS, '--approve', ids], s.deps)).toBe(EXIT.failed);
       const actions = JSON.parse(s.out.join('')).actions;
       expect(actions[2].outcome).toBe('failed');
+      expect(actions[2].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM', field: 'Priority' });
       expect(actions[3].outcome).toBe('skipped');
       expect(s.posted.filter((post) => post.url === 'field')).toHaveLength(options.ignoreWrite ? 1 : 0);
     }
@@ -866,7 +886,7 @@ describe('task creation initial state', () => {
 describe('task creation resume by explicit Issue', () => {
   const url = 'https://github.com/me/Weaver/issues/77';
   const args = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001', '--resume-issue', url];
-  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable' } = {}) {
+  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable'; losePriorityResponse?: boolean } = {}) {
     const s = setup();
     const original = s.deps.fetch as Fetch;
     let createCount = 0;
@@ -883,7 +903,7 @@ describe('task creation resume by explicit Issue', () => {
       if (options.boardUnset && request.includes('/contents/.weaver/')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'columns:\n  source: board-status\n  board:\n    Queue: Backlog\n    Doing: In progress\n' };
       const query = request.endsWith('/graphql') && init.body ? JSON.parse(init.body).query as string : '';
       if (options.priority && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'P1', name: 'P1' }] } } } } }) };
-      if (options.priority && query.includes('updateProjectV2ItemFieldValue')) { priorityWrites += 1; priorityValue = 'P1'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
+      if (options.priority && query.includes('updateProjectV2ItemFieldValue')) { priorityWrites += 1; priorityValue = 'P1'; if (options.losePriorityResponse) throw new Error('response lost'); return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
       if (options.boardUnset && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'Q', name: 'Queue' }, { id: 'D', name: 'Doing' }] } } } } }) };
       if (options.boardUnset && query.includes('updateProjectV2ItemFieldValue')) { statusWrites += 1; boardStatus = 'Queue'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
       if (request.endsWith('/issues/77')) return { ok: true, status: 200, json: async () => ({ number: 77, title: options.issueTitle ?? '[TASK-041] New task', html_url: url, state: 'open', labels: [{ name: 'status:ready' }], assignees: [], body: options.body ?? 'A task of REQ-001 (First). The definition is tasks/TASK-041.md.' }) };
@@ -1030,6 +1050,21 @@ describe('task creation resume by explicit Issue', () => {
     await run(taskArgs, matching.deps);
     expect(JSON.parse(matching.out.join('')).actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
     expect(matching.priorityWrites()).toBe(0);
+  });
+
+  it('rereads a Project field after a lost write response without writing it again', async () => {
+    const taskArgs = [...args, '--field', 'priority=P1'];
+    const s = fixture({ onProject: true, priority: 'missing', losePriorityResponse: true });
+    await run(taskArgs, s.deps);
+    const fieldId = JSON.parse(s.out.join('')).actions[0].id;
+    s.out.length = 0;
+    expect(await run([...taskArgs, '--approve', fieldId], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[0].identifiers).toMatchObject({ issue: url, projectItem: 'ITEM77', field: 'Priority' });
+    expect(s.priorityWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
+    expect(s.priorityWrites()).toBe(1);
   });
 
   it('refuses conflicting or unreadable configured Project fields on resume', async () => {

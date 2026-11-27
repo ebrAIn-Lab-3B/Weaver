@@ -759,6 +759,22 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('stops when the Project field reread fails rather than planning from an older snapshot', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    let projectReads = 0;
+    deps.fetch = async (url, init) => {
+      if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        projectReads += 1;
+        if (projectReads === 2) return { ok: false, status: 503, json: async () => ({}) };
+      }
+      return originalFetch(url, init);
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).error).toMatchObject({ code: 'project.unreachable' });
+  });
+
   it('plans, approves, changes only the selected item, rechecks and is idempotent', async () => {
     const { deps, out } = setup();
     let status = 'Todo';

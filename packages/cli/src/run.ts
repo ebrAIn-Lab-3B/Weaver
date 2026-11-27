@@ -254,7 +254,11 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   let boardCards = read.read.cards;
   if (args.command === 'reconcile' && projectFields.length > 0) {
     const again = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch, projectFields);
-    if (again.ok) boardCards = again.read.cards;
+    if (!again.ok) {
+      report(again.error.code, formatNotice(again.error, locale));
+      return EXIT.failed;
+    }
+    boardCards = again.read.cards;
   }
   const cards = placeWithRules(boardCards, rulesFor);
   const all = toCliCards(cards, artifacts, deps.now(), idleDaysFor, evidenceFor);

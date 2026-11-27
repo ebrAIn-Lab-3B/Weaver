@@ -116,6 +116,8 @@ export const en = {
   // Reading the central Project
   'project.status-options-unavailable': 'Project Status options could not be read; status repair cannot be checked safely.',
   'project.membership-incomplete': 'Some Project items are inaccessible; missing membership cannot be confirmed.',
+  'project.changed-during-read': 'The Project or its Status options changed while pages were read. Refresh before diagnosing or changing it.',
+  'project.pagination-incomplete': 'The Project pagination cursor was missing or repeated. Refresh before diagnosing or changing it.',
   'project.labels-incomplete': 'Labels for {repository}#{number} are incomplete; refresh before diagnosing or changing the Project.',
   'project.unreachable': 'GitHub could not be reached, so the Project is not shown.',
   'project.unauthorized': 'GitHub rejected the sign-in. Sign in again.',

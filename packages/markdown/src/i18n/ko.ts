@@ -115,6 +115,8 @@ export const ko: Record<MessageKey, Message> = {
   // 중앙 Project 읽기
   'project.status-options-unavailable': 'Project Status 선택지를 읽지 못해 상태 수정을 안전하게 점검할 수 없습니다.',
   'project.membership-incomplete': '일부 Project 항목에 접근할 수 없어 등록 누락 여부를 확인할 수 없습니다.',
+  'project.changed-during-read': 'Project 또는 Status 선택지가 페이지 조회 중 바뀌었습니다. 진단하거나 변경하기 전에 새로 고쳐 주세요.',
+  'project.pagination-incomplete': 'Project 페이지 조회 커서가 없거나 반복됐습니다. 진단하거나 변경하기 전에 새로 고쳐 주세요.',
   'project.labels-incomplete': '{repository}#{number}의 라벨 조회가 불완전합니다. Project를 진단하거나 변경하기 전에 다시 조회해 주세요.',
   'project.unreachable': 'GitHub에 연결하지 못해 Project를 보여 줄 수 없습니다.',
   'project.unauthorized': 'GitHub가 로그인을 받아 주지 않았습니다. 다시 로그인해 주세요.',

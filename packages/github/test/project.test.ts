@@ -103,6 +103,23 @@ describe('readProject', () => {
     expect(asked.map((a) => a.variables.c)).toEqual([null, 'cursor-1']);
   });
 
+  it('refuses a Project read when the Status options change between pages', async () => {
+    const first = page([issue('me/Weaver', 1)], 'cursor-1');
+    const second = page([issue('me/Weaver', 2)], null);
+    Object.assign(first.data.repositoryOwner.projectV2, { field: { options: [{ name: 'Todo' }] } });
+    Object.assign(second.data.repositoryOwner.projectV2, { field: { options: [{ name: 'Backlog' }] } });
+    const { fetchImpl } = fake({ body: first }, { body: second });
+    expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.changed-during-read' } });
+  });
+
+  it('refuses repeated or absent pagination cursors', async () => {
+    const repeated = fake({ body: page([], 'same') }, { body: page([], 'same') });
+    expect(await readProject('t', project, undefined, repeated.fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+    const missing = page([], null);
+    missing.data.repositoryOwner.projectV2.items.pageInfo.hasNextPage = true;
+    expect(await readProject('t', project, undefined, fake({ body: missing }).fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+  });
+
   it('keeps only registered repositories, ignoring case, and counts what it left out', async () => {
     const { fetchImpl } = fake({
       body: page(
@@ -255,7 +272,8 @@ describe('readProject', () => {
       expect(!result.ok && result.error.code).toBe('project.unreachable');
     });
     it('stops when the Project is endless', async () => {
-      const endless: Fetch = async () => ({ ok: true, status: 200, json: async () => page([], 'again') });
+      let pageNumber = 0;
+      const endless: Fetch = async () => ({ ok: true, status: 200, json: async () => page([], `cursor-${++pageNumber}`) });
       const result = await readProject('t', project, ['me/Weaver'], endless);
       expect(!result.ok && result.error.code).toBe('project.too-large');
     });

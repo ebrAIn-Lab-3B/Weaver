@@ -124,6 +124,7 @@ export async function readProject(
   let title = '';
   let statusOptions: string[] | undefined;
   let cursor: string | null = null;
+  const seenCursors = new Set<string>();
   const query = buildQuery(extraFields);
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -150,8 +151,10 @@ export async function readProject(
 
     const found = body.data?.repositoryOwner?.projectV2;
     if (!found) return { ok: false, error: { code: 'project.not-found', args: { owner: project.owner, number: project.number } } };
+    const pageOptions = found.field?.options?.map((option) => option.name);
+    if (page > 0 && (title !== found.title || JSON.stringify(statusOptions ?? null) !== JSON.stringify(pageOptions ?? null))) return { ok: false, error: { code: 'project.changed-during-read' } };
     title = found.title;
-    if (found.field?.options) statusOptions = found.field.options.map((option) => option.name);
+    statusOptions = pageOptions;
 
     for (const node of found.items.nodes) {
       const issue = node.content;
@@ -200,7 +203,10 @@ export async function readProject(
     }
 
     if (!found.items.pageInfo.hasNextPage) return { ok: true, read: { title, cards, skipped, membershipComplete, ...(statusOptions ? { statusOptions } : {}) } };
-    cursor = found.items.pageInfo.endCursor;
+    const nextCursor = found.items.pageInfo.endCursor;
+    if (!nextCursor || seenCursors.has(nextCursor)) return { ok: false, error: { code: 'project.pagination-incomplete' } };
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
   }
   return { ok: false, error: { code: 'project.too-large', args: { pages: MAX_PAGES } } };
 }

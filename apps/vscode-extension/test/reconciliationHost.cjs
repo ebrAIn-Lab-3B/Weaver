@@ -27,6 +27,17 @@ async function run() {
     const html = renderOverviewHtml(state, 'nonce', 'test', 'ko');
     assert.match(html, /Backlog, Todo/);
     assert.match(html, /Backlog: status:backlog → Backlog/);
+    assert.match(html, /Issue 라벨 status:backlog/);
+
+    rules.source = 'board-status';
+    const labels = ['status:backlog'];
+    const noStatus = { ...view.read.cards[0], boardStatus: undefined, boardStatusRead: true, placement: placeIssue({ state: 'open', labels }, rules) };
+    view.read.cards = [noStatus];
+    const missingHtml = renderOverviewHtml(view.state(), 'nonce', 'test', 'ko');
+    assert.match(missingHtml, /Issue 라벨: status:backlog; Project Status: 없음/);
+    view.read.cards = [{ ...noStatus, boardStatusRead: false }];
+    const unreadHtml = renderOverviewHtml(view.state(), 'nonce', 'test', 'ko');
+    assert.match(unreadHtml, /Issue 라벨: status:backlog; Project Status: 조회하지 않음/);
     processStore.diagnosisUnavailable = () => true;
     const unavailable = view.state();
     assert(unavailable.skippedChecks.some((n) => n.code === 'cli.reconcile.process-unavailable'));

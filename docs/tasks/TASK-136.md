@@ -34,6 +34,8 @@ Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/We
 
 Final review found that status plans named the configured column but did not directly show the observed Issue label. The follow-up change adds the observed label to label-source mismatch notices and Project Status plans, including report-only cases. Custom labels and English/Korean output are covered by reconciliation tests. This is not evidence of an independent review or a closing PR.
 
+PRs [#411](https://github.com/ebrAIn-Lab-3B/Weaver/pull/411) and [#412](https://github.com/ebrAIn-Lab-3B/Weaver/pull/412) were merged with passing CI. The VS Code 1.148.0 `reconciliation` extension-host test checks the rendered Korean mismatch text for an observed label and distinguishes empty from unread Project Status using mock data. The actual confirmed status-write observation and its automation and concurrency limits remain as recorded below.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

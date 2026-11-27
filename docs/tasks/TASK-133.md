@@ -31,6 +31,8 @@ Linked implementation PR and passing diagnostic and repair tests, including unce
 
 Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46035681371) passed build checks, tests, packaging and smoke checks after commit `d73ef44`. That commit adds a fixture checking that reconciliation does not propose a Project Status write for an open Issue with a Verified label and an absent or behind board Status. This is a plan-level test, not a live Project automation test. Review the remaining limitations in the design record before acceptance.
 
+Follow-up PRs [#411](https://github.com/ebrAIn-Lab-3B/Weaver/pull/411) and [#412](https://github.com/ebrAIn-Lab-3B/Weaver/pull/412) expose observed labels and distinguish unread status observations from completed empty reads. The VS Code 1.148.0 `reconciliation` extension-host test now checks the rendered Korean mismatch text for an observed label and both empty and unread Project Status. This uses mock GitHub data and is not a live permission test.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #395 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

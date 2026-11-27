@@ -173,6 +173,8 @@ describe('readProject', () => {
     // An answer without those fields leaves them out rather than guessing zero.
     expect(cards[1] && 'updatedAt' in cards[1]).toBe(false);
     expect(cards[1] && 'pullCount' in cards[1]).toBe(false);
+    expect(cards[0].pullsIncomplete).toBe(true);
+    expect(cards[1].pullsIncomplete).toBe(true);
   });
 
   it('reads the pull requests themselves, open first, a pull request of both lists once, and nothing that is not a pull request (DEC-022)', async () => {
@@ -202,6 +204,8 @@ describe('readProject', () => {
     // No pull request, or an answer without the lists: no `pulls` at all, not an empty list.
     expect('pulls' in cards[1]).toBe(false);
     expect('pulls' in cards[2]).toBe(false);
+    expect(cards[1].pullsIncomplete).toBeUndefined();
+    expect(cards[2].pullsIncomplete).toBe(true);
   });
 
   it('asks for the pull requests in the same query, and adds no request', async () => {

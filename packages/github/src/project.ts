@@ -27,7 +27,7 @@ export interface ProjectCard {
   updatedAt?: string;
   /** Pull requests that close or mention the Issue. */
   pullCount?: number;
-  /** A bounded PR/timeline connection does not include every record. */
+  /** PR/timeline connections are missing or do not include every record. */
   pullsIncomplete?: boolean;
   /** The pull requests that refer to the Issue, open first, at most three (DEC-022). Left out when GitHub gave none. */
   pulls?: CardPull[];
@@ -194,10 +194,15 @@ export async function readProject(
         ...(extraFields.length > 0 ? { fields } : {}),
         ...(taskId ? { taskId } : {}),
         ...(issue.updatedAt ? { updatedAt: issue.updatedAt } : {}),
-        ...(issue.closedByPullRequestsReferences && issue.timelineItems
+        ...(issue.closedByPullRequestsReferences && issue.timelineItems &&
+          Number.isInteger(issue.closedByPullRequestsReferences.totalCount) && Number.isInteger(issue.timelineItems.totalCount)
           ? { pullCount: issue.closedByPullRequestsReferences.totalCount + issue.timelineItems.totalCount }
           : {}),
-        ...(issue.closedByPullRequestsReferences && issue.timelineItems && (issue.closedByPullRequestsReferences.totalCount > (issue.closedByPullRequestsReferences.nodes?.length ?? 0) || issue.timelineItems.totalCount > (issue.timelineItems.nodes?.length ?? 0)) ? { pullsIncomplete: true } : {}),
+        ...(!issue.closedByPullRequestsReferences || !issue.timelineItems ||
+          !Array.isArray(issue.closedByPullRequestsReferences.nodes) || !Array.isArray(issue.timelineItems.nodes) ||
+          !Number.isInteger(issue.closedByPullRequestsReferences.totalCount) || !Number.isInteger(issue.timelineItems.totalCount) ||
+          issue.closedByPullRequestsReferences.totalCount > issue.closedByPullRequestsReferences.nodes.length ||
+          issue.timelineItems.totalCount > issue.timelineItems.nodes.length ? { pullsIncomplete: true } : {}),
         ...(pulls.length > 0 ? { pulls } : {}),
         placement: placeIssue({ state, labels, ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}) }),
       });

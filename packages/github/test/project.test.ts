@@ -39,6 +39,27 @@ function fake(...replies: { status?: number; body: unknown }[]) {
 const project = { owner: 'me', number: 1 };
 
 describe('readProject', () => {
+  it('reports malformed Project pages and labels without throwing or treating them as complete', async () => {
+    for (const body of [null, { errors: [null] }, page([null], null), page([issue('me/Weaver', 1, { assignees: { nodes: [null] } })], null)]) {
+      const { fetchImpl } = fake({ body });
+      const result = await readProject('t', project, undefined, fetchImpl);
+      expect(result.ok).toBe(false);
+    }
+    for (const labels of [{ pageInfo: { hasNextPage: false }, nodes: [null] }, { pageInfo: { hasNextPage: false }, nodes: [{}] }]) {
+      const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels })], null) });
+      expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+    }
+    const invalidTitle = fake({ body: page([issue('me/Weaver', 1, { title: null })], null) });
+    expect(await readProject('t', project, undefined, invalidTitle.fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: false, cards: [] } });
+    const unknownContent = fake({ body: page([{ content: { __typename: 'Unexpected' } }], null) });
+    expect(await readProject('t', project, undefined, unknownContent.fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: false, cards: [] } });
+  });
+
+  it('marks malformed PR connections incomplete without throwing during a Project read', async () => {
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { closedByPullRequestsReferences: { totalCount: 1, nodes: null }, timelineItems: { totalCount: 0, nodes: null } })], null) });
+    const result = await readProject('t', project, undefined, fetchImpl);
+    expect(result.ok && result.read.cards[0].pullsIncomplete).toBe(true);
+  });
   it('reads the Issues of every repository when no list is given', async () => {
     const { fetchImpl } = fake({ body: page([issue('me/a', 1), issue('other/b', 2)], null) });
     const result = await readProject('t', project, undefined, fetchImpl);

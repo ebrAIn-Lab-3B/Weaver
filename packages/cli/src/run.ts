@@ -107,6 +107,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
 
   /** Shows the plan, takes the confirmations, runs what was approved, and prints the result. */
   const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean; context?: unknown; recheck?: () => Promise<unknown> } = {}): Promise<number> => {
+    if (options.context !== undefined && !options.dryRun) deps.err(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(options.context)}\n`);
     const results = await executeActions(actions, {
       locale,
       approved: parseApproved(args.options.approve),
@@ -305,7 +306,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       incompletePullRepositories: merged.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]),
       repositories: repositories.map((repository) => {
         const report = processes.get(repository.toLowerCase());
-        const rules = report?.file === 'failed' ? undefined : report?.process.columns;
+        const rules = !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error') ? undefined : report.process.columns;
         return { repository, file: report?.file ?? 'failed', columnsSource: report?.sources.columns ?? 'unknown', rules: rules ?? null, projectionOrigin: rules?.source === 'labels' ? (rules.projection ? 'repository' : 'legacy-default') : null, projection: rules?.source === 'labels' ? (rules.projection ?? PROJECT_STATUS_FOR_COLUMN) : null, issues: report?.issues ?? [] };
       }),
     };

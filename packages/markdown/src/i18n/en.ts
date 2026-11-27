@@ -789,6 +789,7 @@ export const en = {
   'github.err.no-data': 'GitHub sent no data.',
   'github.err.no-issue': 'GitHub sent no Issue.',
   'github.err.http-detail': 'GitHub answered {status}: {detail}.',
+  'github.err.project-add-uncertain': 'The Project addition returned no item ID. Refresh the Project before retrying; the outcome is unknown.',
   'github.err.project-not-found': 'Project {number} of {owner} was not found, or this sign-in cannot see it.',
   'github.err.project-field-not-found': 'The field "{field}" was not found on Project {number} of {owner}.',
   'github.err.project-field-no-option': 'The field "{field}" has no option "{value}".',

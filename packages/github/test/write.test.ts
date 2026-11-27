@@ -38,6 +38,11 @@ describe('addIssueToProject', () => {
     expect(r.asked).toHaveLength(1);
   });
 
+  it('treats an addition without an item ID as an uncertain outcome', async () => {
+    const { fetchImpl } = fake({ body: lookup() }, { body: { data: { addProjectV2ItemById: { item: null } } } });
+    await expect(addIssueToProject('t', project, 'https://github.com/me/x/issues/9', fetchImpl)).rejects.toThrow('outcome is unknown');
+  });
+
   it('reports what GitHub answered when the call is refused', async () => {
     await expect(addIssueToProject('t', project, 'u', fake({ status: 401, body: {} }).fetchImpl)).rejects.toThrow('401');
     await expect(addIssueToProject('t', project, 'u', fake({ status: 502, body: {} }).fetchImpl)).rejects.toThrow('502');

@@ -782,6 +782,7 @@ export const ko: Record<MessageKey, Message> = {
   'github.err.no-data': 'GitHub가 데이터를 보내지 않았습니다.',
   'github.err.no-issue': 'GitHub가 Issue를 보내지 않았습니다.',
   'github.err.http-detail': 'GitHub 응답 코드 {status}: {detail}.',
+  'github.err.project-add-uncertain': 'Project 추가 결과에 항목 ID가 없습니다. 처리 결과를 알 수 없으므로 다시 시도하기 전에 Project를 새로 고쳐 주세요.',
   'github.err.project-not-found': '{owner}의 Project {number}을(를) 찾지 못했거나 이 로그인으로는 볼 수 없습니다.',
   'github.err.project-field-not-found': '{owner}의 Project {number}에 "{field}" 필드가 없습니다.',
   'github.err.project-field-no-option': '"{field}" 필드에 "{value}" 선택지가 없습니다.',

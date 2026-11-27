@@ -35,7 +35,7 @@ export async function addIssueToProject(
   project: { owner: string; number: number },
   issueUrl: string,
   fetchImpl: Fetch = fetch as unknown as Fetch,
-): Promise<string | undefined> {
+): Promise<string> {
   const found = await call<{ repositoryOwner: { projectV2?: { id: string } | null } | null; resource: { id?: string } | null }>(
     token,
     LOOKUP,
@@ -47,7 +47,9 @@ export async function addIssueToProject(
   const contentId = found.resource?.id;
   if (!contentId) throw new NoticeError({ code: 'github.err.not-an-issue', args: { url: issueUrl } });
   const added = await call<{ addProjectV2ItemById?: { item?: { id?: string } } }>(token, ADD, { p: projectId, c: contentId }, fetchImpl);
-  return added.addProjectV2ItemById?.item?.id;
+  const itemId = added.addProjectV2ItemById?.item?.id;
+  if (!itemId) throw new NoticeError({ code: 'github.err.project-add-uncertain' });
+  return itemId;
 }
 
 export interface NewIssue {

@@ -763,6 +763,10 @@ describe('rule-based status reconciliation flow', () => {
     const { deps, out } = setup();
     let status = 'Todo';
     let writes = 0;
+    let fileReads = 0;
+    let failFileRead = 0;
+    const originalFiles = deps.files;
+    deps.files = async (root) => { fileReads += 1; if (fileReads === failFileRead) throw new Error('disk unavailable'); return originalFiles(root); };
     deps.fetch = async (url, init) => {
       if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
       if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
@@ -782,10 +786,22 @@ describe('rule-based status reconciliation flow', () => {
     const result = JSON.parse(out.join('')); out.length = 0;
     expect(result.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
     expect(result.recheck.status).toBe('read');
+    expect(fileReads).toBe(3);
     expect(result.recheck.resolved).toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
     expect(writes).toBe(1);
     expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
     expect(JSON.parse(out.join('')).actions.filter((item: { kind: string }) => item.kind === 'board.status')).toEqual([]);
     expect(writes).toBe(1);
+
+    // An unavailable workspace after the mutation must not be reported as a clean recheck.
+    status = 'Todo'; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const secondAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0;
+    failFileRead = fileReads + 2;
+    expect(await run(['reconcile', '--approve', secondAction.id], deps)).toBe(EXIT.ok);
+    const partial = JSON.parse(out.join(''));
+    expect(partial.recheck).toMatchObject({ status: 'unavailable' });
+    expect(partial.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
   });
 });

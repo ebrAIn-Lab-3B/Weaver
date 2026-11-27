@@ -119,7 +119,11 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       now: () => deps.now(),
       note: (text) => deps.err(text),
     });
-    const recheck = options.recheck && results.some((result) => result.outcome === 'done' || result.outcome === 'failed') ? await options.recheck() : undefined;
+    let recheck: unknown;
+    if (options.recheck && results.some((result) => result.outcome === 'done' || result.outcome === 'failed')) {
+      try { recheck = await options.recheck(); }
+      catch { recheck = { status: 'unavailable', reason: t('cli.reconcile.recheck-unavailable', locale) }; }
+    }
     return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun, context: options.context, recheck });
   };
 
@@ -312,6 +316,12 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     };
     const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: read.read.membershipComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
     const recheck = async () => {
+      let refreshedArtifacts: Artifact[];
+      try {
+        refreshedArtifacts = loadWorkspace(await deps.files(root)).artifacts;
+      } catch {
+        return { status: 'unavailable', reason: t('cli.reconcile.recheck-files', locale) };
+      }
       const latest = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch, projectFields);
       if (!latest.ok) return { status: 'unavailable', reason: formatNotice(latest.error, locale) };
       const latestProcesses = await readProcesses(token, repositories, locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline);
@@ -322,7 +332,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const currentContract = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.task;
       const latestPulls = await Promise.all(repositories.map((repository) => readMergedPulls(token, repository, 50, deps.fetch)));
       const missingPulls = latestPulls.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]);
-      const current = findMismatches({ artifacts, cards: placeWithRules(latest.read.cards, currentRules), repositories, projectMembershipComplete: latest.read.membershipComplete, pulls: latestPulls.flatMap((r) => r.ok ? r.pulls : []), rulesFor: currentRules, boardSourced: repositories.filter((name) => currentRules(name)?.source === 'board-status'), contractFor: currentContract });
+      const current = findMismatches({ artifacts: refreshedArtifacts, cards: placeWithRules(latest.read.cards, currentRules), repositories, projectMembershipComplete: latest.read.membershipComplete, pulls: latestPulls.flatMap((r) => r.ok ? r.pulls : []), rulesFor: currentRules, boardSourced: repositories.filter((name) => currentRules(name)?.source === 'board-status'), contractFor: currentContract });
       const key = (m: { kind: string; subject: string; url?: string }) => `${m.kind}|${m.subject}|${m.url ?? ''}`;
       const currentKeys = new Set(current.map(key));
       const show = (m: typeof current[number]) => ({ kind: m.kind, subject: m.subject, message: formatNotice({ code: `mismatch.${m.kind}` as MessageKey, args: m.args }, locale), ...(m.url ? { url: m.url } : {}) });

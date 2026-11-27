@@ -338,7 +338,7 @@ export const en = {
   'mismatch.board-status-missing': '{repository}#{number} has no Project Status; Issue label {label} projects to {expected}. Review before changing it.',
   'mismatch.projection-unmapped': '{repository}#{number} has Issue label {label} and no configured Project Status projection for {column}. Review the process mapping.',
   'mismatch.pulls-incomplete': 'Pull request references for {repository}#{number} are incomplete. Read the remaining pages before drawing a conclusion.',
-  'mismatch.status-source-needs-decision': '{repository}#{number}: the authoritative {source} status is missing, conflicting or unmapped (observed: {observed}). Issue labels: {labels}; Project Status: {board}. Review the intended state and choose the appropriate Issue or Project change, or update the process mapping.',
+  'mismatch.status-source-needs-decision': '{repository}#{number}: the authoritative {source} status is missing, conflicting, unmapped or unread (observed: {observed}). Issue labels: {labels}; Project Status: {board}. A dash means no value was observed; check whether it is unset or unread. Review the intended state and choose the appropriate Issue or Project change, or update the process mapping.',
   'mismatch.issue-project-unknown': 'Cannot determine whether {task} Issue {issue} is on the Project because an item was inaccessible. Refresh with access before adding it.',
   'mismatch.shared-issue': 'Tasks {tasks} reference the same Issue {issue}. Sharing may be intentional; review the association.',
   'mismatch.task-without-issue': '{task} has no Issue link.',

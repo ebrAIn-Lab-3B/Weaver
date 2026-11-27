@@ -27,11 +27,13 @@ None.
 
 Design and investigation notes linked from this task, cited source and test observations, and review of unresolved decisions. No implementation completion is implied.
 
-Status: ready for review. The investigation, proposed contract and known limitations are documented below; review and completion evidence remain outstanding.
+Status: investigation and design complete. The user approved DEC-032 on 2026-11-28 KST, including the documented manual handoff and retained-reservation limitations.
 
-Implementation and investigation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
+Implementation and investigation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416), merged by the user as `912dd1b0c8a6fa8f4f75c6b5efbff547095cfe7f`. [CI run 46056736052](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46056736052) passed on PR head `87aecc0cf8e95e1e29dd4a8daf1af1b2504f7d75`. No formal GitHub review was recorded; the user's DEC-032 approval is a design decision, not an assertion of independent code review.
 
 ## Work in progress (2026-11-27 KST)
+
+The following entries record the state at the time of the investigation; the completed decision and merged evidence are stated above.
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.
 
@@ -41,4 +43,4 @@ The synthetic [TASK-133 scenarios](../../packages/markdown/test/task133Scenarios
 
 For review, the [reconciliation design](../architecture/task-reconciliation-design.md) specifies deterministic diagnosis, configured state, incomplete reads, approvals and same-scope rechecks; the [registration investigation](../architecture/task-registration-recovery.md) covers operation and task identities, uncertain writes, concurrent attempts, alternatives and the retained-reservation decision path. The [TASK-132 evidence map](TASK-132.md#acceptance-evidence-map) identifies exercised write boundaries and remaining host limitations. In particular, no GitHub ref can fence a privileged actor or a paused former executor after external ref removal, and the Issue-body intent digest is editable. These limits require an explicit human decision when facts cannot establish a safe recovery.
 
-[DEC-032](../decisions/DEC-032-recoverable-task-registration.md) makes the retained-reservation and explicit-handoff tradeoff concrete for maintainer review. It is proposed, not accepted; its review is not inferred from implementation or green tests.
+[DEC-032](../decisions/DEC-032-recoverable-task-registration.md) records the retained-reservation and explicit-handoff tradeoff and its subsequent explicit approval.

@@ -50,6 +50,10 @@ Build on [REQ-007](REQ-007-steward-agent-for-the-kanban.md) and TASK-046/053 for
 
 This requirement is draft. A design or issue registration is not implementation evidence. Record tests, real observations, access limitations and links in each task; only mark the requirement verified after its acceptance criteria and remaining gaps are reviewed.
 
+## TASK-131 and TASK-132 implementation evidence (2026-11-28 KST)
+
+[PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416) was merged at `912dd1b0c8a6fa8f4f75c6b5efbff547095cfe7f`; [CI run 46056736052](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46056736052) passed on its head. The user explicitly approved [DEC-032](../decisions/DEC-032-recoverable-task-registration.md), including the retained-ref and manual handoff limitations. [TASK-131](../tasks/TASK-131.md) records the design and [TASK-132](../tasks/TASK-132.md) records automated coverage and isolated real GitHub observations for both column sources. No formal GitHub code review or independent test run is inferred from those facts. This evidence covers these two tasks, not the remaining REQ-024 acceptance criteria or a Verified requirement status.
+
 ## Registration evidence (2026-11-27 KST)
 
 GitHub reads confirmed Issues #393–#397 are open, carry `task` and `status:backlog`, and each has an item on [ebrAIn.lab Kanban](https://github.com/orgs/ebrAIn-Lab-3B/projects/1) with `Status=Todo`. Weaver's repository process uses labels and maps Backlog to `status:backlog`; Todo is the matching board projection. At the time of this registration check the REQ and TASK documents and this task list were local working-tree changes, not yet available on the default branch. HealthBridge Issues #26–#29 were separately read with `status:backlog`; their Project state was reported by the user and was not independently checked here. This registration is not evidence of product implementation.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Fetch } from '@ebrain-lab/weaver-github';
 import { addTaskToRequirement, actionId, EXIT, nextTaskNumber, parseArgs, parseColumn, parsePullRef, planProjectAdd, renderTaskFile, run, slugOf, taskListLine } from '../src';
-import { FILES, setup, withGitHub } from './helpers';
+import { FILES, issue, setup, withGitHub } from './helpers';
 
 describe('parseArgs', () => {
   it('splits the command, options, and flags', () => {
@@ -759,6 +759,27 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('distinguishes unreadable Status options from a known missing option in the CLI plan', async () => {
+    for (const available of [false, true]) {
+      const { deps, out } = setup();
+      const originalFetch = deps.fetch!;
+      deps.fetch = async (url, init) => {
+        if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+          const node = issue(10);
+          node.fieldValueByName = { name: 'Todo' };
+          return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: available ? { options: [{ name: 'Todo' }] } : null, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [node] } } } } }) };
+        }
+        return originalFetch(url, init);
+      };
+      expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+      const result = JSON.parse(out.join(''));
+      expect(result.actions.filter((action: { kind: string }) => action.kind === 'board.status')).toEqual([]);
+      expect(result.context.statusOptions).toEqual(available ? ['Todo'] : null);
+      expect(result.report.find((report: { kind: string }) => report.kind === 'board-status-differs').message)
+        .toContain(available ? 'no Status option named In Progress' : 'could not be read');
+    }
+  });
+
   it('treats an invalid task document as an incomplete file inventory', async () => {
     const { deps, out } = setup();
     deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: '---\ntype: task\nid: [\n---\n' }];

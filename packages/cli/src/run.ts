@@ -278,7 +278,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       project: setup.project,
       repositories,
       cards,
-      statusOptions: boardRead.statusOptions ?? [],
+      ...(boardRead.statusOptions !== undefined ? { statusOptions: boardRead.statusOptions } : {}),
       projectMembershipComplete: boardRead.membershipComplete,
       workspaceComplete,
       unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),

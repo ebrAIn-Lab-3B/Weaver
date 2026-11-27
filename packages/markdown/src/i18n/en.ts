@@ -433,6 +433,7 @@ export const en = {
   'cli.reconcile.project-add-reason': 'The Issue is not on the selected Project. Project automations may also change the Issue; the result will be checked.',
   'cli.reconcile.project-add': 'Add {issue}, linked by {task} ({path}), to Project {owner}/{project}; membership changes from absent to present.',
   'cli.reconcile.board-review': '{ref} on Project {owner}/{project} shows {board}; the configured label projection is {expected}. Review the process and decide which state is intended before changing either source.',
+  'cli.reconcile.closed-board-review': '{ref} is closed and Project {owner}/{project} shows {board}; the label projects to {expected}. Review the Issue, verification evidence and Project automation before changing the status.',
   'cli.reconcile.status-option-not-found': 'Project {owner}/{project} has no Status option named {expected}. Review its options and the configured projection before changing the status.',
   'cli.reconcile.link-review': '{task} has no Issue link. Search the repository for an existing Issue, then link it by a reviewed file change; create one only after its identity is established.',
   'cli.reconcile.issue-unavailable': 'Cannot read the Issue {issue} referenced by {task}: {detail}. Check access or the link before adding it to the Project.',

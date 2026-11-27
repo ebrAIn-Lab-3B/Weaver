@@ -6,7 +6,7 @@ from the repository root. The test supplies fictional Project cards in memory an
 does not contact GitHub. It exercises missing and invalid Issue links, missing and
 unknown Project membership, shared Issues, distinct Backlog and Todo values, and
 missing authoritative status for both column sources, and incomplete PR evidence
-on a closed Issue. Permission failures, GitHub
+and missing Project status on a closed Issue. Permission failures, GitHub
 pagination, actual Project automation and the installed extension require separate
 integration or live tests.
 

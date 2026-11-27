@@ -160,6 +160,10 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         const card = byUrl.get(normalizeIssueUrl(m.url ?? ''));
         const expected = String(m.args.expected ?? '');
         if (!card || !expected) break;
+        if (card.state === 'closed') {
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.closed-board-review', args: { ref: `${card.repository}#${card.number}`, owner: input.project.owner, project: input.project.number, board: card.boardStatus ?? '—', expected } }, locale) });
+          break;
+        }
         // A board that is ahead of the label was moved by a person (or the board's own rules) first.
         // Moving it back would undo real progress, and making the label follow could close the Issue,
         // so that case is only reported.

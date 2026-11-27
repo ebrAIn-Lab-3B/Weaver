@@ -765,11 +765,17 @@ describe('rule-based status reconciliation flow', () => {
     let writes = 0;
     let fileReads = 0;
     let failFileRead = 0;
+    let processReads = 0;
+    let changeAtProcessRead = 0;
     const originalFiles = deps.files;
     deps.files = async (root) => { fileReads += 1; if (fileReads === failFileRead) throw new Error('disk unavailable'); return originalFiles(root); };
     deps.fetch = async (url, init) => {
       if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
-      if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
+      if (url.includes('/contents/.weaver/')) {
+        processReads += 1;
+        if (changeAtProcessRead && processReads >= changeAtProcessRead) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+        return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
+      }
       const { query } = JSON.parse(init.body);
       if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
       if (query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT', field: { id: 'FIELD', options: [{ id: 'PROGRESS', name: 'In Progress' }] } } } } }) };
@@ -804,5 +810,16 @@ describe('rule-based status reconciliation flow', () => {
     expect(partial.status).toBe('incomplete');
     expect(partial.recheck).toMatchObject({ status: 'unavailable' });
     expect(partial.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
+
+    // A newly configured Project field was not in the earlier snapshot; do not claim a clean reread.
+    status = 'Todo'; out.length = 0; failFileRead = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const thirdAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0;
+    changeAtProcessRead = processReads + 4;
+    expect(await run(['reconcile', '--approve', thirdAction.id], deps)).toBe(EXIT.failed);
+    const changed = JSON.parse(out.join(''));
+    expect(changed.recheck).toMatchObject({ status: 'incomplete' });
+    expect(changed.recheck.reason).toContain('Project fields changed');
   });
 });

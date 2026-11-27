@@ -433,6 +433,7 @@ export const en = {
   'cli.reconcile.process-unavailable': '{repository}: process rules are unavailable or invalid. Refresh or correct the process before diagnosis or repair.',
   'cli.reconcile.closed-review': '{ref} is closed but lacks Verified status. Review the evidence and use an explicit confirmed move if appropriate.',
   'cli.reconcile.recheck-unavailable': 'The post-action recheck failed. Refresh before deciding what to retry.',
+  'cli.reconcile.recheck-fields-changed': 'The configured Project fields changed during the recheck. Refresh to read the new fields.',
   'cli.reconcile.recheck-files': 'Workspace files could not be re-read; refresh before drawing a conclusion.',
   'cli.reconcile.recheck': 'Post-action recheck',
   'cli.reconcile.context': 'Project options and effective repository rules',

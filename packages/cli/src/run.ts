@@ -327,13 +327,15 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const latestProcesses = await readProcesses(token, repositories, locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline);
       const failed = latestProcesses.filter((r) => r.file === 'failed' || r.issues.some((issue) => issue.severity === 'error'));
       if (failed.length) return { status: 'incomplete', reason: failed.map((r) => r.repository) };
+      const latestFields = [...new Set(latestProcesses.flatMap((r) => r.process.task?.fields.flatMap((field) => field.projectField ? [field.projectField] : []) ?? []))];
+      if (JSON.stringify([...latestFields].sort()) !== JSON.stringify([...projectFields].sort())) return { status: 'incomplete', reason: t('cli.reconcile.recheck-fields-changed', locale) };
       const processByRepo = new Map(latestProcesses.map((r) => [r.repository.toLowerCase(), r]));
       const currentRules = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.columns;
       const currentContract = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.task;
       const latestPulls = await Promise.all(repositories.map((repository) => readMergedPulls(token, repository, 50, deps.fetch)));
       const missingPulls = latestPulls.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]);
       const current = findMismatches({ artifacts: refreshedArtifacts, cards: placeWithRules(latest.read.cards, currentRules), repositories, projectMembershipComplete: latest.read.membershipComplete, pulls: latestPulls.flatMap((r) => r.ok ? r.pulls : []), rulesFor: currentRules, boardSourced: repositories.filter((name) => currentRules(name)?.source === 'board-status'), contractFor: currentContract });
-      const key = (m: { kind: string; subject: string; url?: string }) => `${m.kind}|${m.subject}|${m.url ?? ''}`;
+      const key = (m: { kind: string; subject: string; path?: string; url?: string }) => JSON.stringify([m.kind, m.subject, m.path ?? null, m.url ?? null]);
       const currentKeys = new Set(current.map(key));
       const show = (m: typeof current[number]) => ({ kind: m.kind, subject: m.subject, message: formatNotice({ code: `mismatch.${m.kind}` as MessageKey, args: m.args }, locale), ...(m.url ? { url: m.url } : {}) });
       const incomplete = missingPulls.length > 0 || latest.read.membershipComplete === false || latest.read.statusOptions === undefined || latest.read.cards.some((card) => card.pullsIncomplete);

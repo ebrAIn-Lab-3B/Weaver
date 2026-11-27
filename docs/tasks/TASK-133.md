@@ -33,6 +33,8 @@ Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/We
 
 Follow-up PRs [#411](https://github.com/ebrAIn-Lab-3B/Weaver/pull/411) and [#412](https://github.com/ebrAIn-Lab-3B/Weaver/pull/412) expose observed labels and distinguish unread status observations from completed empty reads. The VS Code 1.148.0 `reconciliation` extension-host test now checks the rendered Korean mismatch text for an observed label and both empty and unread Project Status. This uses mock GitHub data and is not a live permission test.
 
+Final review also identified that a response with Status options but a missing per-item Status field could be mistaken for a confirmed empty field. The follow-up detects missing or malformed item fields as unread and reports the affected Issue; fixtures cover null, missing and malformed fields. These fixtures are not a live reproduction of a partial GitHub response.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #395 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

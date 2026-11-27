@@ -335,6 +335,7 @@ export const ko: Record<MessageKey, Message> = {
 
   // 파일, Issue, Project 사이의 어긋남
   'mismatch.board-status-missing': '{repository}#{number}에 Project Status가 없습니다. Issue 라벨 {label}의 대응 값은 {expected}입니다. 변경하기 전에 확인해 주세요.',
+  'mismatch.board-status-unread': '{repository}#{number}의 Project Status를 조회하지 못했습니다. 상태를 진단하거나 변경하기 전에 Project를 다시 조회해 주세요.',
   'mismatch.projection-unmapped': '{repository}#{number}의 Issue 라벨 {label}이 가리키는 {column}에 대응하는 Project Status가 설정되지 않았습니다. 프로세스 매핑을 확인해 주세요.',
   'mismatch.pulls-incomplete': '{repository}#{number}의 풀 리퀘스트 참조 조회가 불완전합니다. 판단하기 전에 나머지 페이지를 확인해 주세요.',
   'mismatch.status-source-needs-decision': '{repository}#{number}: 정본 {source} 상태가 없거나 충돌하거나 매핑되지 않았거나 조회되지 않았습니다(조회 값: {observed}). Issue 라벨: {labels}; Project Status: {board}. 의도한 상태를 검토한 뒤 Issue 또는 Project의 변경을 선택하거나 프로세스 매핑을 수정해 주세요.',

@@ -194,13 +194,13 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
             if (!before.ok) throw new NoticeError(before.error);
             if (!before.read.statusOptions?.includes(expected) || (input.statusOptions && JSON.stringify([...before.read.statusOptions].sort()) !== JSON.stringify([...input.statusOptions].sort()))) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const fresh = before.read.cards.find((c) => normalizeIssueUrl(c.url) === normalizeIssueUrl(card.url));
-            if (!fresh || !fresh.projectItemId || !card.projectItemId || fresh.projectItemId !== card.projectItemId || fresh.boardStatus !== card.boardStatus || fresh.state !== card.state || JSON.stringify([...fresh.labels].sort()) !== JSON.stringify([...card.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            if (!fresh || fresh.boardStatusRead !== true || !fresh.projectItemId || !card.projectItemId || fresh.projectItemId !== card.projectItemId || fresh.boardStatus !== card.boardStatus || fresh.state !== card.state || JSON.stringify([...fresh.labels].sort()) !== JSON.stringify([...card.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.stale' });
             await setProjectField(input.token, input.project, fresh.projectItemId, 'Status', expected, input.fetch);
             const after = await readProject(input.token, input.project, [card.repository], input.fetch);
             if (!after.ok) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
             const observed = after.read.cards.find((c) => normalizeIssueUrl(c.url) === normalizeIssueUrl(card.url));
             const afterRules = await input.freshRulesFor?.(card.repository);
-            if (!observed || observed.projectItemId !== fresh.projectItemId || observed.boardStatus !== expected || observed.state !== fresh.state || JSON.stringify([...observed.labels].sort()) !== JSON.stringify([...fresh.labels].sort()) || !afterRules || JSON.stringify(afterRules) !== JSON.stringify(freshRules)) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
+            if (!observed || observed.boardStatusRead !== true || observed.projectItemId !== fresh.projectItemId || observed.boardStatus !== expected || observed.state !== fresh.state || JSON.stringify([...observed.labels].sort()) !== JSON.stringify([...fresh.labels].sort()) || !afterRules || JSON.stringify(afterRules) !== JSON.stringify(freshRules)) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
           },
         });
         break;
@@ -259,6 +259,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
       case 'card-file-unknown':
       case 'issue-project-unknown':
       case 'status-source-needs-decision':
+      case 'board-status-unread':
       case 'pulls-incomplete':
       case 'projection-unmapped':
       case 'shared-issue':

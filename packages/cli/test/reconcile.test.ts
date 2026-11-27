@@ -307,6 +307,19 @@ describe('planReconcile', () => {
     expect(writes).toBe(0);
   });
 
+  it('refuses a missing Status repair when the fresh item Status field is unread', async () => {
+    const rules = defaultProcess().columns;
+    let writes = 0;
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body);
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      writes += 1; throw new Error('unexpected write');
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatusRead: true, projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    expect(writes).toBe(0);
+  });
+
   it('reports an uncertain result when the post-write Project read fails', async () => {
     const rules = defaultProcess().columns;
     let projectReads = 0;

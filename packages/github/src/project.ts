@@ -60,7 +60,7 @@ const buildQuery = (fields: readonly string[]): string =>
 
 interface ItemNode {
   id?: string;
-  fieldValueByName: { name?: string } | null;
+  fieldValueByName?: { name?: string } | null;
   /** The extra fields asked for, as `f0`, `f1`, and so on, in the order they were asked. */
   [alias: `f${number}`]: { name?: string; text?: string } | null | undefined;
   content: null | {
@@ -189,7 +189,7 @@ export async function readProject(
         state,
         labels,
         assignees: (issue.assignees?.nodes ?? []).map((a) => a.login),
-        boardStatusRead: statusOptions !== undefined,
+        boardStatusRead: statusOptions !== undefined && (node.fieldValueByName === null || (typeof node.fieldValueByName?.name === 'string' && node.fieldValueByName.name.length > 0)),
         ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}),
         ...(extraFields.length > 0 ? { fields } : {}),
         ...(taskId ? { taskId } : {}),

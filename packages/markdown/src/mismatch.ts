@@ -17,6 +17,7 @@ export type MismatchKind =
   | 'shared-issue'
   | 'projection-unmapped'
   | 'board-status-missing'
+  | 'board-status-unread'
   | 'pulls-incomplete'
   | 'status-source-needs-decision'
   | ContractGapKind;
@@ -198,6 +199,7 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     const repository = card.repository.toLowerCase();
     const label = `#${card.number}`;
     if (card.pullsIncomplete) found.push({ kind: 'pulls-incomplete', subject: label, args: { repository: card.repository, number: card.number }, url: card.url });
+    if (card.boardStatusRead === false) found.push({ kind: 'board-status-unread', subject: label, args: { repository: card.repository, number: card.number }, url: card.url });
     const statusGaps = card.placement.gaps.filter((gap) => ['gap.no-status-label', 'gap.multiple-status-labels', 'gap.no-board-status', 'gap.unmapped-board-status'].includes(gap.code));
     if (statusGaps.length) {
       const source = input.rulesFor?.(card.repository)?.source ?? (boardSourced.has(repository) ? 'board-status' : 'labels');

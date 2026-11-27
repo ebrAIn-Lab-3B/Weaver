@@ -37,6 +37,8 @@ All write commands (`project add`, `task create`, `card move`, `evidence attach`
 
 For label-sourced Project Status mismatches, `reconcile` includes the observed Issue status label in its diagnosis and status action. When the authoritative status needs a decision, the report also shows the observed Issue labels and Project Status for either source, distinguishing a read with no value from an unread field. In projection notices a dash means a label was not present in the supplied observation; it is not an inferred value. Effective mappings and Project Status options are shown in the reconciliation context.
 
+If an individual Project item's Status field is missing or malformed in a response, its status is unread, not confirmed empty. Reconciliation reports the affected item, refuses status repairs based on an unread reread, and does not call the finding resolved when the post-action reread is incomplete.
+
 - **At a terminal**, the tool shows each action and asks `[y/N]`.
 - **From an agent** (no terminal), the tool prints the plan, changes nothing, and exits with code 4. The agent shows the plan to the user and, once they agree, runs the same command again with `--approve <id>` (comma separated for several). An id is bound to the action's content, so an approval cannot be reused for a different change. There is no `--yes`.
 - A refusal at the terminal exits with code 5. A failure stops the actions that are left (they are reported as `skipped`) and exits with code 1.

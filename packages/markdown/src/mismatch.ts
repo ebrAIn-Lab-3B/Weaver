@@ -10,6 +10,7 @@ export type MismatchKind =
   | 'issue-not-on-project'
   | 'issue-project-unknown'
   | 'card-without-file'
+  | 'card-file-unknown'
   | 'merged-pr-not-linked'
   | 'board-status-differs'
   | 'shared-issue'
@@ -119,6 +120,8 @@ export interface MismatchInput {
   repositories: readonly string[];
   /** False if Project membership cannot be determined from the read. */
   projectMembershipComplete?: boolean;
+  /** False when malformed workspace artifacts prevent a reliable file inventory. */
+  workspaceComplete?: boolean;
   /** Recently merged pull requests of the registered repositories; leave empty when they were not read. */
   pulls?: readonly MergedPull[];
   /** Repositories whose process takes the column from the board Status (DEC-015); the board cannot differ from itself. */
@@ -202,7 +205,7 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     // A repository whose process lets a card be an Issue with no file does not miss it (DEC-016 item 3).
     const filesNeeded = input.contractFor?.(repository)?.requireFile !== false;
     if (filesNeeded && seen.has(repository) && !links.has(normalizeIssueUrl(card.url))) {
-      found.push({ kind: 'card-without-file', subject: label, args: { number: card.number, repository: card.repository, title: card.title }, url: card.url });
+      found.push({ kind: input.workspaceComplete === false ? 'card-file-unknown' : 'card-without-file', subject: label, args: { number: card.number, repository: card.repository, title: card.title }, url: card.url });
     }
     // The label rules already report an inconsistent card; compare the board only when they are quiet.
     const rules = input.rulesFor?.(card.repository);

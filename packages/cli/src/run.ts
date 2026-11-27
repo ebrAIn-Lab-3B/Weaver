@@ -174,7 +174,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     return confirmAndRun(plan.actions, plan.skipped);
   }
 
-  const artifacts: Artifact[] = loadWorkspace(await deps.files(root)).artifacts;
+  const workspace = loadWorkspace(await deps.files(root));
+  const artifacts: Artifact[] = workspace.artifacts;
+  const workspaceComplete = !workspace.issues.some((issue) => issue.severity === 'error' && !artifacts.some((artifact) => artifact.path === issue.path));
   if (args.command === 'task') {
     const matches = artifacts.filter((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === args.options.requirement && (!args.options['requirement-repository'] || a.repository?.toLowerCase() === args.options['requirement-repository'].toLowerCase()) && (!args.options['requirement-server'] || sameServer(a.repositoryServer, args.options['requirement-server'])));
     if (matches.length > 1) return fail(EXIT.usage, 'cli.requirement-ambiguous', { id: args.options.requirement });
@@ -278,6 +280,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       cards,
       statusOptions: boardRead.statusOptions ?? [],
       projectMembershipComplete: boardRead.membershipComplete,
+      workspaceComplete,
       unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),
       rulesFor,
       freshSetupMatches: setupUnchanged,
@@ -327,12 +330,14 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
         return { repository, file: report?.file ?? 'failed', columnsSource: report?.sources.columns ?? 'unknown', rules: rules ?? null, projectionOrigin: rules?.source === 'labels' ? (rules.projection ? 'repository' : 'legacy-default') : null, projection: rules?.source === 'labels' ? (rules.projection ?? PROJECT_STATUS_FOR_COLUMN) : null, issues: report?.issues ?? [] };
       }),
     };
-    const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: boardRead.membershipComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
+    const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: boardRead.membershipComplete, workspaceComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
     const recheck = async () => {
       if (!await setupUnchanged()) return { status: 'incomplete', reason: t('cli.reconcile.recheck-setup-changed', locale) };
       let refreshedArtifacts: Artifact[];
       try {
-        refreshedArtifacts = loadWorkspace(await deps.files(root)).artifacts;
+        const refreshed = loadWorkspace(await deps.files(root));
+        refreshedArtifacts = refreshed.artifacts;
+        if (refreshed.issues.some((issue) => issue.severity === 'error' && !refreshedArtifacts.some((artifact) => artifact.path === issue.path))) return { status: 'incomplete', reason: t('cli.reconcile.recheck-artifact-invalid', locale) };
       } catch {
         return { status: 'unavailable', reason: t('cli.reconcile.recheck-files', locale) };
       }

@@ -40,6 +40,7 @@ export interface ReconcileInput {
   cards: readonly ProjectCard[];
   statusOptions?: readonly string[];
   projectMembershipComplete?: boolean;
+  workspaceComplete?: boolean;
   /** Repositories whose process could not be read or validated. */
   unavailableRepositories?: readonly string[];
   artifacts: readonly Artifact[];
@@ -87,6 +88,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
   const checkedRepositories = input.repositories.filter((name) => !unavailable.has(name.toLowerCase()));
   const checkedCards = input.cards.filter((card) => !unavailable.has(card.repository.toLowerCase()));
   for (const repository of input.unavailableRepositories ?? []) reports.push({ tier: 'report', kind: 'process-unavailable', subject: repository, message: formatNotice({ code: 'cli.reconcile.process-unavailable', args: { repository } }, locale), automated: false });
+  if (input.workspaceComplete === false) reports.push({ tier: 'report', kind: 'workspace-invalid', subject: 'workspace', message: formatNotice({ code: 'cli.reconcile.recheck-artifact-invalid' }, locale), automated: false });
   const onProject = checkedCards.map((card) => card.url);
   const plannedProjectAdds = new Set<string>();
   const repositoryScope = [...new Set(input.repositories.map((name) => name.toLowerCase()))].sort();
@@ -95,6 +97,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
     artifacts: input.artifacts,
     cards: checkedCards,
     projectMembershipComplete: input.projectMembershipComplete,
+    workspaceComplete: input.workspaceComplete,
     rulesFor: input.rulesFor,
     repositories: checkedRepositories,
     pulls: input.pulls,
@@ -229,7 +232,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         // A Project-only search cannot prove that no Issue exists outside this board. Link a unique
         // visible match, but never create another Issue from an incomplete identity search.
         const candidates = task ? input.cards.filter((card) => card.taskId === task.id && card.repository.toLowerCase() === (task.repository ?? requirement?.repository ?? '').toLowerCase()) : [];
-        const planned = input.files && task && candidates.length === 1 && input.projectMembershipComplete !== false ? await planLinkIssue(input.files, task, requirement, candidates) : undefined;
+        const planned = input.files && task && candidates.length === 1 && input.projectMembershipComplete !== false && input.workspaceComplete !== false ? await planLinkIssue(input.files, task, requirement, candidates) : undefined;
         if (planned) actions.push(...planned);
         else reports.push({ ...item('proposed', false), message: formatNotice({ code: 'cli.reconcile.link-review', args: { task: m.subject } }, locale) });
         break;
@@ -241,6 +244,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         else reports.push(item('proposed', false));
         break;
       }
+      case 'card-file-unknown':
       case 'issue-project-unknown':
       case 'status-source-needs-decision':
       case 'pulls-incomplete':

@@ -753,6 +753,7 @@ export class OverviewView {
     const idleSetting = vscode.workspace.getConfiguration('weaver').get<number>('staleDays', 14);
     const placedCards = this.placed(this.read.cards);
     // Cards of a lane whose process is not read yet are not judged: they would be judged by guessed rules.
+    const workspaceComplete = !this.loaded?.issues.some((issue) => issue.severity === 'error' && issue.path?.toLowerCase().endsWith('.md') && !this.loaded?.artifacts.some((artifact) => artifact.path === issue.path));
     const checkedCards = placedCards.filter((card) => !this.reading.has(card.repository) && !processStore.diagnosisUnavailable(card.repository));
     const checkedRepositories = this.registry.registry.repositories.map((r) => r.repository).filter((name) => !this.reading.has(name) && !processStore.diagnosisUnavailable(name));
     const cards: OverviewCard[] = placedCards.map((card) => {
@@ -816,6 +817,7 @@ export class OverviewView {
         artifacts: this.loaded?.artifacts ?? [],
         cards: checkedCards,
         projectMembershipComplete: this.read.membershipComplete,
+        workspaceComplete,
         repositories: checkedRepositories,
         pulls: this.pulls,
         exceptionsIgnored: checkedRepositories.filter((name) => processStore.evidenceFor(name)?.exceptions === false),
@@ -824,7 +826,7 @@ export class OverviewView {
         contractFor: processStore.taskFor,
         rulesFor: processStore.rulesFor,
       }),
-      skippedChecks: [...this.skippedChecks, ...(this.read.statusOptions === undefined ? [{ code: 'project.status-options-unavailable' as const }] : []), ...(this.read.membershipComplete === false ? [{ code: 'project.membership-incomplete' as const }] : []), ...this.registry.registry.repositories.filter((r) => !this.reading.has(r.repository) && processStore.diagnosisUnavailable(r.repository)).map((r): Notice => ({ code: 'cli.reconcile.process-unavailable', args: { repository: r.repository } }))],
+      skippedChecks: [...this.skippedChecks, ...(!workspaceComplete ? [{ code: 'cli.reconcile.recheck-artifact-invalid' as const }] : []), ...(this.read.statusOptions === undefined ? [{ code: 'project.status-options-unavailable' as const }] : []), ...(this.read.membershipComplete === false ? [{ code: 'project.membership-incomplete' as const }] : []), ...this.registry.registry.repositories.filter((r) => !this.reading.has(r.repository) && processStore.diagnosisUnavailable(r.repository)).map((r): Notice => ({ code: 'cli.reconcile.process-unavailable', args: { repository: r.repository } }))],
       reading: [...this.reading],
       focusActive: focused.size > 0,
       ...(rosterStore.shown() ? { roster: rosterStore.shown() } : {}),

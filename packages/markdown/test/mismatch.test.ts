@@ -73,6 +73,13 @@ describe('findMismatches', () => {
     expect(found).toMatchObject([{ kind: 'card-without-file', subject: '#1' }]);
   });
 
+  it('does not assert a task file is absent when workspace artifacts are invalid', () => {
+    const files = artifacts({ 'REQ-001.md': req() });
+    const found = findMismatches({ artifacts: files, cards: [card(1)], repositories: [REPO], workspaceComplete: false });
+    expect(found.map((m) => m.kind)).toContain('card-file-unknown');
+    expect(found.map((m) => m.kind)).not.toContain('card-without-file');
+  });
+
   it('counts a task listed under its requirement as a file', () => {
     const files = artifacts({ 'REQ-001.md': req(`- \`TASK-001\` T — [GitHub Issue #1](${url(1)})\n`) });
     expect(findMismatches({ artifacts: files, cards: [card(1)], repositories: [REPO] })).toEqual([]);

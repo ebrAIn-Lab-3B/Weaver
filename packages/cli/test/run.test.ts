@@ -759,6 +759,16 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('treats an invalid task document as an incomplete file inventory', async () => {
+    const { deps, out } = setup();
+    deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: '---\ntype: task\nid: [\n---\n' }];
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'workspace-invalid' }));
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'card-file-unknown', subject: '#11' }));
+    expect(result.actions.filter((a: { kind: string }) => a.kind === 'files.pull-request')).toEqual([]);
+  });
+
   it('uses the same Project snapshot for cards and completeness when fields are reread', async () => {
     const { deps, out } = setup();
     const originalFetch = deps.fetch!;

@@ -15,7 +15,7 @@ export const issue = (number: number, extra: Record<string, unknown> = {}) => ({
     closedByPullRequestsReferences: { totalCount: 0 },
     timelineItems: { totalCount: 0 },
     repository: { nameWithOwner: 'me/Weaver' },
-    labels: { nodes: [{ name: 'status:in-progress' }] },
+    labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] },
     assignees: { nodes: [] },
     ...extra,
   },

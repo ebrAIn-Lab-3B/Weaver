@@ -11,7 +11,7 @@ const issue = (repository: string, number: number, extra: Record<string, unknown
     url: `https://github.com/${repository}/issues/${number}`,
     state: 'OPEN',
     repository: { nameWithOwner: repository },
-    labels: { nodes: [{ name: 'status:backlog' }] },
+    labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:backlog' }] },
     assignees: { nodes: [] },
     ...extra,
   },
@@ -53,7 +53,7 @@ describe('readProject', () => {
           issue('me/Weaver', 61, {
             title: '[TASK-029] Verify access',
             state: 'CLOSED',
-            labels: { nodes: [{ name: 'task' }, { name: 'status:verified' }] },
+            labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'task' }, { name: 'status:verified' }] },
             assignees: { nodes: [{ login: 'me' }] },
           }),
         ],
@@ -91,6 +91,14 @@ describe('readProject', () => {
     const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [], pageInfo: { hasNextPage: true } } })], null) });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
     expect(result).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+  });
+
+  it('refuses Project and label connections with missing page metadata', async () => {
+    const missingLabels = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [] } })], null) });
+    expect(await readProject('t', project, undefined, missingLabels.fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+    const missingPage = page([], null);
+    delete (missingPage.data.repositoryOwner.projectV2.items as { pageInfo?: unknown }).pageInfo;
+    expect(await readProject('t', project, undefined, fake({ body: missingPage }).fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
   });
 
   it('follows the cursor until the last page', async () => {

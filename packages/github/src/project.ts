@@ -151,6 +151,7 @@ export async function readProject(
 
     const found = body.data?.repositoryOwner?.projectV2;
     if (!found) return { ok: false, error: { code: 'project.not-found', args: { owner: project.owner, number: project.number } } };
+    if (!found.items || !Array.isArray(found.items.nodes) || typeof found.items.pageInfo?.hasNextPage !== 'boolean') return { ok: false, error: { code: 'project.pagination-incomplete' } };
     const pageOptions = found.field?.options?.map((option) => option.name);
     if (page > 0 && (title !== found.title || JSON.stringify(statusOptions ?? null) !== JSON.stringify(pageOptions ?? null))) return { ok: false, error: { code: 'project.changed-during-read' } };
     title = found.title;
@@ -165,7 +166,7 @@ export async function readProject(
         skipped += 1;
         continue;
       }
-      if (!issue.labels || issue.labels.pageInfo?.hasNextPage) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
+      if (!issue.labels || !Array.isArray(issue.labels.nodes) || issue.labels.pageInfo?.hasNextPage !== false) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
       const state = issue.state === 'CLOSED' ? 'closed' : 'open';
       const labels = (issue.labels?.nodes ?? []).map((label) => label.name);
       const taskId = TASK_TITLE.exec(issue.title ?? '')?.[1];

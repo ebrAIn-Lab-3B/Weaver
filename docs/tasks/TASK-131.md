@@ -27,9 +27,9 @@ None.
 
 Design and investigation notes linked from this task, cited source and test observations, and review of unresolved decisions. No implementation completion is implied.
 
-Status: in progress. The investigation and design are documented below; review and completion evidence remain outstanding.
+Status: ready for review. The investigation, proposed contract and known limitations are documented below; review and completion evidence remain outstanding.
 
-Implementation and investigation draft: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). This is not completion evidence.
+Implementation and investigation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
 
 ## Work in progress (2026-11-27 KST)
 

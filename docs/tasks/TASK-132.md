@@ -26,9 +26,9 @@ TASK-131 design and decisions.
 
 Linked implementation PR and passing targeted automated tests with partial-failure and retry results; record remaining concurrency or host limitations.
 
-Status: in progress. The implementation and observations below are not yet complete or independently reviewed.
+Status: ready for review. The implementation and observations below have not yet been independently reviewed or established as complete.
 
-Implementation draft: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). CI and review of the final revision remain outstanding.
+Implementation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
 
 Newly created Issues now carry a v2 registration marker with a digest of task details, Project and effective process. Resume refuses a mismatched digest; fixtures exercise a real create-to-resume flow and changes to criteria and assignment. Older v1 or unmarked Issues have no digest and require an explicit operator comparison against the original request. An editable Issue body is not an immutable intent manifest.
 

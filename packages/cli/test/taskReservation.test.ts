@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Fetch } from '@ebrain-lab/weaver-github';
-import { operationReservationVisible, reserveRecovery, reserveTask, taskReservationRefs } from '../src/taskReservation';
+import { operationReservationVisible, reserveRecovery, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from '../src/taskReservation';
 
 describe('repository task reservations', () => {
   function server(uncertainFirst = false) {
@@ -62,6 +62,13 @@ describe('repository task reservations', () => {
     const results = await Promise.allSettled([reserveRecovery('t', 'owner/repo', ref, 'a'.repeat(40), fetchImpl), reserveRecovery('t', 'owner/repo', ref, 'a'.repeat(40), fetchImpl)]);
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(refs).toEqual(new Set([ref]));
+  });
+
+  it('uses the same exclusive reservation before a new branch and an existing-branch recovery', async () => {
+    const { fetchImpl } = server();
+    const ref = 'refs/heads/weaver/reservations/recover-pr-task-041';
+    const results = await Promise.allSettled([reserveRecoveryFromDefault('t', 'owner/repo', ref, fetchImpl), reserveRecovery('t', 'owner/repo', ref, 'b'.repeat(40), fetchImpl)]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
   });
 
   it('distinguishes a visible reservation from an unreadable one', async () => {

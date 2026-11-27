@@ -54,3 +54,19 @@ export async function reserveRecovery(token: string, repository: string, ref: st
   const body = await response.json() as { ref?: unknown; object?: { sha?: unknown } };
   if (body.ref !== ref || body.object?.sha !== sha) throw new Error('Recovery reservation uncertain');
 }
+
+/** Acquire the PR recovery reservation at the current default commit before creating a branch. */
+export async function reserveRecoveryFromDefault(token: string, repository: string, ref: string, fetchImpl: Fetch = fetch as unknown as Fetch): Promise<void> {
+  const api = `https://api.github.com/repos/${repository}`;
+  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  const get = async (url: string): Promise<unknown> => {
+    const response = await fetchImpl(url, { method: 'GET', headers, body: undefined as unknown as string });
+    if (!response.ok) throw new Error('Recovery reservation source unavailable');
+    return response.json();
+  };
+  const repo = await get(api) as { default_branch?: unknown };
+  if (typeof repo.default_branch !== 'string' || !repo.default_branch) throw new Error('Default branch unavailable');
+  const commit = await get(`${api}/commits/${encodeURIComponent(repo.default_branch)}`) as { sha?: unknown };
+  if (typeof commit.sha !== 'string' || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error('Default revision unavailable');
+  await reserveRecovery(token, repository, ref, commit.sha, fetchImpl);
+}

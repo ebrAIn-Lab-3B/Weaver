@@ -270,8 +270,8 @@ If the prior Issue URL is known, `--resume-issue <url>` can reuse it after ident
       "id": "3f6403f44b24",
       "kind": "files.pull-request",
       "target": "me/Weaver docs/task-041-add-the-export-button",
-      "identifiers": {"task": "TASK-041", "branch": "docs/task-041-add-the-export-button", "path": "tasks/TASK-041.md", "requirement": "REQ-001"},
-      "summary": "Open a pull request in me/Weaver that adds tasks/TASK-041.md and lists TASK-041 under REQ-001. Criteria: AC-001; assignee type: agent; assignee: -. The default branch is not touched.",
+      "identifiers": {"task": "TASK-041", "branch": "docs/task-041-add-the-export-button", "path": "tasks/TASK-041.md", "requirement": "REQ-001", "recoveryReservation": "refs/heads/weaver/reservations/recover-pr-task-041"},
+      "summary": "Reserve refs/heads/weaver/reservations/recover-pr-task-041, then open a pull request in me/Weaver that adds tasks/TASK-041.md and lists TASK-041 under REQ-001. Criteria: AC-001; assignee type: agent; assignee: -. The default branch is not touched.",
       "reason": "A ticket becomes a task: the Issue, the Project card, and the task file are created together so it is not forgotten.",
       "outcome": "unconfirmed"
     }

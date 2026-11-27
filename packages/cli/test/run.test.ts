@@ -273,7 +273,8 @@ describe('weaver task create', () => {
     const results = await Promise.all(workers.map((worker) => run([...ARGS, '--approve', ids], worker.deps)));
     expect(results.sort()).toEqual([EXIT.failed, EXIT.unconfirmed].sort());
     expect(workers.flatMap((worker) => worker.writes).filter((write) => write === 'REST https://api.github.com/repos/me/Weaver/issues')).toHaveLength(1);
-    expect(reservations.size).toBe(2);
+    expect(reservations.size).toBe(3);
+    expect([...reservations].some((ref) => ref.endsWith('/recover-pr-task-041'))).toBe(true);
   });
 
   it('creates the Issue, adds the card, and opens a pull request from a separate worktree once all three are approved', async () => {
@@ -290,7 +291,7 @@ describe('weaver task create', () => {
     expect(logged.map((l) => l.action)).toEqual(['issue.create', 'project.add', 'files.pull-request']);
 
     const git = shell.filter((s) => s.command === 'git').map((s) => s.args.slice(0, 2).join(' '));
-    expect(git).toEqual(['rev-parse --show-toplevel', 'fetch origin', 'worktree add', 'add -A', 'commit -m', 'push -u', 'worktree remove']);
+    expect(git).toEqual(['ls-remote --heads', 'ls-remote --heads', 'rev-parse --show-toplevel', 'fetch origin', 'worktree add', 'add -A', 'commit -m', 'push -u', 'worktree remove']);
     expect(shell.find((s) => s.args[0] === 'worktree' && s.args[1] === 'add')?.args).toContain('origin/main');
     expect(shell.find((s) => s.args[0] === 'pr' && s.args[1] === 'create')?.args).toContain('docs/task-041-add-the-export-button');
     expect(shell.find((s) => s.args[0] === 'commit')?.args[2]).toContain('Made by the Weaver steward on behalf of @me.');

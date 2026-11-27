@@ -5,7 +5,7 @@ import { attribution, PlannedAction } from './actions';
 import type { System } from './contract';
 import { openFilesPullRequest } from './filesPullRequest';
 import { hasTaskTitleCandidate, taskIssueInventory, taskPullInventory } from './taskIssueInventory';
-import { registrationMarker, reserveTask, taskReservationRefs } from './taskReservation';
+import { registrationMarker, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from './taskReservation';
 
 export { addTaskToRequirement, nextTaskNumber, renderTaskFile, slugOf, taskIdOf, taskListLine, type TaskFileInput } from '@ebrain-lab/weaver-markdown';
 import { slugOf, taskIdOf, taskListLine, renderTaskFile, addTaskToRequirement } from '@ebrain-lab/weaver-markdown';
@@ -161,10 +161,11 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
   }));
 
   const branch = `docs/${id.toLowerCase()}-${slugOf(input.title)}`;
+  const recoveryReservation = `refs/heads/weaver/reservations/recover-pr-${id.toLowerCase()}`;
   const files: PlannedAction = {
     kind: 'files.pull-request',
     target: `${input.repository} ${branch}${input.resume ? ` ${input.resume.url}` : ''}`,
-    identifiers: { task: id, branch, path: taskPath, requirement: input.requirement.id, ...(input.resume ? { issue: input.resume.url, ...(input.resume.item ? { projectItem: input.resume.item } : {}) } : {}) },
+    identifiers: { task: id, branch, path: taskPath, requirement: input.requirement.id, recoveryReservation, ...(input.resume ? { issue: input.resume.url, ...(input.resume.item ? { projectItem: input.resume.item } : {}) } : {}) },
     fingerprint: `files.pull-request\n${intent}`,
     summary:
       input.contract && (input.contract.fileFields.length > 0 || input.contract.sections.length > 0)
@@ -180,23 +181,29 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
               criteria: input.criteria.join(', ') || '-',
               assigneeType: input.assigneeType,
               assignee: input.assignee ?? '-',
+              reservation: recoveryReservation,
             },
           }
-        : { code: 'cli.task-create.files', args: { repository: input.repository, path: taskPath, task: id, requirement: input.requirement.id, criteria: input.criteria.join(', ') || '-', assigneeType: input.assigneeType, assignee: input.assignee ?? '-' } },
+        : { code: 'cli.task-create.files', args: { repository: input.repository, path: taskPath, task: id, requirement: input.requirement.id, criteria: input.criteria.join(', ') || '-', assigneeType: input.assigneeType, assignee: input.assignee ?? '-', reservation: recoveryReservation } },
     reason,
     dependsOn: input.resume ? (input.resume.item ? fieldActions : [card, ...fieldActions]) : [issue, card, ...fieldActions],
     run: async () => {
       await checkProcess();
       if (!created.url || created.number === undefined) throw new NoticeError({ code: 'cli.err.issue-not-created' });
       const { system } = input;
-      if (input.resume) {
+      const checkMissing = async () => {
         let pulls: string[];
         try { pulls = await taskPullInventory(input.token, input.repository, input.fetch); }
         catch { throw new NoticeError({ code: 'cli.task-create.resume-unsafe', args: { repository: input.repository } }); }
         if (pulls.some((value) => value.toLowerCase().includes(id.toLowerCase()))) throw new NoticeError({ code: 'cli.task-create.resume-unsafe', args: { repository: input.repository } });
         const remote = await system.run('git', ['ls-remote', '--heads', `https://github.com/${input.repository}.git`, `refs/heads/${branch}`]);
         if (remote.trim()) throw new NoticeError({ code: 'cli.task-create.resume-unsafe', args: { repository: input.repository } });
-      }
+      };
+      await checkMissing();
+      try { await reserveRecoveryFromDefault(input.token, input.repository, recoveryReservation, input.fetch); }
+      catch { throw new NoticeError({ code: 'cli.task-create.recovery-reservation-unsafe', args: { reservation: recoveryReservation } }); }
+      await checkProcess();
+      await checkMissing();
       const pull = await openFilesPullRequest({
         system,
         root: input.root,

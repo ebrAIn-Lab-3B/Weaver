@@ -36,6 +36,8 @@ Final review found that status plans named the configured column but did not dir
 
 PRs [#411](https://github.com/ebrAIn-Lab-3B/Weaver/pull/411) and [#412](https://github.com/ebrAIn-Lab-3B/Weaver/pull/412) were merged with passing CI. The VS Code 1.148.0 `reconciliation` extension-host test checks the rendered Korean mismatch text for an observed label and distinguishes empty from unread Project Status using mock data. The actual confirmed status-write observation and its automation and concurrency limits remain as recorded below.
 
+The subsequent per-item Status completeness fix refuses a repair when a fresh item field is unread, and marks a post-write reread with an unread field incomplete rather than resolved. Stateful mock tests cover both conditions; they do not reproduce the response against live GitHub.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

@@ -87,6 +87,16 @@ describe('readProject', () => {
     expect(result.ok && result.read.cards).toEqual([]);
   });
 
+  it('distinguishes a null Status from a missing or malformed item field', async () => {
+    const base = issue('me/Weaver', 1);
+    const { fieldValueByName: _value, ...missing } = base;
+    const body = page([missing, { ...base, fieldValueByName: {} }, { ...base, fieldValueByName: null }, base], null);
+    Object.assign(body.data.repositoryOwner.projectV2, { field: { options: [{ name: 'Todo' }] } });
+    const result = await readProject('t', project, undefined, fake({ body }).fetchImpl);
+    expect(result.ok && result.read.cards.map((card) => card.boardStatusRead)).toEqual([false, false, true, true]);
+    expect(result.ok && result.read.cards.map((card) => card.boardStatus)).toEqual([undefined, undefined, undefined, 'Todo']);
+  });
+
   it('fails closed when the Issue label connection is truncated', async () => {
     const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [], pageInfo: { hasNextPage: true } } })], null) });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);

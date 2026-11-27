@@ -336,6 +336,7 @@ export const en = {
 
   // Mismatches between files, Issues, and the Project
   'mismatch.board-status-missing': '{repository}#{number} has no Project Status; Issue label {label} projects to {expected}. Review before changing it.',
+  'mismatch.board-status-unread': 'Project Status for {repository}#{number} was not read. Refresh the Project before diagnosing or changing that status.',
   'mismatch.projection-unmapped': '{repository}#{number} has Issue label {label} and no configured Project Status projection for {column}. Review the process mapping.',
   'mismatch.pulls-incomplete': 'Pull request references for {repository}#{number} are incomplete. Read the remaining pages before drawing a conclusion.',
   'mismatch.status-source-needs-decision': '{repository}#{number}: the authoritative {source} status is missing, conflicting, unmapped or unread (observed: {observed}). Issue labels: {labels}; Project Status: {board}. Review the intended state and choose the appropriate Issue or Project change, or update the process mapping.',

@@ -36,6 +36,13 @@ describe('TASK-133 fixture scenarios', () => {
     expect(findings).not.toContainEqual(expect.objectContaining({ kind: 'issue-not-on-project', subject: 'TASK-001' }));
   });
 
+  it('reports an unread Project Status rather than treating it as missing', () => {
+    const card = { ...issue(2, 'Backlog'), boardStatus: undefined, boardStatusRead: false };
+    const findings = findMismatches({ artifacts, cards: [card], repositories: [repository], rulesFor: () => rules('labels.yaml') });
+    expect(findings.some((finding) => finding.kind === 'board-status-unread')).toBe(true);
+    expect(findings.some((finding) => finding.kind === 'board-status-missing')).toBe(false);
+  });
+
   it('treats Backlog and Todo as distinct under an explicit label projection', () => {
     const run = (status: string) => findMismatches({ artifacts, cards: [issue(2, status)], repositories: [repository], rulesFor: () => rules('labels.yaml') });
     expect(run('Backlog').some((finding) => finding.kind === 'board-status-differs')).toBe(false);

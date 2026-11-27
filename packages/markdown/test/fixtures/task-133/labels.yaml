@@ -1,0 +1,7 @@
+columns:
+  source: labels
+  projection:
+    Backlog: Backlog
+    In progress: In Progress
+    Review: In Progress
+    Verified: Done

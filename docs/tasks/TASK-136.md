@@ -32,6 +32,10 @@ Link the implementation PR, relevant decision if changed, passing targeted autom
 
 Status: implementation and verification in progress; final review is outstanding.
 
+The projection compatibility decision [DEC-031](../decisions/DEC-031-label-project-status-projection.md) was accepted on 2026-11-28 following the user's instruction to proceed. Board-ahead cases remain report-only under DEC-012; a change to that boundary needs a separately reviewed decision.
+
+On 2026-11-28 the implementation was tightened to report rather than offer a Project Status action when the actual Status options were not read. The targeted reconciliation test and full `npm test` suite passed; this follow-up is separate from merged PR #400.
+
 ## Work in progress (2026-11-27 KST)
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.
@@ -40,4 +44,4 @@ The [reconciliation design](../architecture/task-reconciliation-design.md) recor
 
 `npm run check` and `npm test` passed. Targeted tests cover configured and legacy status mappings, shared Issues, incomplete and inaccessible reads, approval binding, a selected-Project-only write, stale configuration, a failed post-write read, and a stateful mock CLI plan/approve/recheck/retry flow. `node scripts/test-author-host.js reconciliation` passed in VS Code 1.148.0 with mock GitHub data. The [design and verification record](../architecture/task-reconciliation-design.md) describes the live isolated Project write, board-ahead and repeat checks, cleanup, and remaining limits.
 
-The live label-source check exercised a Project status write. A separate board-source read-only check exposed an unexpected Issue reopen; the Issue was restored, but its close time and event history changed. The cause is unconfirmed, as recorded in the design. Error paths were tested with fixtures; the installed production extension and physical clicks were not checked. GitHub field updates are not atomic compare-and-set, so a concurrent change after the final read remains possible. Implementation is under review in [PR #400](https://github.com/ebrAIn-Lab-3B/Weaver/pull/400); its review and remaining acceptance checks are required before marking this task complete.
+The live label-source check exercised a Project status write. A separate board-source read-only check exposed an unexpected Issue reopen; the Issue was restored, but its close time and event history changed. The cause is unconfirmed, as recorded in the design. Error paths were tested with fixtures; the installed production extension and physical clicks were not checked. GitHub field updates are not atomic compare-and-set, so a concurrent change after the final read remains possible. [PR #400](https://github.com/ebrAIn-Lab-3B/Weaver/pull/400) was merged with passing CI; no GitHub review was recorded. Remaining acceptance checks and final review are required before marking this task complete.

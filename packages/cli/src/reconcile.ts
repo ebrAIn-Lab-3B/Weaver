@@ -163,7 +163,15 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         // A board that is ahead of the label was moved by a person (or the board's own rules) first.
         // Moving it back would undo real progress, and making the label follow could close the Issue,
         // so that case is only reported.
-        if ((input.statusOptions && !input.statusOptions.includes(expected)) || (m.kind !== 'board-status-missing' && !boardBehind(String(m.args.board ?? ''), expected, input.rulesFor?.(card.repository)))) {
+        if (!input.statusOptions) {
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'project.status-options-unavailable' }, locale) });
+          break;
+        }
+        if (!input.statusOptions.includes(expected)) {
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.status-option-not-found', args: { expected, owner: input.project.owner, project: input.project.number } }, locale) });
+          break;
+        }
+        if (m.kind !== 'board-status-missing' && !boardBehind(String(m.args.board ?? ''), expected, input.rulesFor?.(card.repository))) {
           reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.board-review', args: { ref: `${card.repository}#${card.number}`, board: String(m.args.board ?? '—'), expected, owner: input.project.owner, project: input.project.number } }, locale) });
           break;
         }

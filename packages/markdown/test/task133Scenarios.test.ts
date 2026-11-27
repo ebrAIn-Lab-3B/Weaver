@@ -65,6 +65,23 @@ describe('TASK-133 fixture scenarios', () => {
     }
   });
 
+  it('distinguishes unread values from a completed read with no value in both languages', () => {
+    const columns = rules('board-status.yaml');
+    const labels: string[] = [];
+    const base = issue(2, 'Todo', 'board-status.yaml');
+    const { boardStatus: _status, ...withoutStatus } = base;
+    const placement = placeIssue({ state: 'open', labels }, columns);
+    const finding = (card: MismatchCard) => findMismatches({ artifacts, cards: [card], repositories: [repository], boardSourced: [repository], rulesFor: () => columns }).find((item) => item.kind === 'status-source-needs-decision')!;
+    const read = finding({ ...withoutStatus, labels, boardStatusRead: true, placement });
+    const unread = finding({ ...withoutStatus, labels: undefined, boardStatusRead: false, placement });
+    for (const [locale, none, unknown] of [['en', 'none', 'not read'], ['ko', '없음', '조회하지 않음']] as const) {
+      const render = (item: typeof read) => formatNotice({ code: 'mismatch.status-source-needs-decision', args: item.args }, locale);
+      expect(render(read)).toContain(none);
+      expect(render(read)).not.toContain(unknown);
+      expect(render(unread)).toContain(unknown);
+    }
+  });
+
   it('keeps a closed issue in review and reports incomplete PR evidence', () => {
     const labels = ['status:review'];
     const closed = {

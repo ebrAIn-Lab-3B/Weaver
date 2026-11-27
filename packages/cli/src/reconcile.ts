@@ -89,6 +89,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
   for (const repository of input.unavailableRepositories ?? []) reports.push({ tier: 'report', kind: 'process-unavailable', subject: repository, message: formatNotice({ code: 'cli.reconcile.process-unavailable', args: { repository } }, locale), automated: false });
   const onProject = checkedCards.map((card) => card.url);
   const plannedProjectAdds = new Set<string>();
+  const repositoryScope = [...new Set(input.repositories.map((name) => name.toLowerCase()))].sort();
 
   for (const m of findMismatches({
     artifacts: input.artifacts,
@@ -129,7 +130,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         for (const action of plan.actions) {
           const runAdd = action.run;
           action.summary = { code: 'cli.reconcile.project-add', args: { task: m.subject, path: taskPath ?? '—', issue: issueUrl, owner: input.project.owner, project: input.project.number } };
-          action.fingerprint = JSON.stringify([input.project.owner, input.project.number, issueUrl, taskPath ?? null]);
+          action.fingerprint = JSON.stringify([input.project.owner, input.project.number, repositoryScope, issueUrl, taskPath ?? null]);
           action.run = async () => {
             if (!await input.freshSetupMatches?.() || !taskPath || !issueRef || !input.freshTaskIssue || normalizeIssueUrl(await input.freshTaskIssue(taskPath) ?? '') !== normalizeIssueUrl(issueUrl)) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const repository = `${issueRef.owner}/${issueRef.repo}`;
@@ -167,7 +168,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
           target: ref,
           summary: { code: 'cli.reconcile.board-status', args: { ref, board: String(m.args.board ?? '—'), status: expected, column: String(m.args.column ?? card.placement.column), owner: input.project.owner, project: input.project.number } },
           reason: { code: 'cli.reconcile.board-status-reason' },
-          fingerprint: JSON.stringify([input.project.owner, input.project.number, ref, card.projectItemId ?? null, card.state, [...card.labels].sort(), card.boardStatus ?? null, expected, input.statusOptions ?? null, input.rulesFor?.(card.repository) ?? null]),
+          fingerprint: JSON.stringify([input.project.owner, input.project.number, repositoryScope, ref, card.projectItemId ?? null, card.state, [...card.labels].sort(), card.boardStatus ?? null, expected, input.statusOptions ?? null, input.rulesFor?.(card.repository) ?? null]),
           run: async () => {
             if (!await input.freshSetupMatches?.()) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const freshRules = await input.freshRulesFor?.(card.repository);

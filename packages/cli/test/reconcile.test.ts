@@ -185,6 +185,17 @@ describe('planReconcile', () => {
     expect(actionId(first.actions[0])).not.toBe(actionId(other.actions[0]));
   });
 
+  it('binds status and Project-add approval to the repository scope', async () => {
+    const rules = defaultProcess().columns;
+    const base = { artifacts: quiet, pulls: [], rulesFor: () => rules, statusOptions: ['Todo', 'In Progress', 'Done'] };
+    const status = await planReconcile(input({ ...base, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'ITEM' })] }));
+    const widerStatus = await planReconcile(input({ ...base, repositories: ['me/Weaver', 'me/Other'], cards: [card(10, { boardStatus: 'Todo', projectItemId: 'ITEM' })] }));
+    expect(actionId(status.actions[0])).not.toBe(actionId(widerStatus.actions[0]));
+    const add = await planReconcile(input({ ...base, cards: [] }));
+    const widerAdd = await planReconcile(input({ ...base, repositories: ['me/Weaver', 'me/Other'], cards: [] }));
+    expect(actionId(add.actions.find((a) => a.kind === 'project.add')!)).not.toBe(actionId(widerAdd.actions.find((a) => a.kind === 'project.add')!));
+  });
+
   it('updates only the selected Project after a fresh read, then verifies it', async () => {
     const rules = defaultProcess().columns;
     let boardStatus = 'Todo';

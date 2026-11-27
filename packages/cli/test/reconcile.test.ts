@@ -118,6 +118,34 @@ describe('planReconcile', () => {
     expect(unknown.reports.map((r) => r.kind)).toContain('issue-project-unknown');
   });
 
+  it('rechecks the task link and Project membership before adding and verifies the result', async () => {
+    const rules = defaultProcess().columns;
+    let present = false;
+    let membershipUnknown = false;
+    let additions = 0;
+    let taskLink = url(10);
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body);
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: membershipUnknown ? [{ content: null }] : present ? [{ id: 'ITEM', fieldValueByName: null, content: { __typename: 'Issue', number: 10, title: 'Card', url: url(10), state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { nodes: [] }, assignees: { nodes: [] } } }] : [] } } } } }) };
+      if (request.query.includes('resource(url')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P' } }, resource: { id: 'I' } } }) };
+      additions += 1; present = true;
+      return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) };
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, freshTaskIssue: async () => taskLink, fetch }));
+    const action = plan.actions.find((a) => a.kind === 'project.add')!;
+    taskLink = url(99);
+    await expect(action.run()).rejects.toThrow();
+    expect(additions).toBe(0);
+    taskLink = url(10); membershipUnknown = true;
+    await expect(action.run()).rejects.toThrow();
+    expect(additions).toBe(0);
+    membershipUnknown = false;
+    await action.run();
+    expect(additions).toBe(1);
+    await action.run();
+    expect(additions).toBe(1);
+  });
+
   it('does not propose adding an Issue that could not be read', async () => {
     const unreadable = rest([], 403);
     const plan = await planReconcile(input({ artifacts, cards: [], pulls: [], fetchFn: unreadable.fetchFn }));

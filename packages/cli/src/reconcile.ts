@@ -9,6 +9,7 @@ import {
   MergedPull,
   MessageKey,
   normalizeIssueUrl,
+  parseIssueUrl,
   requirementForTask,
   TaskArtifact,
   planMove,
@@ -53,6 +54,8 @@ export interface ReconcileInput {
   files?: FilesContext;
   /** Re-read effective rules immediately before a status write; unavailable means writes fail closed. */
   freshRulesFor?: (repository: string) => Promise<ColumnRules | undefined>;
+  /** Re-read the task file link before adding an Issue to the selected Project. */
+  freshTaskIssue?: (path: string) => Promise<string | undefined>;
   now: Date;
   fetch?: Fetch;
   fetchFn?: FetchFn;
@@ -118,7 +121,30 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
           break;
         }
         const plan = planProjectAdd([m.url ?? ''], { token: input.token, project: input.project, repositories: input.repositories, onProject, fetch: input.fetch });
-        actions.push(...plan.actions);
+        const issueUrl = m.url ?? '';
+        const taskPath = m.path;
+        const issueRef = parseIssueUrl(issueUrl);
+        for (const action of plan.actions) {
+          const runAdd = action.run;
+          action.summary = { code: 'cli.reconcile.project-add', args: { task: m.subject, path: taskPath ?? '—', issue: issueUrl, owner: input.project.owner, project: input.project.number } };
+          action.fingerprint = JSON.stringify([input.project.owner, input.project.number, issueUrl, taskPath ?? null]);
+          action.run = async () => {
+            if (!taskPath || !issueRef || !input.freshTaskIssue || normalizeIssueUrl(await input.freshTaskIssue(taskPath) ?? '') !== normalizeIssueUrl(issueUrl)) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            const repository = `${issueRef.owner}/${issueRef.repo}`;
+            const freshRules = await input.freshRulesFor?.(repository);
+            if (!freshRules || JSON.stringify(freshRules) !== JSON.stringify(input.rulesFor?.(repository))) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            const before = await readProject(input.token, input.project, [repository], input.fetch);
+            if (!before.ok) throw new NoticeError(before.error);
+            if (before.read.cards.some((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl))) return;
+            if (before.read.membershipComplete !== true) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            const issue = await fetchIssue(input.token, issueUrl, input.fetchFn);
+            if (!issue.ok) throw new NoticeError(issue.error);
+            await runAdd();
+            const after = await readProject(input.token, input.project, [repository], input.fetch);
+            if (!after.ok || !after.read.cards.some((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl))) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
+          };
+          actions.push(action);
+        }
         break;
       }
       case 'board-status-missing':

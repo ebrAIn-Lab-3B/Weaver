@@ -428,6 +428,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.bad-pull': '"{pull}"은(는) 풀 리퀘스트 번호나 주소가 아닙니다.',
   'cli.pull-unreadable': '풀 리퀘스트 "{pull}"을(를) 읽지 못했습니다: {detail}',
   'cli.pull-not-merged': '풀 리퀘스트 #{pull}은(는) 병합되지 않아서 아직 근거가 아닙니다.',
+  'cli.reconcile.project-add': '{task} ({path})가 연결한 {issue}를 Project {owner}/{project}에 추가합니다. 등록 상태가 없음에서 있음으로 바뀝니다.',
   'cli.reconcile.board-review': 'Project {owner}/{project}의 {ref} 상태는 {board}이고 라벨에 설정된 대응 값은 {expected}입니다. 어느 상태가 의도된 것인지 프로세스를 검토한 후 변경할 대상을 결정해 주세요.',
   'cli.reconcile.link-review': '{task}에 Issue 링크가 없습니다. 저장소에서 기존 Issue를 찾은 뒤 검토된 파일 변경으로 연결해 주세요. 기존 Issue가 없음을 확인한 뒤에만 새 Issue를 만드세요.',
   'cli.reconcile.issue-unavailable': '{task}가 참조하는 Issue {issue}를 읽을 수 없습니다: {detail}. Project에 추가하기 전에 접근 권한이나 링크를 확인해 주세요.',

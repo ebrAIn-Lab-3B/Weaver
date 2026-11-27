@@ -276,6 +276,10 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       projectMembershipComplete: boardRead.membershipComplete,
       unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),
       rulesFor,
+      freshTaskIssue: async (taskPath) => {
+        const latest = loadWorkspace(await deps.files(root)).artifacts.find((artifact) => artifact.kind === 'task' && artifact.path === taskPath);
+        return latest?.kind === 'task' ? latest.issue : undefined;
+      },
       freshRulesFor: async (repository) => {
         const [fresh] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline);
         if (!fresh || fresh.file === 'failed' || fresh.issues.some((issue) => issue.severity === 'error')) return undefined;

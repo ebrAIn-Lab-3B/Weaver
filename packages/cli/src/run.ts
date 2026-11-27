@@ -21,7 +21,7 @@ import {
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchIssue, fetchIssueBody, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { fetchIssue, fetchIssueBody, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -434,7 +434,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
                 const currentBase = (await deps.system.run('gh', ['repo', 'view', repository, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'])).trim();
                 const [lastProcess] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
                 if (currentBase !== base || !lastProcess || lastProcess.file !== processReport.file || lastProcess.issues.some((item) => item.severity === 'error') || JSON.stringify(lastProcess.process) !== JSON.stringify(processReport.process) || !(await revalidate())) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
-                const pull = (await deps.system.run('gh', ['pr', 'create', '--repo', repository, '--head', branch, '--base', base, '--title', `docs: add ${id} ${title}`, '--body', `${attribution(locale, actor)}\n\nAdds ${taskPath} and lists ${id} under ${requirement.id}. Issue: ${issue.url}`])).trim();
+                let pull: string;
+                try { pull = (await deps.system.run('gh', ['pr', 'create', '--repo', repository, '--head', branch, '--base', base, '--title', `docs: add ${id} ${title}`, '--body', `${attribution(locale, actor)}\n\nAdds ${taskPath} and lists ${id} under ${requirement.id}. Issue: ${issue.url}`])).trim(); }
+                catch (error) { throw new NoticeError({ code: 'cli.task-create.files-write-uncertain', args: { branch, detail: error instanceof Error ? error.message : String(error) } }); }
                 action.identifiers = { ...action.identifiers, pullRequest: pull };
                 const verified = await observeExistingTaskPull(check);
                 if (verified.url !== pull || verified.head !== head) throw new Error(say('cli.task-create.pr-unverified', { pull }));

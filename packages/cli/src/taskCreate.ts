@@ -240,6 +240,7 @@ ${attribution(input.locale, input.login)}`,
 
 Adds ${taskPath} and lists ${id} under ${input.requirement.id}. Issue: ${created.url}`,
         beforePush: checkProcess,
+        onWriteFailure: (_phase, error) => { throw new NoticeError({ code: 'cli.task-create.files-write-uncertain', args: { branch, detail: detailOf(error) } }); },
         edit: async ({ work, top, base }) => {
           await checkProcess();
           const relative = path.relative(top, path.resolve(input.root, input.requirement.path)).split(path.sep).join('/');

@@ -11,6 +11,8 @@ export interface FilesPullRequest {
   commitMessage: string;
   /** Optional final authorization and target check immediately before pushing. */
   beforePush?(): Promise<void>;
+  /** Allows callers to report an uncertain push or PR write with their own recovery context. */
+  onWriteFailure?(phase: 'push' | 'pull-request', error: unknown): never;
   /** Changes the files inside the new worktree. `top` is the checkout's top-level folder, `base` the default branch. */
   edit(worktree: { work: string; top: string; base: string }): Promise<void>;
 }
@@ -32,8 +34,10 @@ export async function openFilesPullRequest(input: FilesPullRequest): Promise<str
     await system.run('git', ['add', '-A'], { cwd: work });
     await system.run('git', ['commit', '-m', input.commitMessage], { cwd: work });
     if (input.beforePush) await input.beforePush();
-    await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work });
-    return (await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body])).trim();
+    try { await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work }); }
+    catch (error) { if (input.onWriteFailure) input.onWriteFailure('push', error); throw error; }
+    try { return (await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body])).trim(); }
+    catch (error) { if (input.onWriteFailure) input.onWriteFailure('pull-request', error); throw error; }
   } finally {
     await system.run('git', ['worktree', 'remove', '--force', work], { cwd: top }).catch(() => undefined);
   }

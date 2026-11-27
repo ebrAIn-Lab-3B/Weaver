@@ -335,7 +335,8 @@ describe('weaver task create', () => {
     expect(await run([...ARGS, '--approve', ids], deps)).toBe(EXIT.failed);
     const result = JSON.parse(out.join(''));
     expect(result.actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'done', 'failed']);
-    expect(result.actions[2].message).toBe('push rejected');
+    expect(result.actions[2].message).toContain('push rejected');
+    expect(result.actions[2].message).toContain('inspect the branch');
     expect(result.actions[2].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM' });
     expect(shell.some((s) => s.args[0] === 'worktree' && s.args[1] === 'remove')).toBe(true);
   });
@@ -899,12 +900,13 @@ describe('task creation initial state', () => {
 describe('task creation resume by explicit Issue', () => {
   const url = 'https://github.com/me/Weaver/issues/77';
   const args = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001', '--resume-issue', url];
-  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable'; losePriorityResponse?: boolean } = {}) {
+  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable'; losePriorityResponse?: boolean; losePullResponse?: boolean; hideCreatedPull?: boolean } = {}) {
     const s = setup();
     const original = s.deps.fetch as Fetch;
     let createCount = 0;
     let added = false;
     let pullCreated = options.existingPull ?? false;
+    let pullWrites = 0;
     let branchReads = 0;
     let boardStatus: string | undefined;
     let statusWrites = 0;
@@ -927,10 +929,10 @@ describe('task creation resume by explicit Issue', () => {
       if (options.recoverBranch && request.includes('/contents/requirements/REQ-001.md?')) return { ok: true, status: 200, json: async () => ({ type: 'file', encoding: 'base64', content: Buffer.from(taskListLine('TASK-041', 'New task', 77, url)).toString('base64') }) };
       if (options.recoverBranch && (request.includes('/pulls?state=all&head=') || request.endsWith('/pulls/200'))) {
         const item = { number: 200, html_url: 'https://github.com/me/Weaver/pull/200', state: 'open', head: { ref: 'docs/task-041-new-task', sha: head, repo: { full_name: 'me/Weaver' } }, base: { ref: 'main', repo: { full_name: 'me/Weaver' } } };
-        return { ok: true, status: 200, json: async () => request.endsWith('/pulls/200') ? item : pullCreated ? [item] : [] };
+        return { ok: true, status: 200, json: async () => request.endsWith('/pulls/200') ? item : pullCreated && !options.hideCreatedPull ? [item] : [] };
       }
       if (request.includes('/issues?state=all&')) return { ok: true, status: 200, json: async () => [{ title: options.issueTitle ?? '[TASK-041] New task', html_url: url }] };
-      if (request.includes('/pulls?state=all&') && options.existingPull) return { ok: true, status: 200, json: async () => [{ title: 'TASK-041', head: { ref: 'docs/task-041-new-task' } }] };
+      if (request.includes('/pulls?state=all&') && pullCreated && !options.hideCreatedPull) return { ok: true, status: 200, json: async () => [{ title: 'TASK-041', head: { ref: 'docs/task-041-new-task' } }] };
       if (request.includes('/pulls?state=all&') && options.conflictingPull) return { ok: true, status: 200, json: async () => [{ title: 'TASK-041', head: { ref: 'task-041' } }] };
       if (request.endsWith('/issues') && init.method === 'POST') createCount += 1;
       if (request.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('addProjectV2ItemById')) added = true;
@@ -954,11 +956,11 @@ describe('task creation resume by explicit Issue', () => {
           branchReads += 1;
           return `${options.changedBranch && branchReads > 2 ? 'b'.repeat(40) : head}\trefs/heads/docs/task-041-new-task\n`;
         }
-        if (command === 'gh' && argv[0] === 'pr' && argv[1] === 'create') { pullCreated = true; return 'https://github.com/me/Weaver/pull/200\n'; }
+        if (command === 'gh' && argv[0] === 'pr' && argv[1] === 'create') { pullWrites += 1; pullCreated = true; if (options.losePullResponse) throw new Error('response lost'); return 'https://github.com/me/Weaver/pull/200\n'; }
         return runSystem(command, argv, opts);
       };
     }
-    return { ...s, createCount: () => createCount, statusWrites: () => statusWrites, priorityWrites: () => priorityWrites };
+    return { ...s, createCount: () => createCount, statusWrites: () => statusWrites, priorityWrites: () => priorityWrites, pullWrites: () => pullWrites };
   }
 
   it('reuses an existing Issue and Project item and only offers the file PR', async () => {
@@ -1191,6 +1193,37 @@ describe('task creation resume by explicit Issue', () => {
     expect(result.actions[0].identifiers.pullRequest).toBe('https://github.com/me/Weaver/pull/200');
     expect(s.createCount()).toBe(0);
     expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('finds the existing PR after its creation response is lost', async () => {
+    const s = fixture({ onProject: true, recoverBranch: true, losePullResponse: true });
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const id = JSON.parse(s.out.join('')).actions[0].id;
+    s.out.length = 0;
+    expect(await run([...args, '--approve', id], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[0].identifiers).toMatchObject({ issue: url, branch: 'docs/task-041-new-task' });
+    expect(JSON.parse(s.out.join('')).actions[0].message).toContain('inspect the branch');
+    expect(s.pullWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.status).toBe('pending');
+    expect(result.context.pullRequest.url).toBe('https://github.com/me/Weaver/pull/200');
+    expect(result.actions).toEqual([]);
+    expect(s.pullWrites()).toBe(1);
+  });
+
+  it('does not create a second PR if the first remains hidden after a lost response', async () => {
+    const s = fixture({ onProject: true, recoverBranch: true, losePullResponse: true, hideCreatedPull: true });
+    await run(args, s.deps);
+    const id = JSON.parse(s.out.join('')).actions[0].id;
+    s.out.length = 0;
+    expect(await run([...args, '--approve', id], s.deps)).toBe(EXIT.failed);
+    expect(s.pullWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run([...args, '--approve', id], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[0].message).toContain('reservation');
+    expect(s.pullWrites()).toBe(1);
   });
 
   it('refuses a branch that changes after the recovery plan', async () => {

@@ -400,6 +400,7 @@ export const en = {
   'cli.task-create.checkout-unsafe': 'The checkout origin cannot be confirmed as {repository} on GitHub. Use a checkout of the target repository before creating or resuming a task.',
   'cli.task-create.requirement-changed': 'The requirement {path} differs from the approved source. Refresh the checkout and review a new plan before retrying.',
   'cli.task-create.pr-unverified': 'The pull request returned as {pull} could not be verified. Inspect the branch and pull requests before retrying.',
+  'cli.task-create.files-write-uncertain': 'The write for branch {branch} could not be confirmed: {detail}. After the prior executor has stopped, inspect the branch, its pull requests and the retained reservation before resuming.',
   'cli.unknown-command': 'Unknown command "{command}". Run weaver --help.',
   'cli.missing-argument': 'The command "{command}" needs {argument}.',
   'cli.no-token': 'No GitHub token. Run: gh auth login -s repo,project',

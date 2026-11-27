@@ -399,6 +399,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.task-create.checkout-unsafe': '체크아웃의 origin이 GitHub의 {repository}인지 확인할 수 없습니다. 작업을 생성하거나 재개하기 전에 대상 저장소의 체크아웃을 사용하세요.',
   'cli.task-create.requirement-changed': '요구사항 {path}이(가) 승인한 원본과 다릅니다. 다시 시도하기 전에 체크아웃을 갱신하고 새 계획을 검토하세요.',
   'cli.task-create.pr-unverified': '반환된 풀 리퀘스트 {pull}을(를) 확인할 수 없습니다. 다시 시도하기 전에 브랜치와 풀 리퀘스트를 확인하세요.',
+  'cli.task-create.files-write-uncertain': '브랜치 {branch}의 쓰기 결과를 확인할 수 없습니다: {detail}. 이전 실행이 종료된 후 브랜치, 풀 리퀘스트와 유지된 예약을 확인하고 재개하세요.',
   'cli.unknown-command': '"{command}"는 알 수 없는 명령입니다. weaver --help를 실행해 보세요.',
   'cli.missing-argument': '"{command}" 명령에는 {argument}가 필요합니다.',
   'cli.no-token': 'GitHub 토큰이 없습니다. 다음을 실행하세요: gh auth login -s repo,project',

@@ -58,6 +58,7 @@ const input = (overrides: Partial<ReconcileInput> = {}): ReconcileInput => ({
   locale: 'en',
   project: { owner: 'me', number: 1 },
   repositories: ['me/Weaver'],
+  statusOptions: ['Todo', 'In Progress'],
   cards: [card(10, { boardStatus: 'Todo' }), card(30, { state: 'closed', labels: ['task', 'status:review'], boardStatus: 'Done' })],
   artifacts,
   pulls: [pull()],
@@ -189,6 +190,19 @@ describe('planReconcile', () => {
     expect(unknown.reports.map((r) => r.kind)).toContain('board-status-differs');
     const absentOption = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Backlog' })], pulls: [], rulesFor: () => rules, statusOptions: ['Backlog'] }));
     expect(absentOption.actions).toEqual([]);
+  });
+
+  it('does not offer a status write when Project options were not read', async () => {
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], statusOptions: undefined }));
+    expect(plan.actions.some((action) => action.kind === 'board.status')).toBe(false);
+    expect(plan.reports.find((report) => report.kind === 'board-status-differs')?.message).toContain('could not be read');
+    const korean = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], statusOptions: undefined, locale: 'ko' }));
+    expect(korean.reports.find((report) => report.kind === 'board-status-differs')?.message).toContain('읽지 못해');
+    const missing = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], statusOptions: ['Todo'] }));
+    expect(missing.actions.some((action) => action.kind === 'board.status')).toBe(false);
+    expect(missing.reports.find((report) => report.kind === 'board-status-differs')?.message).toContain('no Status option named In Progress');
+    const missingKorean = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], statusOptions: ['Todo'], locale: 'ko' }));
+    expect(missingKorean.reports.find((report) => report.kind === 'board-status-differs')?.message).toContain('In Progress라는 Status 선택지가 없습니다');
   });
 
   it('binds approval to the selected Project and observed Issue facts', async () => {

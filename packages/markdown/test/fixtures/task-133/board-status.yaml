@@ -1,0 +1,7 @@
+columns:
+  source: board-status
+  board:
+    Backlog: Backlog
+    Todo: Ready
+    In Progress: In progress
+    Done: Verified

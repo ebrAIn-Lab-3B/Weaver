@@ -432,6 +432,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.reconcile.project-add-reason': '선택한 Project에 Issue가 없습니다. Project 자동화가 Issue를 변경할 수도 있으므로 결과를 확인합니다.',
   'cli.reconcile.project-add': '{task} ({path})가 연결한 {issue}를 Project {owner}/{project}에 추가합니다. 등록 상태가 없음에서 있음으로 바뀝니다.',
   'cli.reconcile.board-review': 'Project {owner}/{project}의 {ref} 상태는 {board}이고 라벨에 설정된 대응 값은 {expected}입니다. 어느 상태가 의도된 것인지 프로세스를 검토한 후 변경할 대상을 결정해 주세요.',
+  'cli.reconcile.status-option-not-found': 'Project {owner}/{project}에 {expected}라는 Status 선택지가 없습니다. 상태를 변경하기 전에 선택지와 설정된 대응 관계를 확인해 주세요.',
   'cli.reconcile.link-review': '{task}에 Issue 링크가 없습니다. 저장소에서 기존 Issue를 찾은 뒤 검토된 파일 변경으로 연결해 주세요. 기존 Issue가 없음을 확인한 뒤에만 새 Issue를 만드세요.',
   'cli.reconcile.issue-unavailable': '{task}가 참조하는 Issue {issue}를 읽을 수 없습니다: {detail}. Project에 추가하기 전에 접근 권한이나 링크를 확인해 주세요.',
   'cli.reconcile.process-unavailable': '{repository}: 프로세스 규칙을 읽을 수 없거나 유효하지 않습니다. 진단 또는 수정 전에 새로 고치거나 프로세스를 바로잡아 주세요.',

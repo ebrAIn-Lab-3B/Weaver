@@ -46,7 +46,9 @@ if (multiRepository) {
   fs.writeFileSync(workspaceArg, JSON.stringify({ folders: [{ path: firstFolder }, { path: second }] }));
 }
 const result = path.join(temp, 'result.json');
-const testFile = process.argv[2] === 'reconciliation' ? 'reconciliationHost.cjs' : process.argv[2] === 'assignment-proposal' ? 'assignmentProposalHost.cjs' : process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
+const testFile = process.argv[2] === 'packaged-overview' ? 'packagedOverviewHost.cjs' : process.argv[2] === 'reconciliation' ? 'reconciliationHost.cjs' : process.argv[2] === 'assignment-proposal' ? 'assignmentProposalHost.cjs' : process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
+if (process.argv[2] === 'packaged-overview' && !process.env.WEAVER_PACKAGED_EXTENSION_PATH) throw new Error('Set WEAVER_PACKAGED_EXTENSION_PATH to the installed VSIX extension directory.');
+const extensionPath = process.argv[2] === 'packaged-overview' ? path.resolve(process.env.WEAVER_PACKAGED_EXTENSION_PATH) : path.join(root, 'apps/vscode-extension');
 const output = fs.openSync(path.join(temp, 'stdout.log'), 'w');
 const errors = fs.openSync(path.join(temp, 'stderr.log'), 'w');
 const executable = process.env.WEAVER_VSCODE_EXECUTABLE || path.join(process.env.LOCALAPPDATA, 'Programs', 'Microsoft VS Code', 'Code.exe');
@@ -54,7 +56,7 @@ const env = { ...process.env, WEAVER_AUTHOR_RESULT: result, TMP: temp, TEMP: tem
 delete env.ELECTRON_RUN_AS_NODE;
 for (const name of Object.keys(env)) if (name.startsWith('VSCODE_')) delete env[name];
 const child = spawn(executable, [workspaceArg, '--user-data-dir', path.join(temp, 'profile'), '--extensions-dir', path.join(temp, 'extensions'),
-  '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--extensionDevelopmentPath', path.join(root, 'apps/vscode-extension'),
+  '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--extensionDevelopmentPath', extensionPath,
   '--extensionTestsPath', path.join(root, 'apps/vscode-extension/test', testFile)],
 { env, windowsHide: true, stdio: ['ignore', output, errors] });
 const timeout = setTimeout(() => { child.kill(); console.error(`VS Code test timed out; logs: ${temp}`); process.exitCode = 1; }, 50000);

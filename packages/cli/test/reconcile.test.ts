@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProcess, loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@ebrain-lab/weaver-markdown';
+import { defaultProcess, formatNotice, loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn, ProjectCard } from '@ebrain-lab/weaver-github';
 import { actionId, executeActions, planReconcile, type ExecuteContext, type ReconcileInput } from '../src';
 
@@ -117,6 +117,30 @@ describe('planReconcile', () => {
 
     const behind = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [pull({ closes: [10] })] }));
     expect(behind.actions.map((a) => a.kind)).toEqual(['board.status']);
+  });
+
+  it('shows the observed custom Issue label in status plans and reports in both languages', async () => {
+    const rules = defaultProcess().columns;
+    rules.labels['In progress'] = 'work:active';
+    rules.labels.Backlog = 'work:queued';
+    const labels = ['task', 'work:active'];
+    for (const locale of ['en', 'ko'] as const) {
+      const behind = card(10, { labels, boardStatus: 'Todo', boardStatusRead: true, placement: placeIssue({ state: 'open', labels }, rules) });
+      const plan = await planReconcile(input({ artifacts: quiet, cards: [behind], pulls: [], locale, rulesFor: () => rules }));
+      const action = plan.actions.find((item) => item.kind === 'board.status');
+      expect(action?.summary.args).toMatchObject({ label: 'work:active', board: 'Todo', status: 'In Progress' });
+      expect(formatNotice(action!.summary, locale)).toContain('work:active');
+
+      const missing = { ...behind, boardStatus: undefined };
+      const missingPlan = await planReconcile(input({ artifacts: quiet, cards: [missing], pulls: [], locale, rulesFor: () => rules }));
+      const missingAction = missingPlan.actions.find((item) => item.kind === 'board.status');
+      expect(formatNotice(missingAction!.summary, locale)).toContain('work:active');
+
+      const aheadLabels = ['task', rules.labels.Backlog];
+      const ahead = card(10, { labels: aheadLabels, boardStatus: 'In Progress', placement: placeIssue({ state: 'open', labels: aheadLabels }, rules) });
+      const review = await planReconcile(input({ artifacts: quiet, cards: [ahead], pulls: [], locale, rulesFor: () => rules }));
+      expect(review.reports.find((item) => item.kind === 'board-status-differs')?.message).toContain(rules.labels.Backlog);
+    }
   });
 
   it('plans one Project addition for two tasks sharing an Issue and reports the association', async () => {

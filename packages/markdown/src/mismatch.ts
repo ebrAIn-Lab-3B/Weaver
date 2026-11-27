@@ -215,17 +215,18 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     const labeledColumns = closedGap && card.labels ? KANBAN_COLUMNS.filter((column) => card.labels!.includes(labelRules[column])) : [];
     const actualColumn = closedGap ? (labeledColumns.length === 1 ? labeledColumns[0] : undefined) : card.placement.column;
     const comparableStatus = actualColumn !== undefined && card.placement.gaps.every((gap) => gap.code === 'gap.closed-without-verified');
+    const observedLabel = actualColumn && card.labels?.includes(labelRules[actualColumn]) ? labelRules[actualColumn] : '—';
     const expected = actualColumn === undefined ? undefined : rules?.projection === undefined ? expectedBoardStatus(actualColumn) : rules.projection[actualColumn];
     if (!boardSourced.has(repository) && comparableStatus && !expected) {
-      found.push({ kind: 'projection-unmapped', subject: label, args: { number: card.number, repository: card.repository, column: actualColumn! }, url: card.url });
+      found.push({ kind: 'projection-unmapped', subject: label, args: { number: card.number, repository: card.repository, column: actualColumn!, label: observedLabel }, url: card.url });
     } else if (!boardSourced.has(repository) && comparableStatus && expected && card.boardStatusRead === true && !card.boardStatus) {
-      found.push({ kind: 'board-status-missing', subject: label, args: { number: card.number, repository: card.repository, expected }, url: card.url });
+      found.push({ kind: 'board-status-missing', subject: label, args: { number: card.number, repository: card.repository, expected, label: observedLabel }, url: card.url });
     }
     if (expected && card.boardStatus && !boardSourced.has(repository) && comparableStatus && card.boardStatus !== expected) {
       found.push({
         kind: 'board-status-differs',
         subject: label,
-        args: { number: card.number, repository: card.repository, board: card.boardStatus, expected, column: actualColumn! },
+        args: { number: card.number, repository: card.repository, board: card.boardStatus, expected, column: actualColumn!, label: observedLabel },
         url: card.url,
       });
     }

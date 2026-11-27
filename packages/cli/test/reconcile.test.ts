@@ -62,6 +62,7 @@ const input = (overrides: Partial<ReconcileInput> = {}): ReconcileInput => ({
   artifacts,
   pulls: [pull()],
   now: new Date('2026-11-01T00:00:00Z'),
+  freshSetupMatches: async () => true,
   fetchFn: rest().fetchFn,
   ...overrides,
 });
@@ -254,6 +255,17 @@ describe('planReconcile', () => {
     const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
     await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
     expect(wrote).toBe(true);
+  });
+
+  it('refuses status and card additions when the selected Project configuration changes', async () => {
+    const rules = defaultProcess().columns;
+    let requests = 0;
+    const fetch = (async () => { requests += 1; throw new Error('unexpected request'); }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const status = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'ITEM' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, freshSetupMatches: async () => false, fetch }));
+    await expect(status.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    const addition = await planReconcile(input({ artifacts: quiet, cards: [], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, freshTaskIssue: async () => url(10), freshSetupMatches: async () => false, fetch }));
+    await expect(addition.actions.find((a) => a.kind === 'project.add')!.run()).rejects.toThrow();
+    expect(requests).toBe(0);
   });
 
   it('refuses a stale or unreadable process before writing a Project Status', async () => {

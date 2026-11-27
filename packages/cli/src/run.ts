@@ -264,6 +264,10 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   const all = toCliCards(cards, artifacts, deps.now(), idleDaysFor, evidenceFor);
 
   if (args.command === 'reconcile') {
+    const setupUnchanged = async () => {
+      const current = await loadSetup(root, deps, locale);
+      return current.ok && current.setup.project.owner.toLowerCase() === setup.project.owner.toLowerCase() && current.setup.project.number === setup.project.number && JSON.stringify(current.setup.repositories ?? null) === JSON.stringify(setup.repositories ?? null);
+    };
     const merged = await Promise.all(repositories.map((repository) => readMergedPulls(token, repository, 50, deps.fetch)));
     const plan = await planReconcile({
       token,
@@ -276,6 +280,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       projectMembershipComplete: boardRead.membershipComplete,
       unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),
       rulesFor,
+      freshSetupMatches: setupUnchanged,
       freshTaskIssue: async (taskPath) => {
         const latest = loadWorkspace(await deps.files(root)).artifacts.find((artifact) => artifact.kind === 'task' && artifact.path === taskPath);
         return latest?.kind === 'task' ? latest.issue : undefined;
@@ -324,6 +329,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     };
     const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: boardRead.membershipComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
     const recheck = async () => {
+      if (!await setupUnchanged()) return { status: 'incomplete', reason: t('cli.reconcile.recheck-setup-changed', locale) };
       let refreshedArtifacts: Artifact[];
       try {
         refreshedArtifacts = loadWorkspace(await deps.files(root)).artifacts;

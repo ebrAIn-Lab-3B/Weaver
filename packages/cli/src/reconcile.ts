@@ -54,6 +54,8 @@ export interface ReconcileInput {
   files?: FilesContext;
   /** Re-read effective rules immediately before a status write; unavailable means writes fail closed. */
   freshRulesFor?: (repository: string) => Promise<ColumnRules | undefined>;
+  /** Check that the selected Project and repository scope have not changed. */
+  freshSetupMatches?: () => Promise<boolean>;
   /** Re-read the task file link before adding an Issue to the selected Project. */
   freshTaskIssue?: (path: string) => Promise<string | undefined>;
   now: Date;
@@ -129,7 +131,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
           action.summary = { code: 'cli.reconcile.project-add', args: { task: m.subject, path: taskPath ?? '—', issue: issueUrl, owner: input.project.owner, project: input.project.number } };
           action.fingerprint = JSON.stringify([input.project.owner, input.project.number, issueUrl, taskPath ?? null]);
           action.run = async () => {
-            if (!taskPath || !issueRef || !input.freshTaskIssue || normalizeIssueUrl(await input.freshTaskIssue(taskPath) ?? '') !== normalizeIssueUrl(issueUrl)) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            if (!await input.freshSetupMatches?.() || !taskPath || !issueRef || !input.freshTaskIssue || normalizeIssueUrl(await input.freshTaskIssue(taskPath) ?? '') !== normalizeIssueUrl(issueUrl)) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const repository = `${issueRef.owner}/${issueRef.repo}`;
             const freshRules = await input.freshRulesFor?.(repository);
             if (!freshRules || JSON.stringify(freshRules) !== JSON.stringify(input.rulesFor?.(repository))) throw new NoticeError({ code: 'cli.reconcile.stale' });
@@ -167,6 +169,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
           reason: { code: 'cli.reconcile.board-status-reason' },
           fingerprint: JSON.stringify([input.project.owner, input.project.number, ref, card.projectItemId ?? null, card.state, [...card.labels].sort(), card.boardStatus ?? null, expected, input.statusOptions ?? null, input.rulesFor?.(card.repository) ?? null]),
           run: async () => {
+            if (!await input.freshSetupMatches?.()) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const freshRules = await input.freshRulesFor?.(card.repository);
             if (!freshRules || JSON.stringify(freshRules) !== JSON.stringify(input.rulesFor?.(card.repository))) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const before = await readProject(input.token, input.project, [card.repository], input.fetch);

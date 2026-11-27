@@ -800,6 +800,10 @@ describe('rule-based status reconciliation flow', () => {
     let writes = 0;
     let issueLabels = ['status:in-progress'];
     let changeLabelOnWrite = false;
+    let switchSetupOnWrite = false;
+    let switchedSetup = false;
+    const originalReadText = deps.readText;
+    deps.readText = async (file) => switchedSetup ? 'project: {owner: other, number: 9}\nrepositories:\n  - me/Weaver\n' : originalReadText(file);
     let fileReads = 0;
     let failFileRead = 0;
     let processReads = 0;
@@ -817,7 +821,7 @@ describe('rule-based status reconciliation flow', () => {
       const { query } = JSON.parse(init.body);
       if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: issueLabels.map((name) => ({ name })) }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
       if (query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT', field: { id: 'FIELD', options: [{ id: 'PROGRESS', name: 'In Progress' }] } } } } }) };
-      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; if (changeLabelOnWrite) issueLabels = []; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
+      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; if (changeLabelOnWrite) issueLabels = []; if (switchSetupOnWrite) switchedSetup = true; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
       return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
     };
     expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
@@ -879,5 +883,14 @@ describe('rule-based status reconciliation flow', () => {
     const changedRules = JSON.parse(out.join(''));
     expect(changedRules.recheck).toMatchObject({ status: 'incomplete' });
     expect(changedRules.recheck.reason).toContain('process rules changed');
+
+    // A change to the selected Project during a write must not be reported as a clean recheck.
+    status = 'Todo'; changeAtProcessRead = 0; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const sixthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; switchSetupOnWrite = true;
+    expect(await run(['reconcile', '--approve', sixthAction.id], deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).recheck).toMatchObject({ status: 'incomplete' });
+    expect(JSON.parse(out.join('')).recheck.reason).toContain('Project or repository scope changed');
   });
 });

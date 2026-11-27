@@ -29,6 +29,8 @@ TASK-131 design; coordinate shared recovery behavior with TASK-132.
 
 Linked implementation PR and passing diagnostic and repair tests, including uncertainty and shared-Issue cases; record unsupported repair paths.
 
+Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46035681371) passed build checks, tests, packaging and smoke checks after commit `d73ef44`. That commit adds a fixture checking that reconciliation does not propose a Project Status write for an open Issue with a Verified label and an absent or behind board Status. This is a plan-level test, not a live Project automation test. Review the remaining limitations in the design record before acceptance.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #395 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

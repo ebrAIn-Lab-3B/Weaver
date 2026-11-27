@@ -30,6 +30,8 @@ TASK-131 defines identity, state mapping and uncertainty. Coordinate with TASK-1
 
 Link the implementation PR, relevant decision if changed, passing targeted automated tests and observed controlled end-to-end resolution including a board-ahead case and recorded limitations. Coordinate the combined verification under TASK-135.
 
+Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46035681371) passed build checks, tests, packaging and smoke checks after commit `d73ef44`. That commit adds a fixture checking that reconciliation does not propose a Project Status write for an open Issue with a Verified label and an absent or behind board Status. This is a plan-level test, not a live Project automation test. Review the remaining limitations in the design record before acceptance.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

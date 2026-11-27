@@ -161,7 +161,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         const expected = String(m.args.expected ?? '');
         if (!card || !expected) break;
         if (card.state === 'closed') {
-          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.closed-board-review', args: { ref: `${card.repository}#${card.number}`, owner: input.project.owner, project: input.project.number, board: card.boardStatus ?? '—', expected } }, locale) });
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.closed-board-review', args: { ref: `${card.repository}#${card.number}`, owner: input.project.owner, project: input.project.number, board: card.boardStatus ?? '—', expected, label: String(m.args.label ?? '—') } }, locale) });
           break;
         }
         // A board that is ahead of the label was moved by a person (or the board's own rules) first.
@@ -176,14 +176,14 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
           break;
         }
         if (m.kind !== 'board-status-missing' && !boardBehind(String(m.args.board ?? ''), expected, input.rulesFor?.(card.repository))) {
-          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.board-review', args: { ref: `${card.repository}#${card.number}`, board: String(m.args.board ?? '—'), expected, owner: input.project.owner, project: input.project.number } }, locale) });
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.board-review', args: { ref: `${card.repository}#${card.number}`, board: String(m.args.board ?? '—'), expected, label: String(m.args.label ?? '—'), owner: input.project.owner, project: input.project.number } }, locale) });
           break;
         }
         const ref = `${card.repository}#${card.number}`;
         actions.push({
           kind: 'board.status',
           target: ref,
-          summary: { code: 'cli.reconcile.board-status', args: { ref, board: String(m.args.board ?? '—'), status: expected, column: String(m.args.column ?? card.placement.column), owner: input.project.owner, project: input.project.number } },
+          summary: { code: 'cli.reconcile.board-status', args: { ref, board: String(m.args.board ?? '—'), status: expected, column: String(m.args.column ?? card.placement.column), label: String(m.args.label ?? '—'), owner: input.project.owner, project: input.project.number } },
           reason: { code: 'cli.reconcile.board-status-reason' },
           fingerprint: JSON.stringify([input.project.owner, input.project.number, repositoryScope, ref, card.projectItemId ?? null, card.state, [...card.labels].sort(), card.boardStatus ?? null, expected, input.statusOptions ?? null, input.rulesFor?.(card.repository) ?? null]),
           run: async () => {

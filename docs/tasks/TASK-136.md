@@ -32,6 +32,8 @@ Link the implementation PR, relevant decision if changed, passing targeted autom
 
 Review input: the final main-branch [CI run](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46035681371) passed build checks, tests, packaging and smoke checks after commit `d73ef44`. That commit adds a fixture checking that reconciliation does not propose a Project Status write for an open Issue with a Verified label and an absent or behind board Status. This is a plan-level test, not a live Project automation test. Review the remaining limitations in the design record before acceptance.
 
+Final review found that status plans named the configured column but did not directly show the observed Issue label. The follow-up change adds the observed label to label-source mismatch notices and Project Status plans, including report-only cases. Custom labels and English/Korean output are covered by reconciliation tests. This is not evidence of an independent review or a closing PR.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

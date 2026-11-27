@@ -449,8 +449,19 @@ describe('weaver task create', () => {
     const actions = JSON.parse(s.out.join('')).actions;
     expect(actions[1].outcome).toBe('failed');
     expect(actions[1].identifiers.issue).toBe('https://github.com/me/Weaver/issues/77');
+    expect(actions[1].message).toContain('Re-read the selected Project');
+    expect(actions[1].message).toContain('response lost');
     expect(actions[1].identifiers.projectItem).toBeUndefined();
     expect(actions[2].outcome).toBe('skipped');
+    const korean = setup();
+    korean.deps.env.WEAVER_LANG = 'ko';
+    const koreanOriginal = korean.deps.fetch as Fetch;
+    korean.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init.body && init.body.includes('addProjectV2ItemById')) throw new Error('response lost');
+      return koreanOriginal(url, init);
+    };
+    expect(await run([...ARGS, '--approve', ids], korean.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(korean.out.join('')).actions[1].message).toContain('선택한 Project를 다시 조회하세요');
   });
 
   it('retains the Project item ID and stops when the new membership is not observed', async () => {
@@ -534,6 +545,8 @@ describe('weaver task create', () => {
     };
     expect(await run([...ARGS, '--approve', issueAction], s.deps)).toBe(EXIT.failed);
     expect(JSON.parse(s.out.join('')).actions[0].identifiers.issue).toBeUndefined();
+    expect(JSON.parse(s.out.join('')).actions[0].message).toContain('Do not create another Issue');
+    expect(JSON.parse(s.out.join('')).actions[0].message).toContain('prior executor has stopped');
     s.out.length = 0;
     expect(await run(ARGS, s.deps)).toBe(EXIT.failed);
     const result = JSON.parse(s.out.join(''));
@@ -1060,6 +1073,7 @@ describe('task creation resume by explicit Issue', () => {
     s.out.length = 0;
     expect(await run([...taskArgs, '--approve', fieldId], s.deps)).toBe(EXIT.failed);
     expect(JSON.parse(s.out.join('')).actions[0].identifiers).toMatchObject({ issue: url, projectItem: 'ITEM77', field: 'Priority' });
+    expect(JSON.parse(s.out.join('')).actions[0].message).toContain('Re-read the selected item');
     expect(s.priorityWrites()).toBe(1);
     s.out.length = 0;
     expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);

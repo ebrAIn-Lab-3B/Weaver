@@ -1,7 +1,7 @@
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { Artifact, Locale, RequirementArtifact, TaskFieldPlan, parseIssueUrl } from '@ebrain-lab/weaver-markdown';
-import { addIssueToProject, createIssue, fetchIssue, fetchIssueBody, NoticeError, readProject, setProjectField, type Fetch, type FetchFn } from '@ebrain-lab/weaver-github';
+import { Artifact, Locale, RequirementArtifact, TaskFieldPlan, formatNotice, parseIssueUrl } from '@ebrain-lab/weaver-markdown';
+import { addIssueToProject, createIssue, errorNotice, fetchIssue, fetchIssueBody, NoticeError, readProject, setProjectField, type Fetch, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction } from './actions';
 import type { System } from './contract';
 import { openFilesPullRequest } from './filesPullRequest';
@@ -60,6 +60,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
   const reason = input.resume ? { code: 'cli.task-create.resume-reason' as const } : { code: 'cli.task-create.reason' as const };
   const reservations = taskReservationRefs(input.repository, input.requirement.id, input.requirement.repository, input.requirement.repositoryServer, input.title, id);
   const intent = JSON.stringify({ repository: input.repository.toLowerCase(), project: input.project, requirement: { id: input.requirement.id, title: input.requirement.title, path: input.requirement.path, repository: input.requirement.repository, repositoryServer: input.requirement.repositoryServer, textHash: input.requirementText === undefined ? null : createHash('sha256').update(input.requirementText.replace(/\r\n/g, '\n')).digest('hex') }, id, title: input.title, criteria: input.criteria, assigneeType: input.assigneeType, assignee: input.assignee, area: input.area, contract: input.contract, initialLabel: input.initialLabel, initialBoardStatus: input.initialBoardStatus, process: input.approvalProcess, taskPath, resumeIssue: input.resume?.url, resumeItem: input.resume?.item });
+  // GitHub's detail stays in English in the audit log; the surrounding recovery guidance is localized.
+  const detailOf = (error: unknown) => error instanceof NoticeError ? formatNotice(errorNotice(error), 'en') : error instanceof Error ? error.message : String(error);
   const checkProcess = async () => {
     if (input.revalidateCheckout && !(await input.revalidateCheckout())) throw new NoticeError({ code: 'cli.task-create.checkout-unsafe', args: { repository: input.repository } });
     if (input.revalidateProcess && !(await input.revalidateProcess())) throw new NoticeError({ code: 'cli.task-create.process-unsafe', args: { repository: input.repository } });
@@ -87,7 +89,9 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       if (hasTaskTitleCandidate(titles, input.title) || titles.some((title) => new RegExp(`^\\[${id}\\]`, 'i').test(title))) throw new NoticeError({ code: 'cli.task-create.identity-ambiguous', args: { repository: input.repository } });
       const digest = registrationIntentDigest({ repository: input.repository, project: input.project, requirement: input.requirement, title: input.title, criteria: input.criteria, assigneeType: input.assigneeType, assignee: input.assignee, area: input.area, contract: input.contract, taskDirectory: input.taskDirectory, process: input.approvalProcess });
       const body = `${attribution(input.locale, input.login)}\n\nA task of ${input.requirement.id} (${input.requirement.title}). The definition is ${taskPath}.\n\n${registrationMarker(reservations.operation, id, digest)}`;
-      const made = await createIssue(input.token, input.repository, { title: `[${id}] ${input.title}`, body, labels }, input.fetch);
+      let made: { number: number; url: string };
+      try { made = await createIssue(input.token, input.repository, { title: `[${id}] ${input.title}`, body, labels }, input.fetch); }
+      catch (error) { throw new NoticeError({ code: 'cli.task-create.issue-write-uncertain', args: { repository: input.repository, operation: reservations.operation, detail: detailOf(error) } }); }
       created.number = made.number;
       created.url = made.url;
       issue.identifiers = { ...issue.identifiers, issue: made.url };
@@ -116,7 +120,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       card.identifiers = { ...card.identifiers, ...(created.url ? { issue: created.url } : {}), ...(created.item ? { projectItem: created.item } : {}) };
       await checkProcess();
       if (!created.url) throw new NoticeError({ code: 'cli.err.issue-not-created' });
-      created.item = await addIssueToProject(input.token, input.project, created.url, input.fetch);
+      try { created.item = await addIssueToProject(input.token, input.project, created.url, input.fetch); }
+      catch (error) { throw new NoticeError({ code: 'cli.task-create.project-write-uncertain', args: { issue: created.url, detail: detailOf(error) } }); }
       card.identifiers = { ...card.identifiers, issue: created.url, projectItem: created.item };
       const observed = await readProject(input.token, input.project, [input.repository], input.fetch);
       if (!observed.ok || observed.read.membershipComplete === false || observed.read.cards.filter((entry) => entry.projectItemId === created.item && entry.url.toLowerCase() === created.url?.toLowerCase()).length !== 1) throw new NoticeError({ code: 'cli.task-create.project-unverified', args: { issue: created.url } });
@@ -152,7 +157,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
         const before = await observe();
         if (before === f.value) { input.resume?.onStatusRestored?.(); return; }
         if (before !== undefined) throw new NoticeError({ code: 'cli.task-create.status-unverified' });
-        await setProjectField(input.token, input.project, created.item, f.field, f.value, input.fetch);
+        try { await setProjectField(input.token, input.project, created.item, f.field, f.value, input.fetch); }
+        catch (error) { throw new NoticeError({ code: 'cli.task-create.field-write-uncertain', args: { field: f.field, detail: detailOf(error) } }); }
         if (await observe() !== f.value) throw new NoticeError({ code: 'cli.task-create.status-unverified' });
         input.resume?.onStatusRestored?.();
         return;
@@ -167,7 +173,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       const before = await observe();
       if (before === f.value) { input.resume?.onFieldRestored?.(f.field); return; }
       if (before !== undefined) throw new NoticeError({ code: 'cli.task-create.field-unverified', args: { field: f.field } });
-      await setProjectField(input.token, input.project, created.item, f.field, f.value, input.fetch);
+      try { await setProjectField(input.token, input.project, created.item, f.field, f.value, input.fetch); }
+      catch (error) { throw new NoticeError({ code: 'cli.task-create.field-write-uncertain', args: { field: f.field, detail: detailOf(error) } }); }
       if (await observe() !== f.value) throw new NoticeError({ code: 'cli.task-create.field-unverified', args: { field: f.field } });
       input.resume?.onFieldRestored?.(f.field);
     },

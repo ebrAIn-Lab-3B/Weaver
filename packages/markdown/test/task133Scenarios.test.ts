@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { findMismatches, loadWorkspace, parseProcess, placeIssue, type MismatchCard } from '../src';
 
-const fixture = join(__dirname, 'fixtures', 'task-133');
+const fixture = join(__dirname, 'examples', 'task-133');
 const repository = 'fixture/example';
 const files = readdirSync(fixture).filter((name) => /^(REQ|TASK)-\d+\.md$/.test(name))
   .map((path) => ({ path, text: readFileSync(join(fixture, path), 'utf8') }));

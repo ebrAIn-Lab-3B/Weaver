@@ -1,23 +1,24 @@
 import { partialIssuesOfPull, type MergedPull, type Notice } from '@ebrain-lab/weaver-markdown';
 import type { Fetch } from './project';
 
-export type PullsResult = { ok: true; pulls: MergedPull[] } | { ok: false; error: Notice };
+export type PullsResult = { ok: true; pulls: MergedPull[]; incomplete?: boolean } | { ok: false; error: Notice };
 
 const API = 'https://api.github.com/graphql';
 
-const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title url body headRefName closingIssuesReferences(first:5){nodes{number}}}}}}`;
+const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage} nodes{number title url body headRefName closingIssuesReferences(first:5){pageInfo{hasNextPage} nodes{number}}}}}}`;
 
 interface Reply {
   data?: {
     repository: null | {
       pullRequests: {
+        pageInfo?: { hasNextPage: boolean };
         nodes: {
           number: number;
           title: string;
           url: string;
           headRefName: string;
           body?: string | null;
-          closingIssuesReferences: { nodes: { number: number }[] };
+          closingIssuesReferences: { nodes: { number: number }[]; pageInfo?: { hasNextPage: boolean } };
         }[];
       };
     };
@@ -50,6 +51,7 @@ export async function readMergedPulls(
     if (!response.ok || body.errors?.length || !found) return failed;
     return {
       ok: true,
+      ...(found.pullRequests.pageInfo?.hasNextPage || found.pullRequests.nodes.some((pull) => pull.closingIssuesReferences.pageInfo?.hasNextPage) ? { incomplete: true } : {}),
       pulls: found.pullRequests.nodes.map((pull) => ({
         repository,
         number: pull.number,
@@ -57,6 +59,7 @@ export async function readMergedPulls(
         url: pull.url,
         branch: pull.headRefName,
         closes: pull.closingIssuesReferences.nodes.map((issue) => issue.number),
+        ...(pull.closingIssuesReferences.pageInfo?.hasNextPage ? { closingIncomplete: true } : {}),
         ...(partialIssuesOfPull(pull.body).length ? { partial: partialIssuesOfPull(pull.body) } : {}),
       })),
     };

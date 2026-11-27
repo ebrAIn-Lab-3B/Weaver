@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@ebrain-lab/weaver-markdown';
+import { defaultProcess, loadWorkspace, parseProcess, placeIssue, type MergedPull, type TaskContract } from '@ebrain-lab/weaver-markdown';
 import type { FetchFn, ProjectCard } from '@ebrain-lab/weaver-github';
 import { actionId, executeActions, planReconcile, type ExecuteContext, type ReconcileInput } from '../src';
 
@@ -47,7 +47,7 @@ function rest(comments: unknown = [], status = 200) {
   const fetchFn = (async (url: string, init?: { method?: string; body?: string }) => {
     calls.push({ method: init?.method ?? 'GET', url, ...(init?.body ? { body: JSON.parse(init.body) } : {}) });
     const ok = status < 400;
-    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : {}) };
+    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : { number: 20, title: 'Issue', html_url: url, state: 'open', labels: [], assignees: [] }) };
   }) as unknown as FetchFn;
   return { fetchFn, calls };
 }
@@ -71,7 +71,6 @@ describe('planReconcile', () => {
     const plan = await planReconcile(input());
     expect(plan.actions.map((a) => `${a.kind} ${a.target}`).sort()).toEqual([
       'board.status me/Weaver#10',
-      'card.move me/Weaver#30',
       'issue.comment me/Weaver#10',
       'project.add me/Weaver#20',
     ]);
@@ -87,7 +86,8 @@ describe('planReconcile', () => {
       expect(['project.add', 'board.status', 'issue.comment', 'card.move']).toContain(action.kind);
     }
     const moves = plan.actions.filter((a) => a.kind === 'card.move');
-    expect(moves.map((a) => a.target)).toEqual(['me/Weaver#30']);
+    expect(moves).toEqual([]);
+    expect(plan.reports.some((r) => r.kind === 'closed-without-verified')).toBe(true);
   });
 
   it('does not comment again when the note is already on the Issue, and reports it when comments cannot be read', async () => {
@@ -106,6 +106,107 @@ describe('planReconcile', () => {
 
     const behind = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [pull({ closes: [10] })] }));
     expect(behind.actions.map((a) => a.kind)).toEqual(['board.status']);
+  });
+
+  it('plans one Project addition for two tasks sharing an Issue and reports the association', async () => {
+    const shared = loadWorkspace([{ path: 'TASK-010.md', text: task('TASK-010', `issue: ${url(10)}\n`) }, { path: 'TASK-011.md', text: task('TASK-011', `issue: ${url(10)}\n`) }]).artifacts;
+    const plan = await planReconcile(input({ artifacts: shared, cards: [], pulls: [] }));
+    expect(plan.actions.filter((a) => a.kind === 'project.add')).toHaveLength(1);
+    expect(plan.reports.map((r) => r.kind)).toContain('shared-issue');
+    const unknown = await planReconcile(input({ artifacts: shared, cards: [], pulls: [], projectMembershipComplete: false }));
+    expect(unknown.actions).toEqual([]);
+    expect(unknown.reports.map((r) => r.kind)).toContain('issue-project-unknown');
+  });
+
+  it('does not propose adding an Issue that could not be read', async () => {
+    const unreadable = rest([], 403);
+    const plan = await planReconcile(input({ artifacts, cards: [], pulls: [], fetchFn: unreadable.fetchFn }));
+    expect(plan.actions.filter((a) => a.kind === 'project.add')).toEqual([]);
+    expect(plan.reports.map((r) => r.kind)).toContain('issue-unavailable');
+  });
+
+  it('proposes setting a confirmed missing board Status and refuses an unreadable process', async () => {
+    const rules = defaultProcess().columns;
+    const missing = card(10, { boardStatusRead: true });
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [missing], pulls: [], rulesFor: () => rules, statusOptions: ['Todo', 'In Progress', 'Done'] }));
+    expect(plan.actions.map((a) => a.kind)).toContain('board.status');
+    const unavailable = await planReconcile(input({ artifacts: quiet, cards: [missing], pulls: [], rulesFor: () => undefined, unavailableRepositories: ['me/Weaver'] }));
+    expect(unavailable.actions).toEqual([]);
+    expect(unavailable.reports.map((r) => r.kind)).toContain('process-unavailable');
+  });
+
+  it('uses an explicit projection to compare known options and refuses unknown ordering', async () => {
+    const rules = parseProcess('process.yaml', 'columns:\n  projection:\n    Backlog: Backlog\n    In progress: Working\n').process.columns;
+    const behind = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Backlog' })], pulls: [], rulesFor: () => rules, statusOptions: ['Backlog', 'Working'] }));
+    expect(behind.actions.map((a) => a.kind)).toContain('board.status');
+    const unknown = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, statusOptions: ['Backlog', 'Todo', 'Working'] }));
+    expect(unknown.actions).toEqual([]);
+    expect(unknown.reports.map((r) => r.kind)).toContain('board-status-differs');
+    const absentOption = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Backlog' })], pulls: [], rulesFor: () => rules, statusOptions: ['Backlog'] }));
+    expect(absentOption.actions).toEqual([]);
+  });
+
+  it('binds approval to the selected Project and observed Issue facts', async () => {
+    const rules = defaultProcess().columns;
+    const base = { artifacts: quiet, pulls: [], rulesFor: () => rules, statusOptions: ['Todo', 'In Progress', 'Done'] };
+    const first = await planReconcile(input({ ...base, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'one' })] }));
+    const changed = await planReconcile(input({ ...base, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'two' })] }));
+    expect(actionId(first.actions[0])).not.toBe(actionId(changed.actions[0]));
+    const other = await planReconcile(input({ ...base, project: { owner: 'other', number: 1 }, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'one' })] }));
+    expect(actionId(first.actions[0])).not.toBe(actionId(other.actions[0]));
+  });
+
+  it('updates only the selected Project after a fresh read, then verifies it', async () => {
+    const rules = defaultProcess().columns;
+    let boardStatus = 'Todo';
+    const calls: { query: string; variables: Record<string, unknown> }[] = [];
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body); calls.push(request);
+      let body: unknown;
+      if (request.query.includes('items(first:100')) {
+        body = { data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: boardStatus }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } };
+      } else if (request.query.includes('field(name:$f)')) {
+        body = { data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } };
+      } else {
+        boardStatus = 'In Progress'; body = { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } };
+      }
+      return { ok: true, status: 200, json: async () => body };
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    const action = plan.actions.find((a) => a.kind === 'board.status');
+    expect(action).toBeDefined();
+    await action!.run();
+    expect(calls.find((call) => call.query.includes('updateProjectV2ItemFieldValue'))?.variables).toMatchObject({ p: 'selected-project', i: 'selected-item', o: 'progress' });
+    expect(calls.filter((call) => call.query.includes('items(first:100'))).toHaveLength(2);
+  });
+
+  it('reports an uncertain result when the post-write Project read fails', async () => {
+    const rules = defaultProcess().columns;
+    let projectReads = 0;
+    let mutations = 0;
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body);
+      if (request.query.includes('items(first:100')) {
+        projectReads += 1;
+        if (projectReads > 1) throw new Error('network failure');
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      }
+      if (request.query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } }) };
+      mutations += 1;
+      return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } }) };
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    expect(mutations).toBe(1);
+  });
+
+  it('refuses a stale or unreadable process before writing a Project Status', async () => {
+    const rules = defaultProcess().columns;
+    let requests = 0;
+    const fetch = (async () => { requests += 1; throw new Error('unexpected write'); }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => undefined, fetch }));
+    await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    expect(requests).toBe(0);
   });
 
   it('is quiet when files, Issues, and the Project agree', async () => {

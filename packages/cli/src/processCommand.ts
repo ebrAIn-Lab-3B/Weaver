@@ -53,7 +53,7 @@ export async function readProcesses(
         startable: note?.startable ?? false,
       };
     };
-    const result = await fetchProcessFile(token, repository, {}, fetchFn);
+    const result = await fetchProcessFile(token, repository, { verifyMissing: true }, fetchFn);
     const defaults = { process: defaultProcess(), sources: defaultSources() as Record<ProcessSection, SectionSource> };
 
     if (result.status === 'read') {

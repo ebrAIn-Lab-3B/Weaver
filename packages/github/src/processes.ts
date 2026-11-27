@@ -50,7 +50,7 @@ export async function refreshProcessFiles(
 ): Promise<ProcessRefresh[]> {
   return mapLimit(repositories, PROCESS_READ_LIMIT, async (repository): Promise<ProcessRefresh> => {
     const before = cached(repository);
-    const result = await fetchProcessFile(token, repository, { etag: before?.etag }, fetchFn);
+    const result = await fetchProcessFile(token, repository, { etag: before?.etag, verifyMissing: true }, fetchFn);
     switch (result.status) {
       case 'unchanged':
         return { repository, entry: before, changed: false };

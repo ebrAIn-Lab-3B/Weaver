@@ -13,16 +13,22 @@ import {
   TaskArtifact,
   planMove,
   Mismatch,
+  KANBAN_COLUMNS,
+  PROJECT_STATUS_FOR_COLUMN,
 } from '@ebrain-lab/weaver-markdown';
-import { addIssueComment, hasIssueComment, setBoardStatus, type Fetch, type FetchFn, type ProjectCard } from '@ebrain-lab/weaver-github';
+import { addIssueComment, hasIssueComment, fetchIssue, readProject, setProjectField, NoticeError, type Fetch, type FetchFn, type ProjectCard } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction, ReportItem } from './actions';
 import { cardNotices } from './cards';
-import { moveAction } from './cardActions';
 import { FilesContext, planDraftTask, planLinkIssue } from './reconcileFiles';
 import { planProjectAdd } from './projectAdd';
 
-/** How far along the board Status values are, so "behind" and "ahead" can be told apart. */
-const BOARD_RANK: Record<string, number> = { Todo: 0, 'In Progress': 1, Done: 2 };
+/** Compare only options explicitly covered by the projection; ambiguous order stays report-only. */
+function boardBehind(current: string, expected: string, rules: ColumnRules | undefined): boolean {
+  const projection = rules?.projection ?? PROJECT_STATUS_FOR_COLUMN;
+  const currentRanks = KANBAN_COLUMNS.flatMap((column, index) => projection[column] === current ? [index] : []);
+  const expectedRanks = KANBAN_COLUMNS.flatMap((column, index) => projection[column] === expected ? [index] : []);
+  return currentRanks.length > 0 && expectedRanks.length > 0 && Math.max(...currentRanks) < Math.min(...expectedRanks);
+}
 
 export interface ReconcileInput {
   token: string;
@@ -31,6 +37,10 @@ export interface ReconcileInput {
   project: { owner: string; number: number };
   repositories: readonly string[];
   cards: readonly ProjectCard[];
+  statusOptions?: readonly string[];
+  projectMembershipComplete?: boolean;
+  /** Repositories whose process could not be read or validated. */
+  unavailableRepositories?: readonly string[];
   artifacts: readonly Artifact[];
   pulls: readonly MergedPull[];
   /** The column rules of a repository's process (DEC-015); the defaults when it has none. */
@@ -41,6 +51,8 @@ export interface ReconcileInput {
   contractFor?: (repository: string) => TaskContract | undefined;
   /** What the two fixes that change repository files need; without it they stay reports. */
   files?: FilesContext;
+  /** Re-read effective rules immediately before a status write; unavailable means writes fail closed. */
+  freshRulesFor?: (repository: string) => Promise<ColumnRules | undefined>;
   now: Date;
   fetch?: Fetch;
   fetchFn?: FetchFn;
@@ -66,12 +78,19 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
   const reports: ReportItem[] = [];
   const message = (m: Mismatch): string => formatNotice({ code: `mismatch.${m.kind}` as MessageKey, args: m.args }, locale);
   const byUrl = new Map(input.cards.map((card) => [normalizeIssueUrl(card.url), card]));
-  const onProject = input.cards.map((card) => card.url);
+  const unavailable = new Set((input.unavailableRepositories ?? []).map((name) => name.toLowerCase()));
+  const checkedRepositories = input.repositories.filter((name) => !unavailable.has(name.toLowerCase()));
+  const checkedCards = input.cards.filter((card) => !unavailable.has(card.repository.toLowerCase()));
+  for (const repository of input.unavailableRepositories ?? []) reports.push({ tier: 'report', kind: 'process-unavailable', subject: repository, message: formatNotice({ code: 'cli.reconcile.process-unavailable', args: { repository } }, locale), automated: false });
+  const onProject = checkedCards.map((card) => card.url);
+  const plannedProjectAdds = new Set<string>();
 
   for (const m of findMismatches({
     artifacts: input.artifacts,
-    cards: input.cards,
-    repositories: input.repositories,
+    cards: checkedCards,
+    projectMembershipComplete: input.projectMembershipComplete,
+    rulesFor: input.rulesFor,
+    repositories: checkedRepositories,
     pulls: input.pulls,
     boardSourced: input.repositories.filter((name) => input.rulesFor?.(name)?.source === 'board-status'),
     exceptionsIgnored: input.repositories.filter((name) => input.evidenceFor?.(name)?.exceptions === false),
@@ -90,10 +109,19 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
 
     switch (m.kind) {
       case 'issue-not-on-project': {
+        const key = normalizeIssueUrl(m.url ?? '');
+        if (plannedProjectAdds.has(key)) break;
+        plannedProjectAdds.add(key);
+        const observed = await fetchIssue(input.token, m.url ?? '', input.fetchFn);
+        if (!observed.ok) {
+          reports.push({ tier: 'report', kind: 'issue-unavailable', subject: m.subject, message: formatNotice({ code: 'cli.reconcile.issue-unavailable', args: { task: m.subject, issue: m.url ?? '', detail: formatNotice(observed.error, locale) } }, locale), automated: false, ...(m.url ? { url: m.url } : {}) });
+          break;
+        }
         const plan = planProjectAdd([m.url ?? ''], { token: input.token, project: input.project, repositories: input.repositories, onProject, fetch: input.fetch });
         actions.push(...plan.actions);
         break;
       }
+      case 'board-status-missing':
       case 'board-status-differs': {
         const card = byUrl.get(normalizeIssueUrl(m.url ?? ''));
         const expected = String(m.args.expected ?? '');
@@ -101,18 +129,32 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         // A board that is ahead of the label was moved by a person (or the board's own rules) first.
         // Moving it back would undo real progress, and making the label follow could close the Issue,
         // so that case is only reported.
-        if ((BOARD_RANK[String(m.args.board ?? '')] ?? 0) > (BOARD_RANK[expected] ?? 0)) {
-          reports.push(item('report', false));
+        if ((input.statusOptions && !input.statusOptions.includes(expected)) || (m.kind !== 'board-status-missing' && !boardBehind(String(m.args.board ?? ''), expected, input.rulesFor?.(card.repository)))) {
+          reports.push({ ...item('report', false), message: formatNotice({ code: 'cli.reconcile.board-review', args: { ref: `${card.repository}#${card.number}`, board: String(m.args.board ?? '—'), expected, owner: input.project.owner, project: input.project.number } }, locale) });
           break;
         }
         const ref = `${card.repository}#${card.number}`;
         actions.push({
           kind: 'board.status',
           target: ref,
-          summary: { code: 'cli.reconcile.board-status', args: { ref, board: String(m.args.board ?? ''), status: expected, column: String(m.args.column ?? '') } },
+          summary: { code: 'cli.reconcile.board-status', args: { ref, board: String(m.args.board ?? '—'), status: expected, column: String(m.args.column ?? card.placement.column), owner: input.project.owner, project: input.project.number } },
           reason: { code: 'cli.reconcile.board-status-reason' },
-          fingerprint: `${ref}|${expected}`,
-          run: async () => void (await setBoardStatus(input.token, card.url, expected, input.fetchFn)),
+          fingerprint: JSON.stringify([input.project.owner, input.project.number, ref, card.projectItemId ?? null, card.state, [...card.labels].sort(), card.boardStatus ?? null, expected, input.statusOptions ?? null, input.rulesFor?.(card.repository) ?? null]),
+          run: async () => {
+            const freshRules = await input.freshRulesFor?.(card.repository);
+            if (!freshRules || JSON.stringify(freshRules) !== JSON.stringify(input.rulesFor?.(card.repository))) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            const before = await readProject(input.token, input.project, [card.repository], input.fetch);
+            if (!before.ok) throw new NoticeError(before.error);
+            if (!before.read.statusOptions?.includes(expected)) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            const fresh = before.read.cards.find((c) => normalizeIssueUrl(c.url) === normalizeIssueUrl(card.url));
+            if (!fresh || !fresh.projectItemId || fresh.boardStatus !== card.boardStatus || fresh.state !== card.state || JSON.stringify([...fresh.labels].sort()) !== JSON.stringify([...card.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            await setProjectField(input.token, input.project, fresh.projectItemId, 'Status', expected, input.fetch);
+            const after = await readProject(input.token, input.project, [card.repository], input.fetch);
+            if (!after.ok) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
+            const observed = after.read.cards.find((c) => normalizeIssueUrl(c.url) === normalizeIssueUrl(card.url));
+            const afterRules = await input.freshRulesFor?.(card.repository);
+            if (!observed || observed.projectItemId !== fresh.projectItemId || observed.boardStatus !== expected || observed.state !== fresh.state || JSON.stringify([...observed.labels].sort()) !== JSON.stringify([...fresh.labels].sort()) || !afterRules || JSON.stringify(afterRules) !== JSON.stringify(freshRules)) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
+          },
         });
         break;
       }
@@ -152,9 +194,12 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         // A change to repository files, so it is offered as a pull request (DEC-012, TASK-053).
         const task = input.artifacts.find((a): a is TaskArtifact => a.kind === 'task' && a.id === m.args.task);
         const requirement = task && requirementForTask(task, input.artifacts);
-        const planned = input.files && task ? await planLinkIssue(input.files, task, requirement, input.cards) : undefined;
+        // A Project-only search cannot prove that no Issue exists outside this board. Link a unique
+        // visible match, but never create another Issue from an incomplete identity search.
+        const candidates = task ? input.cards.filter((card) => card.taskId === task.id && card.repository.toLowerCase() === (task.repository ?? requirement?.repository ?? '').toLowerCase()) : [];
+        const planned = input.files && task && candidates.length === 1 && input.projectMembershipComplete !== false ? await planLinkIssue(input.files, task, requirement, candidates) : undefined;
         if (planned) actions.push(...planned);
-        else reports.push(item('proposed', false));
+        else reports.push({ ...item('proposed', false), message: formatNotice({ code: 'cli.reconcile.link-review', args: { task: m.subject } }, locale) });
         break;
       }
       case 'card-without-file': {
@@ -164,6 +209,11 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         else reports.push(item('proposed', false));
         break;
       }
+      case 'issue-project-unknown':
+      case 'status-source-needs-decision':
+      case 'pulls-incomplete':
+      case 'projection-unmapped':
+      case 'shared-issue':
       case 'broken-issue-link':
       // A difference from the contract changes a person's file or a board field, so it is only reported (DEC-016 item 9).
       case 'task-field-missing':
@@ -176,18 +226,18 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
   }
 
   // A closed task Issue keeps its old status label when a pull request closes it (DEC-003: closed means Verified).
-  for (const card of input.cards) {
+  for (const card of checkedCards) {
     const isTask = card.taskId !== undefined || card.labels.includes('task');
     const rules = input.rulesFor?.(card.repository);
     const plan = planMove(card, 'Verified', rules);
     if (card.state === 'closed' && isTask && !plan.unavailable && !plan.noop) {
-      actions.push(moveAction(input.token, card, 'Verified', locale, input.fetchFn, [], { code: 'cli.reconcile.relabel-reason' }, rules));
+      reports.push({ tier: 'report', kind: 'closed-without-verified', subject: `${card.repository}#${card.number}`, message: formatNotice({ code: 'cli.reconcile.closed-review', args: { ref: `${card.repository}#${card.number}` } }, locale), automated: false, url: card.url });
     }
   }
 
   // Stale cards need a person's judgment.
-  const notices = cardNotices(input.cards, input.artifacts, input.now, input.idleDaysFor, input.evidenceFor);
-  for (const card of input.cards) {
+  const notices = cardNotices(checkedCards, input.artifacts, input.now, input.idleDaysFor, input.evidenceFor);
+  for (const card of checkedCards) {
     for (const notice of notices.get(normalizeIssueUrl(card.url)) ?? []) {
       reports.push({
         tier: 'report',

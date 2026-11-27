@@ -10,6 +10,8 @@ export type Fetch = (url: string, init: { method: string; headers: Record<string
 export interface ProjectCard {
   /** `owner/name`, as GitHub spells it. */
   repository: string;
+  /** Item identity within the selected Project. */
+  projectItemId?: string;
   number: number;
   title: string;
   url: string;
@@ -18,12 +20,15 @@ export interface ProjectCard {
   assignees: string[];
   /** The board `Status` field, when the item has one. */
   boardStatus?: string;
+  boardStatusRead?: boolean;
   /** The values of the extra Project fields that were asked for (a task contract's `project-field`); a field with no value is left out. */
   fields?: Record<string, string>;
   /** When the Issue last changed, as an ISO date. */
   updatedAt?: string;
   /** Pull requests that close or mention the Issue. */
   pullCount?: number;
+  /** A bounded PR/timeline connection does not include every record. */
+  pullsIncomplete?: boolean;
   /** The pull requests that refer to the Issue, open first, at most three (DEC-022). Left out when GitHub gave none. */
   pulls?: CardPull[];
   /** `TASK-###` when the Issue title starts with `[TASK-###]`. */
@@ -33,6 +38,10 @@ export interface ProjectCard {
 
 export interface ProjectRead {
   title: string;
+  /** Exact options from the selected Project, absent if not returned. */
+  statusOptions?: string[];
+  /** False if any Project item content was inaccessible or null. */
+  membershipComplete?: boolean;
   cards: ProjectCard[];
   /** Items left out: pull requests, drafts, and Issues of repositories that were not asked for. */
   skipped: number;
@@ -45,11 +54,12 @@ const PAGE = 100;
 const MAX_PAGES = 50;
 
 const buildQuery = (fields: readonly string[]): string =>
-  `query($o:String!,$n:Int!,$c:String){repositoryOwner(login:$o){... on ProjectV2Owner{projectV2(number:$n){title items(first:${PAGE},after:$c){pageInfo{hasNextPage endCursor} nodes{fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}} ${fields
+  `query($o:String!,$n:Int!,$c:String){repositoryOwner(login:$o){... on ProjectV2Owner{projectV2(number:$n){title field(name:"Status"){... on ProjectV2SingleSelectField{options{name}}} items(first:${PAGE},after:$c){pageInfo{hasNextPage endCursor} nodes{id fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}} ${fields
     .map((name, i) => `f${i}:fieldValueByName(name:${JSON.stringify(name)}){... on ProjectV2ItemFieldSingleSelectValue{name} ... on ProjectV2ItemFieldTextValue{text}}`)
-    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(last:3,includeClosedPrs:true){totalCount nodes{number url title state}} timelineItems(last:3,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount nodes{... on CrossReferencedEvent{source{... on PullRequest{number url title state}}}}} repository{nameWithOwner} labels(first:20){nodes{name}} assignees(first:10){nodes{login}}}}}}}}}}`;
+    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(last:3,includeClosedPrs:true){totalCount nodes{number url title state}} timelineItems(last:3,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount nodes{... on CrossReferencedEvent{source{... on PullRequest{number url title state}}}}} repository{nameWithOwner} labels(first:100){pageInfo{hasNextPage} nodes{name}} assignees(first:10){nodes{login}}}}}}}}}}`;
 
 interface ItemNode {
+  id?: string;
   fieldValueByName: { name?: string } | null;
   /** The extra fields asked for, as `f0`, `f1`, and so on, in the order they were asked. */
   [alias: `f${number}`]: { name?: string; text?: string } | null | undefined;
@@ -63,7 +73,7 @@ interface ItemNode {
     closedByPullRequestsReferences?: { totalCount: number; nodes?: (RawPull | null)[] };
     timelineItems?: { totalCount: number; nodes?: ({ source?: RawPull | null } | null)[] };
     repository?: { nameWithOwner: string };
-    labels?: { nodes: { name: string }[] };
+    labels?: { nodes: { name: string }[]; pageInfo?: { hasNextPage: boolean } };
     assignees?: { nodes: { login: string }[] };
   };
 }
@@ -72,6 +82,7 @@ interface Page {
   repositoryOwner: null | {
     projectV2?: null | {
       title: string;
+      field?: { options?: { name: string }[] } | null;
       items: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: ItemNode[] };
     };
   };
@@ -109,7 +120,9 @@ export async function readProject(
   const registered = repositories ? new Set(repositories.map((name) => name.toLowerCase())) : undefined;
   const cards: ProjectCard[] = [];
   let skipped = 0;
+  let membershipComplete = true;
   let title = '';
+  let statusOptions: string[] | undefined;
   let cursor: string | null = null;
   const query = buildQuery(extraFields);
 
@@ -138,14 +151,17 @@ export async function readProject(
     const found = body.data?.repositoryOwner?.projectV2;
     if (!found) return { ok: false, error: { code: 'project.not-found', args: { owner: project.owner, number: project.number } } };
     title = found.title;
+    if (found.field?.options) statusOptions = found.field.options.map((option) => option.name);
 
     for (const node of found.items.nodes) {
       const issue = node.content;
+      if (!issue || (issue.__typename === 'Issue' && (!issue.repository?.nameWithOwner || !issue.url || typeof issue.number !== 'number'))) membershipComplete = false;
       const repository = issue?.repository?.nameWithOwner;
       if (issue?.__typename !== 'Issue' || !repository || (registered && !registered.has(repository.toLowerCase()))) {
         skipped += 1;
         continue;
       }
+      if (!issue.labels || issue.labels.pageInfo?.hasNextPage) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
       const state = issue.state === 'CLOSED' ? 'closed' : 'open';
       const labels = (issue.labels?.nodes ?? []).map((label) => label.name);
       const taskId = TASK_TITLE.exec(issue.title ?? '')?.[1];
@@ -161,12 +177,14 @@ export async function readProject(
       );
       cards.push({
         repository,
+        ...(node.id ? { projectItemId: node.id } : {}),
         number: issue.number as number,
         title: issue.title ?? '',
         url: issue.url ?? '',
         state,
         labels,
         assignees: (issue.assignees?.nodes ?? []).map((a) => a.login),
+        boardStatusRead: statusOptions !== undefined,
         ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}),
         ...(extraFields.length > 0 ? { fields } : {}),
         ...(taskId ? { taskId } : {}),
@@ -174,12 +192,13 @@ export async function readProject(
         ...(issue.closedByPullRequestsReferences && issue.timelineItems
           ? { pullCount: issue.closedByPullRequestsReferences.totalCount + issue.timelineItems.totalCount }
           : {}),
+        ...(issue.closedByPullRequestsReferences && issue.timelineItems && (issue.closedByPullRequestsReferences.totalCount > (issue.closedByPullRequestsReferences.nodes?.length ?? 0) || issue.timelineItems.totalCount > (issue.timelineItems.nodes?.length ?? 0)) ? { pullsIncomplete: true } : {}),
         ...(pulls.length > 0 ? { pulls } : {}),
         placement: placeIssue({ state, labels, ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}) }),
       });
     }
 
-    if (!found.items.pageInfo.hasNextPage) return { ok: true, read: { title, cards, skipped } };
+    if (!found.items.pageInfo.hasNextPage) return { ok: true, read: { title, cards, skipped, membershipComplete, ...(statusOptions ? { statusOptions } : {}) } };
     cursor = found.items.pageInfo.endCursor;
   }
   return { ok: false, error: { code: 'project.too-large', args: { pages: MAX_PAGES } } };

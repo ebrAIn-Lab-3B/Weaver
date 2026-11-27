@@ -9,6 +9,7 @@ function contents(files: Record<string, Answer>) {
   let inFlight = 0;
   let peak = 0;
   const fetchFn = (async (url: string, init?: { headers?: Record<string, string> }) => {
+    if (url.endsWith('/contents/')) return { ok: true, status: 200 };
     const repository = /\/repos\/([^/]+\/[^/]+)\/contents\//.exec(url)?.[1] ?? '';
     asked.push({ repository, ifNoneMatch: init?.headers?.['If-None-Match'] });
     inFlight += 1;

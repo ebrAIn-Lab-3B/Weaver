@@ -199,6 +199,9 @@ export interface FinishOptions {
   report?: readonly ReportItem[];
   /** The run only showed a plan, as asked: waiting for approval is then not a failure to act. */
   dryRun?: boolean;
+  /** Diagnostic context returned for reconciliation. */
+  context?: unknown;
+  recheck?: unknown;
 }
 
 export function finishActions(
@@ -208,9 +211,11 @@ export function finishActions(
   text: boolean,
   options: FinishOptions = {},
 ): number {
-  const { skipped = [], report = [], dryRun = false } = options;
+  const { skipped = [], report = [], dryRun = false, context, recheck } = options;
   const code = dryRun && exitCodeOf(results) === EXIT.unconfirmed ? EXIT.ok : exitCodeOf(results);
   if (text) {
+    if (context !== undefined) deps.out(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(context)}\n`);
+    if (recheck !== undefined) deps.out(`${t('cli.reconcile.recheck', locale)}\t${JSON.stringify(recheck)}\n`);
     for (const s of skipped) deps.err(`${t(`cli.skip.${s.reason}` as MessageKey, locale)}\t${s.ref}\n`);
     for (const r of results) deps.out(`${t(`cli.outcome.${r.outcome}`, locale)}\t${r.kind}\t${r.target}${r.message ? `\t${r.message}` : ''}\n`);
     for (const r of report) deps.out(`${r.tier}\t${r.kind}\t${r.subject}\t${r.message}\n`);
@@ -219,7 +224,7 @@ export function finishActions(
   } else {
     const waiting = results.some((r) => r.outcome === 'unconfirmed');
     const status = results.length === 0 ? 'nothing' : code === EXIT.failed ? 'failed' : code === EXIT.declined ? 'declined' : waiting ? (dryRun ? 'plan' : 'unconfirmed') : 'done';
-    deps.out(`${JSON.stringify({ schema: SCHEMA, status, actions: results, skipped, report })}\n`);
+    deps.out(`${JSON.stringify({ schema: SCHEMA, status, actions: results, skipped, report, ...(context !== undefined ? { context } : {}), ...(recheck !== undefined ? { recheck } : {}) })}\n`);
   }
   return code;
 }

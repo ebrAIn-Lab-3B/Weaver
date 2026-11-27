@@ -61,8 +61,18 @@ export async function fetchRepositoryFile(
 export async function fetchProcessFile(
   token: string,
   repository: string,
-  options: { etag?: string } = {},
+  options: { etag?: string; verifyMissing?: boolean } = {},
   fetchFn: FetchFn = fetch,
 ): Promise<ProcessFileResult> {
-  return fetchRepositoryFile(token, repository, PROCESS_FILE, options, fetchFn);
+  const result = await fetchRepositoryFile(token, repository, PROCESS_FILE, options, fetchFn);
+  if (result.status !== 'missing' || !options.verifyMissing) return result;
+  // GitHub can mask an inaccessible repository as 404. Verify content access before calling a
+  // missing process file a fact; without that evidence the default rules are not authoritative.
+  try {
+    const response = await fetchFn(`${API}/repos/${repository}/contents/`, { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' } });
+    if (!response.ok) return { status: 'failed', error: { code: 'github.err.http', args: { status: response.status } } };
+    return result;
+  } catch (error) {
+    return { status: 'failed', error: { code: 'github.err.network', args: { detail: (error as Error).message } } };
+  }
 }

@@ -73,6 +73,13 @@ describe('parseProcess: a file that holds nothing, or something partial', () => 
     expect(result.process.columns.labels).toEqual({ ...LABEL_FOR_COLUMN, Review: 'needs-review' });
   });
 
+  it('reads an explicit label-to-board projection without assuming an option name', () => {
+    const result = parse('columns:\n  projection:\n    Backlog: Backlog\n    Review: Ready\n');
+    expect(result.process.columns.projection).toEqual({ Backlog: 'Backlog', Review: 'Ready' });
+    expect(result.issues).toEqual([]);
+    expect(parse('columns:\n  projection:\n    Unknown: Todo\n').issues.map((i) => i.code)).toContain('process-unknown-column');
+  });
+
   it('replaces the board map as a whole when one is given', () => {
     const result = parse('columns:\n  source: board-status\n  board:\n    Open: Ready\n    Closed: Verified\n');
     expect(result.process.columns.board).toEqual({ Open: 'Ready', Closed: 'Verified' });

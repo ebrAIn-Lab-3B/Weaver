@@ -41,6 +41,7 @@ export function setup(options: { token?: string | undefined; registry?: string; 
   const written: { file: string; text: string }[] = [];
   const fetchImpl: Fetch = async (url, init) => {
     // No repository has a process file unless a test says so (DEC-015).
+    if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
     if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
     if (url.includes('/repos/')) {
       writes.push(`REST ${url}`);
@@ -100,7 +101,7 @@ export function withGitHub(deps: Deps, options: { linkedPull?: boolean; pullMerg
   const original = deps.fetch as Fetch;
   deps.fetch = async (url, init) => {
     const reply = (json: unknown, status = 200) => ({ ok: status < 400, status, json: async () => json });
-    if (url.includes('/contents/.weaver/')) return original(url, init);
+    if (url.includes('/contents/.weaver/') || url.endsWith('/contents/')) return original(url, init);
     if (url.includes('/repos/')) {
       const method = init?.method ?? 'GET';
       calls.push(`${method} ${url.replace('https://api.github.com', '')}`);

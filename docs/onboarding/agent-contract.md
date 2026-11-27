@@ -278,9 +278,11 @@ When the user describes work in a conversation and agrees that it should be trac
 
 ## Reconcile
 
-`weaver reconcile` reads what the Overview reports and sorts it into the steward's three tiers ([DEC-012](../decisions/DEC-012-steward-first-version.md)): automatic fixes (an Issue added to the Project), proposed fixes (a board Status behind its label, a note about a merged pull request that did not close its Issue, a closed task Issue set to `status:verified`, and the two fixes that change repository files, each offered as a pull request), and items that are only reported (a board ahead of its label, stale cards, a broken Issue link, and the file fixes that cannot be offered safely).
+`weaver reconcile` reads what the Overview reports and sorts it into the steward's three tiers ([DEC-012](../decisions/DEC-012-steward-first-version.md)): automatic fixes (an Issue added to the Project), proposed fixes (a board Status behind its label, a note about a merged pull request that did not close its Issue, the two fixes that change repository files, each offered as a pull request), and items that are only reported (a closed Issue whose Verified status needs evidence review, a board ahead of its label, stale cards, a broken Issue link, and the file fixes that cannot be offered safely).
 
-The two file fixes use the same separate worktree as `task create`, so your checkout and the default branch stay untouched. A **task file without an Issue** gets an Issue (created, and put on the Project) and a pull request that writes the link into the task file and the requirement's task line; if the Project already has a card titled with that task, that Issue is linked and none is made. A **card without a task file** gets a pull request that drafts the task file from the Issue and lists it under its requirement, but only when the Issue's title or body names a `REQ-###` that belongs to the same repository; otherwise it stays a report. The owner and criteria of a draft are guesses for the reviewer to check. A fix whose pull request is already open is not offered again. It is a dry run unless `--apply` or `--approve` is given.
+The reconcile result includes `context` with the selected Project, the actual Status options when readable, incomplete pull-reference repositories, and each repository's effective rules and source. An unavailable source is not a confirmed absence. Each status action names its Project and before/after values; approval is bound to the observed item, labels, state, options and rules. Weaver re-reads before and after the selected Project write. Following an attempted write, `recheck` reports the same scope again, resolved findings, remaining warnings and incomplete reads. A failed verification is an uncertain result: refresh before retrying. GitHub does not provide atomic compare-and-set for this field, so a concurrent update between the final read and mutation remains possible.
+
+The two file fixes use the same separate worktree as `task create`, so your checkout and the default branch stay untouched. A **task file without an Issue** can be linked by pull request when exactly one matching card exists on the Project. Otherwise it is reported for investigation: the Project alone cannot rule out an existing Issue elsewhere, so reconcile does not create one. A **card without a task file** gets a pull request that drafts the task file from the Issue and lists it under its requirement, but only when the Issue's title or body names a `REQ-###` that belongs to the same repository; otherwise it stays a report. The owner and criteria of a draft are guesses for the reviewer to check. A fix whose pull request is already open is not offered again. It is a dry run unless `--apply` or `--approve` is given.
 
 <!-- example: reconcile -->
 ```json
@@ -289,6 +291,20 @@ The two file fixes use the same separate worktree as `task create`, so your chec
   "status": "nothing",
   "actions": [],
   "skipped": [],
+  "context": {
+    "project": {"owner": "me", "number": 1},
+    "statusOptions": null,
+    "incompletePullRepositories": [],
+    "repositories": [{
+      "repository": "me/Weaver", "file": "missing", "columnsSource": "default", "issues": [],
+      "projectionOrigin": "legacy-default", "projection": {"Backlog": "Todo", "Ready": "Todo", "In progress": "In Progress", "Blocked": "In Progress", "Review": "In Progress", "Verified": "Done"},
+      "rules": {
+        "source": "labels",
+        "labels": {"Backlog": "status:backlog", "Ready": "status:ready", "In progress": "status:in-progress", "Blocked": "status:blocked", "Review": "status:review", "Verified": "status:verified"},
+        "board": {"Todo": "Backlog", "In Progress": "In progress", "Done": "Verified"}
+      }
+    }]
+  },
   "report": [
     {
       "tier": "proposed",

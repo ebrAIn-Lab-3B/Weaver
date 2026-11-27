@@ -42,6 +42,13 @@ describe('fetchProcessFile', () => {
     expect(await fetchProcessFile('t', 'me/a', {}, answer(404).fetchFn)).toEqual({ status: 'missing' });
   });
 
+  it('does not call a masked 404 a missing process when content access cannot be verified', async () => {
+    const denied = answer(404).fetchFn;
+    expect(await fetchProcessFile('t', 'me/a', { verifyMissing: true }, denied)).toMatchObject({ status: 'failed', error: { code: 'github.err.http', args: { status: 404 } } });
+    const allowed = (async (url: string) => url.endsWith('/contents/') ? { ok: true, status: 200 } : { ok: false, status: 404 }) as unknown as FetchFn;
+    expect(await fetchProcessFile('t', 'me/a', { verifyMissing: true }, allowed)).toEqual({ status: 'missing' });
+  });
+
   it('reads a file that comes without an ETag', async () => {
     expect(await fetchProcessFile('t', 'me/a', {}, answer(200, { text: 'x' }).fetchFn)).toEqual({ status: 'read', text: 'x' });
   });

@@ -29,6 +29,12 @@ describe('readMergedPulls', () => {
     expect(result).toMatchObject({ ok: true, pulls: [{ closes: [], partial: [65] }] });
   });
 
+  it('marks truncated pull and closing-reference pages as incomplete', async () => {
+    const item = { ...node(80, []), closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: true } } };
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: true }, nodes: [item] } } } }));
+    expect(result).toMatchObject({ ok: true, incomplete: true, pulls: [{ closingIncomplete: true }] });
+  });
+
   it('asks for the owner, the name, and the limit', async () => {
     let variables: unknown;
     const spy: Fetch = async (_url, init) => {

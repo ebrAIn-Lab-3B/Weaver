@@ -202,12 +202,12 @@ describe('planReconcile with the file fixes', () => {
     ...(files ? { files } : {}),
   });
 
-  it('turns both mismatches into pull-request actions when it can, and keeps them as reports when it cannot', async () => {
+  it('reports an unlinked task when a Project-only search cannot rule out an existing Issue', async () => {
     const w = world();
     const g = github('REQ-001');
     const withFiles = await planReconcile(base(context(w, g)));
-    expect(withFiles.actions.map((a) => a.kind).sort()).toEqual(['files.pull-request', 'files.pull-request', 'issue.create', 'project.add']);
-    expect(withFiles.reports.map((r) => r.kind)).not.toContain('task-without-issue');
+    expect(withFiles.actions.map((a) => a.kind)).toEqual(['files.pull-request']);
+    expect(withFiles.reports.map((r) => r.kind)).toContain('task-without-issue');
     expect(withFiles.reports.map((r) => r.kind)).not.toContain('card-without-file');
 
     const without = await planReconcile(base());

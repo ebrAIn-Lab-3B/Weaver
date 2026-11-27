@@ -28,3 +28,7 @@ None.
 Design and investigation notes linked from this task, cited source and test observations, and review of unresolved decisions. No implementation completion is implied.
 
 Status: planned. No implementation or completion evidence has been recorded.
+
+## Work in progress (2026-11-27 KST)
+
+The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.

@@ -756,3 +756,36 @@ describe('where the configuration comes from', () => {
     expect(JSON.parse(workspace.out.join('')).error.message).toContain('fabric.yaml');
   });
 });
+
+
+describe('rule-based status reconciliation flow', () => {
+  it('plans, approves, changes only the selected item, rechecks and is idempotent', async () => {
+    const { deps, out } = setup();
+    let status = 'Todo';
+    let writes = 0;
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
+      if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
+      const { query } = JSON.parse(init.body);
+      if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
+      if (query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT', field: { id: 'FIELD', options: [{ id: 'PROGRESS', name: 'In Progress' }] } } } } }) };
+      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
+      return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const planned = JSON.parse(out.join('')); out.length = 0;
+    const action = planned.actions.find((item: { kind: string }) => item.kind === 'board.status');
+    expect(action.summary).toContain('me/1');
+    expect(action.summary).toContain('Todo');
+    expect(writes).toBe(0);
+    expect(await run(['reconcile', '--approve', action.id], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join('')); out.length = 0;
+    expect(result.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
+    expect(result.recheck.status).toBe('read');
+    expect(result.recheck.resolved).toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
+    expect(writes).toBe(1);
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    expect(JSON.parse(out.join('')).actions.filter((item: { kind: string }) => item.kind === 'board.status')).toEqual([]);
+    expect(writes).toBe(1);
+  });
+});

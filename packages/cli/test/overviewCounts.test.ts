@@ -33,6 +33,24 @@ describe('Overview unfinished repository counts', () => {
     expect(en).toContain('Backlog 0 · Active 0');
   });
 
+  it('shows exact status options and source mappings in both languages', () => {
+    const state: OverviewState = { kind: 'ready', projectTitle: 'Board', lanes: [], skipped: 0, hidden: [], collapsed: [], mismatches: [], skippedChecks: [], reading: [], focusActive: false, showFinished: false, finished: {}, statusOptions: ['Backlog', 'Todo'], processMappings: [{ repository: 'o/r', source: 'labels', origin: 'repository', mapping: 'Backlog → Backlog' }] };
+    for (const locale of ['en', 'ko'] as const) {
+      const html = renderOverviewHtml(state, 'nonce', 'csp', locale);
+      expect(html).toContain('Backlog, Todo');
+      expect(html).toContain('Backlog → Backlog');
+      expect(html).toContain('labels');
+      expect(html).toContain('o/r');
+    }
+  });
+
+  it('does not say all checks are clean when a source could not be read', () => {
+    const state: OverviewState = { kind: 'ready', projectTitle: 'Board', lanes: [], skipped: 0, hidden: [], collapsed: [], mismatches: [], skippedChecks: [{ code: 'project.membership-incomplete' }], reading: [], focusActive: false, showFinished: false, finished: {} };
+    const html = renderOverviewHtml(state, 'nonce', 'csp', 'en');
+    expect(html).toContain('other checks are unavailable');
+    expect(html).not.toContain('No mismatches between files');
+  });
+
   it('recomputes counts when the board changes and renders offline lanes', () => {
     const [lane] = buildLanes(registry, cards);
     const updated = buildLanes(registry, [...cards, makeCard(8, 'Queue')])[0];

@@ -74,6 +74,18 @@ describe('readProject', () => {
     });
   });
 
+  it('marks membership unknown for inaccessible or incomplete Project item identities', async () => {
+    const { fetchImpl } = fake({ body: page([{ content: null }, { fieldValueByName: null, content: { __typename: 'Issue', number: 1 } }], null) });
+    const result = await readProject('t', project, undefined, fetchImpl);
+    expect(result.ok && result.read.membershipComplete).toBe(false);
+  });
+
+  it('fails closed when the Issue label connection is truncated', async () => {
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [], pageInfo: { hasNextPage: true } } })], null) });
+    const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
+    expect(result).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+  });
+
   it('follows the cursor until the last page', async () => {
     const { fetchImpl, asked } = fake(
       { body: page([issue('me/Weaver', 1), issue('me/Weaver', 2)], 'cursor-1') },

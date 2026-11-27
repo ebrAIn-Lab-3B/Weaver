@@ -61,6 +61,8 @@ export type OverviewState =
   | {
       kind: 'ready';
       projectTitle: string;
+      statusOptions?: string[];
+      processMappings?: { repository: string; source: string; origin: string; mapping: string }[];
       lanes: Lane<OverviewCard>[];
       skipped: number;
       /** Repositories the user turned off, and lanes folded to their header. Kept on this computer only. */
@@ -235,12 +237,14 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
               `<li>${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
           )
           .join('')}</ul></details>`
-        : `<p class="muted small">${e(tt('ui.overview.mismatches-none'))}</p>`;
+        : `<p class="muted small">${e(tt(state.skippedChecks.length || state.reading.length ? 'ui.overview.mismatches-incomplete' : 'ui.overview.mismatches-none'))}</p>`;
       const skippedChecks = state.skippedChecks.length
         ? `<p class="muted small">${e(tt('ui.overview.mismatches-skipped', { reasons: state.skippedChecks.map((n) => formatNotice(n, locale)).join(' ') }))}</p>`
         : '';
       const readingNote = state.reading.length ? `<p class="muted small">${e(tt('ui.overview.reading-note', { count: state.reading.length }))}</p>` : '';
-      body = readingNote + mismatchHtml + skippedChecks + (shown.length
+      const options = state.statusOptions ? state.statusOptions.join(', ') : tt('ui.overview.status-options-unavailable');
+      const processDetails = state.processMappings?.length ? `<details><summary>${e(tt('ui.overview.status-rules'))}</summary><p>${e(tt('ui.overview.status-options', { options }))}</p><ul class="plain">${state.processMappings.map((entry) => `<li>${e(tt('ui.overview.status-rule', entry))}</li>`).join('')}</ul></details>` : '';
+      body = readingNote + processDetails + mismatchHtml + skippedChecks + (shown.length
         ? `${boardOf(shown, collapsed, new Set(state.reading), state.finished, state.showFinished)}
       ${state.skipped ? `<p class="muted small">${e(tt('ui.overview.skipped', { count: state.skipped }))}</p>` : ''}`
         : `<p class="muted">${e(tt('ui.overview.all-hidden'))}</p>`);

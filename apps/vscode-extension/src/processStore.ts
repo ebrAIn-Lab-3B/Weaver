@@ -13,7 +13,7 @@ export interface ProcessSummary {
   process: ProcessConfig;
 }
 
-type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource>; guidelineRef?: GuidelineRef; collaborationInvalid?: boolean; assignmentInvalid?: boolean };
+type Parsed = ProcessConfig & { sources: Record<ProcessSection, SectionSource>; guidelineRef?: GuidelineRef; collaborationInvalid?: boolean; assignmentInvalid?: boolean; columnInvalid?: boolean };
 
 /**
  * The process of each repository (DEC-015), kept between runs so the Overview can draw its first
@@ -24,11 +24,13 @@ export class ProcessStore {
   private memento: vscode.Memento | undefined;
   private entries = new Map<string, ProcessCacheEntry>();
   private parsed = new Map<string, Parsed>();
+  private failures = new Set<string>();
 
   init(memento: vscode.Memento): void {
     this.memento = memento;
     this.entries = new Map(Object.entries(memento.get<Record<string, ProcessCacheEntry>>(KEY, {})));
     this.parsed.clear();
+    this.failures.clear();
   }
 
   /** True when the repository was asked at least once, so there is an answer to show first. */
@@ -41,6 +43,10 @@ export class ProcessStore {
     const results = await refreshProcessFiles(token, repositories, (repository) => this.entries.get(repository.toLowerCase()));
     let changed = false;
     for (const result of results) {
+      const key = result.repository.toLowerCase();
+      const hadFailure = this.failures.has(key);
+      if (result.error) this.failures.add(key); else this.failures.delete(key);
+      if (hadFailure !== this.failures.has(key)) changed = true;
       if (result.entry) this.entries.set(result.repository.toLowerCase(), result.entry);
       if (result.changed) {
         this.parsed.delete(result.repository.toLowerCase());
@@ -59,12 +65,15 @@ export class ProcessStore {
     const entry = this.entries.get(key);
     if (!entry || entry.missing) return undefined;
     const result = parseProcess(`${repository}/.weaver/process.yaml`, entry.text);
-    const config = { ...result.process, sources: result.sources, ...(result.guidelineRef ? { guidelineRef: result.guidelineRef } : {}), ...(result.issues.some((issue) => issue.code === 'process-invalid-collaboration') ? { collaborationInvalid: true } : {}), ...(result.issues.some((issue) => issue.code === 'process-invalid-assignment') ? { assignmentInvalid: true } : {}) };
+    const config = { ...result.process, sources: result.sources, ...(result.guidelineRef ? { guidelineRef: result.guidelineRef } : {}), ...(result.issues.some((issue) => issue.code === 'process-invalid-collaboration') ? { collaborationInvalid: true } : {}), ...(result.issues.some((issue) => issue.code === 'process-invalid-assignment') ? { assignmentInvalid: true } : {}), ...(result.issues.some((issue) => issue.severity === 'error') ? { columnInvalid: true } : {}) };
     this.parsed.set(key, config);
     return config;
   }
 
   rulesFor = (repository: string): ColumnRules | undefined => this.config(repository)?.columns;
+
+  /** A failed refresh or invalid file cannot establish current rules for diagnosis. */
+  diagnosisUnavailable = (repository: string): boolean => this.failures.has(repository.toLowerCase()) || !this.has(repository) || this.config(repository)?.columnInvalid === true;
 
   /** What the page shows for a repository: whether it has a file and where each section comes from. */
   summary(repository: string): ProcessSummary {

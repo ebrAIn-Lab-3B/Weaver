@@ -826,6 +826,7 @@ export const ko: Record<MessageKey, Message> = {
   'step.no-status-option': '보드 "{board}"에 Status 값 "{status}"가 없습니다',
   'github.err.not-issue-url': 'GitHub Issue URL이 아닙니다',
   'github.err.not-found': '찾을 수 없거나 접근 권한이 없습니다',
+  'github.err.issue-incomplete': 'Issue 응답이 불완전하거나 유효하지 않은 필드를 포함합니다',
   'github.err.http': 'GitHub 응답 코드: {status}',
   'github.err.network': '네트워크 오류: {detail}',
   'github.err.unauthorized': 'GitHub가 로그인을 거절했습니다(401).',

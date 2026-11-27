@@ -417,7 +417,7 @@ describe('weaver task create', () => {
 
   it('retains the Issue URL and stops when its post-write read fails or disagrees', async () => {
     const ids = (await approvedIds()).join(',');
-    for (const scenario of ['unavailable', 'wrong-title'] as const) {
+    for (const scenario of ['unavailable', 'wrong-title', 'unknown-state', 'incomplete-label'] as const) {
       const s = setup();
       const original = s.deps.fetch as Fetch;
       s.deps.fetch = async (url, init) => {
@@ -425,7 +425,7 @@ describe('weaver task create', () => {
           if (scenario === 'unavailable') return { ok: false, status: 403, json: async () => ({}) };
           const response = await original(url, init);
           const issue = await response.json() as Record<string, unknown>;
-          return { ...response, json: async () => ({ ...issue, title: 'changed by another actor' }) };
+          return { ...response, json: async () => scenario === 'wrong-title' ? { ...issue, title: 'changed by another actor' } : scenario === 'unknown-state' ? { ...issue, state: 'unknown' } : { ...issue, labels: [null] } };
         }
         return original(url, init);
       };

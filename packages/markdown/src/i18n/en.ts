@@ -833,6 +833,7 @@ export const en = {
   'step.no-status-option': 'board "{board}" has no Status option "{status}"',
   'github.err.not-issue-url': 'not a GitHub Issue URL',
   'github.err.not-found': 'not found or no access',
+  'github.err.issue-incomplete': 'Issue response is incomplete or contains invalid fields',
   'github.err.http': 'GitHub returned {status}',
   'github.err.network': 'network error: {detail}',
   'github.err.unauthorized': 'GitHub rejected the sign-in (401).',

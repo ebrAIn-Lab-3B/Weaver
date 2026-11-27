@@ -200,6 +200,21 @@ describe('planReconcile', () => {
     expect(mutations).toBe(1);
   });
 
+  it('does not report success when an external automation changes the Issue after the Project write', async () => {
+    const rules = defaultProcess().columns;
+    let wrote = false;
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body);
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: wrote ? 'In Progress' : 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: wrote ? 'CLOSED' : 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      if (request.query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } }) };
+      wrote = true;
+      return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } }) };
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    expect(wrote).toBe(true);
+  });
+
   it('refuses a stale or unreadable process before writing a Project Status', async () => {
     const rules = defaultProcess().columns;
     let requests = 0;

@@ -7,7 +7,7 @@ issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/393
 repository: ebrAIn-Lab-3B/Weaver
 assignee_type: agent
 assignee: codex
-criteria: [AC-001, AC-002, AC-003, AC-004, AC-005]
+criteria: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-011]
 ---
 
 # Investigate and design recoverable task registration
@@ -19,6 +19,7 @@ None.
 ## Acceptance criteria
 
 - Inventory CLI, editor, reconcile and GitHub read/write behavior, existing tests and relevant issues; reproduce the incident with synthetic data and document observed limits.
+- Specify a deterministic rule-based diagnostic and repair contract that works without AI, including explicit reasons and decision paths when rules or facts are insufficient.
 - Specify stable identity, read-before-write, uncertain outcomes, concurrent attempts, idempotency boundaries, state mapping and failure reporting. Describe how incomplete reads fail closed and shared Issues require human interpretation.
 - Document decisions and alternatives, dependencies, confirmation/PR boundaries and a test matrix for both column sources; identify any guarantee that cannot be provided and how it is exposed.
 

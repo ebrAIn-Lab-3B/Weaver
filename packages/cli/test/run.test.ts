@@ -799,8 +799,9 @@ describe('rule-based status reconciliation flow', () => {
     const secondAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
     out.length = 0;
     failFileRead = fileReads + 2;
-    expect(await run(['reconcile', '--approve', secondAction.id], deps)).toBe(EXIT.ok);
+    expect(await run(['reconcile', '--approve', secondAction.id], deps)).toBe(EXIT.failed);
     const partial = JSON.parse(out.join(''));
+    expect(partial.status).toBe('incomplete');
     expect(partial.recheck).toMatchObject({ status: 'unavailable' });
     expect(partial.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
   });

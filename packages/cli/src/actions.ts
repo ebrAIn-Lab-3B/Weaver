@@ -212,7 +212,9 @@ export function finishActions(
   options: FinishOptions = {},
 ): number {
   const { skipped = [], report = [], dryRun = false, context, recheck } = options;
-  const code = dryRun && exitCodeOf(results) === EXIT.unconfirmed ? EXIT.ok : exitCodeOf(results);
+  const recheckIncomplete = typeof recheck === 'object' && recheck !== null && 'status' in recheck && (recheck.status === 'unavailable' || recheck.status === 'incomplete');
+  const actionCode = dryRun && exitCodeOf(results) === EXIT.unconfirmed ? EXIT.ok : exitCodeOf(results);
+  const code = recheckIncomplete && actionCode === EXIT.ok ? EXIT.failed : actionCode;
   if (text) {
     if (context !== undefined) deps.out(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(context)}\n`);
     if (recheck !== undefined) deps.out(`${t('cli.reconcile.recheck', locale)}\t${JSON.stringify(recheck)}\n`);
@@ -223,7 +225,7 @@ export function finishActions(
     if (waiting.length) deps.err(`${t('cli.unconfirmed-hint', locale, { ids: waiting.join(',') })}\n`);
   } else {
     const waiting = results.some((r) => r.outcome === 'unconfirmed');
-    const status = results.length === 0 ? 'nothing' : code === EXIT.failed ? 'failed' : code === EXIT.declined ? 'declined' : waiting ? (dryRun ? 'plan' : 'unconfirmed') : 'done';
+    const status = actionCode === EXIT.failed ? 'failed' : recheckIncomplete ? 'incomplete' : results.length === 0 ? 'nothing' : code === EXIT.failed ? 'failed' : code === EXIT.declined ? 'declined' : waiting ? (dryRun ? 'plan' : 'unconfirmed') : 'done';
     deps.out(`${JSON.stringify({ schema: SCHEMA, status, actions: results, skipped, report, ...(context !== undefined ? { context } : {}), ...(recheck !== undefined ? { recheck } : {}) })}\n`);
   }
   return code;

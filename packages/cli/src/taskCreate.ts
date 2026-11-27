@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { createHash } from 'crypto';
-import { Artifact, Locale, RequirementArtifact, TaskFieldPlan } from '@ebrain-lab/weaver-markdown';
+import { Artifact, Locale, RequirementArtifact, TaskFieldPlan, parseIssueUrl } from '@ebrain-lab/weaver-markdown';
 import { addIssueToProject, createIssue, fetchIssue, fetchIssueBody, NoticeError, readProject, setProjectField, type Fetch, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, PlannedAction } from './actions';
 import type { System } from './contract';
@@ -90,6 +90,10 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       created.number = made.number;
       created.url = made.url;
       issue.identifiers = { ...issue.identifiers, issue: made.url };
+      const ref = parseIssueUrl(made.url);
+      if (!ref || !Number.isSafeInteger(made.number) || made.number < 1 || ref.number !== made.number || `${ref.owner}/${ref.repo}`.toLowerCase() !== input.repository.toLowerCase()) {
+        throw new NoticeError({ code: 'cli.task-create.issue-unverified', args: { issue: made.url } });
+      }
       const observed = await fetchIssue(input.token, made.url, input.fetch as unknown as FetchFn | undefined);
       const observedBody = await fetchIssueBody(input.token, input.repository, made.number, input.fetch as unknown as FetchFn | undefined).catch(() => undefined);
       if (!observed.ok || observed.issue.number !== made.number || observed.issue.url.toLowerCase() !== made.url.toLowerCase() || observed.issue.title !== `[${id}] ${input.title}` || observed.issue.state !== 'open' || labels.some((label) => !observed.issue.labels.some((actual) => actual.toLowerCase() === label.toLowerCase())) || observedBody !== body) {

@@ -306,6 +306,24 @@ describe('weaver task create', () => {
     expect(requirement?.text).toContain('- `TASK-041` Add the export button — [GitHub Issue #77](https://github.com/me/Weaver/issues/77)');
   });
 
+  it('retains an unexpected Issue URL but refuses to use it for subsequent writes', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/repos/me/Weaver/issues') && init.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ number: 77, html_url: 'https://github.com/me/Other/issues/77' }) };
+      }
+      return original(url, init);
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.actions[0].identifiers.issue).toBe('https://github.com/me/Other/issues/77');
+    expect(result.actions[0].outcome).toBe('failed');
+    expect(s.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
+    expect(s.shell.some((entry) => entry.args[0] === 'push')).toBe(false);
+  });
+
   it('says what was already created when a later step fails, and cleans up the worktree', async () => {
     const ids = (await approvedIds()).join(',');
     const { deps, out, shell } = setup();

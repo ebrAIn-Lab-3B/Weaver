@@ -5,6 +5,7 @@ title: Resolve recurring status divergence with explicit choices
 requirement: REQ-024
 issue: https://github.com/ebrAIn-Lab-3B/Weaver/issues/398
 repository: ebrAIn-Lab-3B/Weaver
+evidence_exception: "User approved the DEC-006 evidence exception on 2026-11-28: implementation and fixes were merged and tested, but no merged PR closes Issue #398. This exception replaces the task's evidence gaps in Weaver; the absent closing link, lack of an independent GitHub review, and test limitations remain documented below."
 assignee_type: agent
 assignee: codex
 criteria: [AC-002, AC-005, AC-008, AC-010, AC-011]
@@ -47,6 +48,8 @@ The same packaged build also passed the opt-in read-only `packaged-live-overview
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.
+
+On 2026-11-28 the user explicitly chose the DEC-006 evidence-exception path for TASK-133 and TASK-136. The frontmatter records that decision for review in this pull request. The exception suppresses Weaver's evidence gaps for this task broadly; it does not establish a closing PR, an independent GitHub review, or successful tests that were not run. Status changes remain separate from this file change.
 
 The projection compatibility decision [DEC-031](../decisions/DEC-031-label-project-status-projection.md) was accepted on 2026-11-28 following the user's instruction to proceed. Board-ahead cases remain report-only under DEC-012; a change to that boundary needs a separately reviewed decision.
 

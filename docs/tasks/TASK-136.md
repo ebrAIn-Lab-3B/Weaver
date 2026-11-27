@@ -45,7 +45,9 @@ After PR #414, `npm run package` and the isolated installed-VSIX `packaged-overv
 
 The same packaged build also passed the opt-in read-only `packaged-live-overview` probe against ebrAIn.lab Kanban after PR #414, checking the title, actual Status options, status-rules section and an Issue #169 incomplete-PR-reference warning in generated HTML. The first invocation supplied the option list without its displayed spaces and failed its exact-text assertion; the corrected invocation passed. Authentication used a test hook, and no repair or physical click was exercised.
 
-Status: implementation and verification in progress; final review is outstanding.
+Status: Verified on 2026-11-28 under the user-approved evidence exception recorded above.
+
+Completion observation (2026-11-28 KST): after the user explicitly approved both TASK moves, `weaver card move TASK-136 --to Verified` completed. A separate GitHub read returned Issue #398 closed with `status:verified` and its ebrAIn.lab Kanban item in `Done`. The prior `status:review` label was absent. The approved exception remains visible; no closing PR or independent GitHub review is implied.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.
 

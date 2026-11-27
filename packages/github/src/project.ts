@@ -155,9 +155,10 @@ export async function readProject(
 
     for (const node of found.items.nodes) {
       const issue = node.content;
-      if (!issue || (issue.__typename === 'Issue' && (!issue.repository?.nameWithOwner || !issue.url || typeof issue.number !== 'number'))) membershipComplete = false;
+      const invalidIssue = issue?.__typename === 'Issue' && (!issue.repository?.nameWithOwner || !issue.url || typeof issue.number !== 'number' || (issue.state !== 'OPEN' && issue.state !== 'CLOSED'));
+      if (!issue || invalidIssue) membershipComplete = false;
       const repository = issue?.repository?.nameWithOwner;
-      if (issue?.__typename !== 'Issue' || !repository || (registered && !registered.has(repository.toLowerCase()))) {
+      if (issue?.__typename !== 'Issue' || invalidIssue || !repository || (registered && !registered.has(repository.toLowerCase()))) {
         skipped += 1;
         continue;
       }

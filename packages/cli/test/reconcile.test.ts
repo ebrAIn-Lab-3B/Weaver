@@ -172,12 +172,25 @@ describe('planReconcile', () => {
       }
       return { ok: true, status: 200, json: async () => body };
     }) as unknown as NonNullable<ReconcileInput['fetch']>;
-    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
     const action = plan.actions.find((a) => a.kind === 'board.status');
     expect(action).toBeDefined();
     await action!.run();
     expect(calls.find((call) => call.query.includes('updateProjectV2ItemFieldValue'))?.variables).toMatchObject({ p: 'selected-project', i: 'selected-item', o: 'progress' });
     expect(calls.filter((call) => call.query.includes('items(first:100'))).toHaveLength(2);
+  });
+
+  it('refuses to update a replacement Project item after approval', async () => {
+    const rules = defaultProcess().columns;
+    let writes = 0;
+    const fetch = (async (_url: string, init: { body: string }) => {
+      const request = JSON.parse(init.body);
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'new-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      writes += 1; throw new Error('unexpected write');
+    }) as unknown as NonNullable<ReconcileInput['fetch']>;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'old-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
+    expect(writes).toBe(0);
   });
 
   it('reports an uncertain result when the post-write Project read fails', async () => {
@@ -195,7 +208,7 @@ describe('planReconcile', () => {
       mutations += 1;
       return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } }) };
     }) as unknown as NonNullable<ReconcileInput['fetch']>;
-    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
     await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
     expect(mutations).toBe(1);
   });
@@ -210,7 +223,7 @@ describe('planReconcile', () => {
       wrote = true;
       return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } }) };
     }) as unknown as NonNullable<ReconcileInput['fetch']>;
-    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
     await expect(plan.actions.find((a) => a.kind === 'board.status')!.run()).rejects.toThrow();
     expect(wrote).toBe(true);
   });

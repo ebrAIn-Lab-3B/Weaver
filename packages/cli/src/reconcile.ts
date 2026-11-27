@@ -147,7 +147,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
             if (!before.ok) throw new NoticeError(before.error);
             if (!before.read.statusOptions?.includes(expected) || (input.statusOptions && JSON.stringify([...before.read.statusOptions].sort()) !== JSON.stringify([...input.statusOptions].sort()))) throw new NoticeError({ code: 'cli.reconcile.stale' });
             const fresh = before.read.cards.find((c) => normalizeIssueUrl(c.url) === normalizeIssueUrl(card.url));
-            if (!fresh || !fresh.projectItemId || fresh.boardStatus !== card.boardStatus || fresh.state !== card.state || JSON.stringify([...fresh.labels].sort()) !== JSON.stringify([...card.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.stale' });
+            if (!fresh || !fresh.projectItemId || !card.projectItemId || fresh.projectItemId !== card.projectItemId || fresh.boardStatus !== card.boardStatus || fresh.state !== card.state || JSON.stringify([...fresh.labels].sort()) !== JSON.stringify([...card.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.stale' });
             await setProjectField(input.token, input.project, fresh.projectItemId, 'Status', expected, input.fetch);
             const after = await readProject(input.token, input.project, [card.repository], input.fetch);
             if (!after.ok) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });

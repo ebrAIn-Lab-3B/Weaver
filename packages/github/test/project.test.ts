@@ -80,6 +80,13 @@ describe('readProject', () => {
     expect(result.ok && result.read.membershipComplete).toBe(false);
   });
 
+  it('does not infer that an Issue is open when its state is missing', async () => {
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { state: null })], null) });
+    const result = await readProject('t', project, undefined, fetchImpl);
+    expect(result.ok && result.read.membershipComplete).toBe(false);
+    expect(result.ok && result.read.cards).toEqual([]);
+  });
+
   it('fails closed when the Issue label connection is truncated', async () => {
     const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [], pageInfo: { hasNextPage: true } } })], null) });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);

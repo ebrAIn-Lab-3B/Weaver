@@ -19,6 +19,8 @@ export interface ProcessConfig {
   columns: {
     /** Where a card's column comes from. */
     source: ColumnSource;
+    /** Column assigned to newly registered tasks; absent retains the Backlog default. */
+    initial?: KanbanColumn;
     /** Column to `status:*` label, used when the source is `labels`. */
     labels: Record<KanbanColumn, string>;
     /** Project board Status option to column, used when the source is `board-status`. */
@@ -91,7 +93,12 @@ const isColumn = (name: string): name is KanbanColumn => (KANBAN_COLUMNS as read
 
 function readColumns(data: Record<string, unknown>, add: Add): ProcessConfig['columns'] {
   const result = defaultProcess().columns;
-  for (const field of Object.keys(data)) if (!['source', 'labels', 'board', 'projection'].includes(field)) add('warning', 'unknown-field', { field: `columns.${field}` });
+  for (const field of Object.keys(data)) if (!['source', 'initial', 'labels', 'board', 'projection'].includes(field)) add('warning', 'unknown-field', { field: `columns.${field}` });
+
+  if (data.initial !== undefined) {
+    if (typeof data.initial === 'string' && isColumn(data.initial)) result.initial = data.initial;
+    else add('error', 'process-unknown-column', { column: String(data.initial) });
+  }
 
   if (data.source !== undefined) {
     if ((COLUMN_SOURCES as readonly unknown[]).includes(data.source)) result.source = data.source as ColumnSource;

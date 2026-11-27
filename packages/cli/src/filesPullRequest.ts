@@ -9,6 +9,10 @@ export interface FilesPullRequest {
   title: string;
   body: string;
   commitMessage: string;
+  /** Optional final authorization and target check immediately before pushing. */
+  beforePush?(): Promise<void>;
+  /** Allows callers to report an uncertain push or PR write with their own recovery context. */
+  onWriteFailure?(phase: 'push' | 'pull-request', error: unknown): never;
   /** Changes the files inside the new worktree. `top` is the checkout's top-level folder, `base` the default branch. */
   edit(worktree: { work: string; top: string; base: string }): Promise<void>;
 }
@@ -18,7 +22,7 @@ export interface FilesPullRequest {
  * on a new branch cut from the default branch, so the user's own checkout and the default branch
  * stay untouched; the worktree is removed afterwards, whether it worked or not.
  */
-export async function openFilesPullRequest(input: FilesPullRequest): Promise<void> {
+export async function openFilesPullRequest(input: FilesPullRequest): Promise<string> {
   const { system } = input;
   const top = (await system.run('git', ['rev-parse', '--show-toplevel'], { cwd: input.root })).trim();
   const base = (await system.run('gh', ['repo', 'view', input.repository, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'])).trim();
@@ -29,8 +33,11 @@ export async function openFilesPullRequest(input: FilesPullRequest): Promise<voi
     await input.edit({ work, top, base });
     await system.run('git', ['add', '-A'], { cwd: work });
     await system.run('git', ['commit', '-m', input.commitMessage], { cwd: work });
-    await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work });
-    await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body]);
+    if (input.beforePush) await input.beforePush();
+    try { await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work }); }
+    catch (error) { if (input.onWriteFailure) input.onWriteFailure('push', error); throw error; }
+    try { return (await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body])).trim(); }
+    catch (error) { if (input.onWriteFailure) input.onWriteFailure('pull-request', error); throw error; }
   } finally {
     await system.run('git', ['worktree', 'remove', '--force', work], { cwd: top }).catch(() => undefined);
   }

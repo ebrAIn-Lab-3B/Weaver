@@ -27,8 +27,18 @@ None.
 
 Design and investigation notes linked from this task, cited source and test observations, and review of unresolved decisions. No implementation completion is implied.
 
-Status: planned. No implementation or completion evidence has been recorded.
+Status: ready for review. The investigation, proposed contract and known limitations are documented below; review and completion evidence remain outstanding.
+
+Implementation and investigation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
 
 ## Work in progress (2026-11-27 KST)
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.
+
+The [registration identity investigation](../architecture/task-registration-recovery.md) inventories the current creation boundary and proposes identity, reservation, uncertainty and recovery rules. In particular, a Git ref or expiring lease alone cannot fence a paused Issue creator; the execution and takeover protocol remains unresolved. The existing partial-push-failure fixture is synthetic evidence of one boundary, not the complete test matrix. This task remains in progress.
+
+The synthetic [TASK-133 scenarios](../../packages/markdown/test/task133Scenarios.test.ts) reproduce both incident conditions separately: a task artifact without an Issue link is reported as `task-without-issue`, and a Project card without the authoritative status label is reported as `status-source-needs-decision` even when it has a board status. They also distinguish an incomplete Project read from confirmed missing membership and report a shared Issue for review. These are deterministic fixture observations, not evidence of the historic HealthBridge state or an end-to-end repair. The [registration recovery investigation](../architecture/task-registration-recovery.md#investigating-retained-reservations) records a manual decision path and limitations for uncertain creation outcomes.
+
+For review, the [reconciliation design](../architecture/task-reconciliation-design.md) specifies deterministic diagnosis, configured state, incomplete reads, approvals and same-scope rechecks; the [registration investigation](../architecture/task-registration-recovery.md) covers operation and task identities, uncertain writes, concurrent attempts, alternatives and the retained-reservation decision path. The [TASK-132 evidence map](TASK-132.md#acceptance-evidence-map) identifies exercised write boundaries and remaining host limitations. In particular, no GitHub ref can fence a privileged actor or a paused former executor after external ref removal, and the Issue-body intent digest is editable. These limits require an explicit human decision when facts cannot establish a safe recovery.
+
+[DEC-032](../decisions/DEC-032-recoverable-task-registration.md) makes the retained-reservation and explicit-handoff tradeoff concrete for maintainer review. It is proposed, not accepted; its review is not inferred from implementation or green tests.

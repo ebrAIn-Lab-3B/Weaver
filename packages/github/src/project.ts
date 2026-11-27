@@ -4,6 +4,7 @@ export type Fetch = (url: string, init: { method: string; headers: Record<string
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
+  headers?: { get(name: string): string | null };
 }>;
 
 /** One Issue on the central Project, reduced to what the Overview Kanban shows. */
@@ -23,6 +24,8 @@ export interface ProjectCard {
   boardStatusRead?: boolean;
   /** The values of the extra Project fields that were asked for (a task contract's `project-field`); a field with no value is left out. */
   fields?: Record<string, string>;
+  /** Whether each requested field value was returned, including an explicitly unset value. */
+  fieldsRead?: Record<string, boolean>;
   /** When the Issue last changed, as an ISO date. */
   updatedAt?: string;
   /** Pull requests that close or mention the Issue. */
@@ -146,39 +149,46 @@ export async function readProject(
     } catch {
       return { ok: false, error: { code: 'project.unreachable' } };
     }
+    if (!body || typeof body !== 'object' || (body.errors !== undefined && (!Array.isArray(body.errors) || body.errors.some((error) => !error || typeof error.message !== 'string')))) return { ok: false, error: { code: 'project.unreachable' } };
     const failure = describeFailure(response, body, project);
     if (failure) return { ok: false, error: failure };
 
     const found = body.data?.repositoryOwner?.projectV2;
     if (!found) return { ok: false, error: { code: 'project.not-found', args: { owner: project.owner, number: project.number } } };
     if (!found.items || !Array.isArray(found.items.nodes) || typeof found.items.pageInfo?.hasNextPage !== 'boolean') return { ok: false, error: { code: 'project.pagination-incomplete' } };
+    if (typeof found.title !== 'string' || (found.field?.options !== undefined && (!Array.isArray(found.field.options) || found.field.options.some((option) => !option || typeof option.name !== 'string' || !option.name)))) return { ok: false, error: { code: 'project.pagination-incomplete' } };
     const pageOptions = found.field?.options?.map((option) => option.name);
     if (page > 0 && (title !== found.title || JSON.stringify(statusOptions ?? null) !== JSON.stringify(pageOptions ?? null))) return { ok: false, error: { code: 'project.changed-during-read' } };
     title = found.title;
     statusOptions = pageOptions;
 
     for (const node of found.items.nodes) {
+      if (!node || typeof node !== 'object') return { ok: false, error: { code: 'project.pagination-incomplete' } };
       const issue = node.content;
-      const invalidIssue = issue?.__typename === 'Issue' && (!issue.repository?.nameWithOwner || !issue.url || typeof issue.number !== 'number' || (issue.state !== 'OPEN' && issue.state !== 'CLOSED'));
-      if (!issue || invalidIssue) membershipComplete = false;
+      const invalidIssue = issue?.__typename === 'Issue' && (typeof issue.repository?.nameWithOwner !== 'string' || !issue.repository.nameWithOwner || typeof issue.url !== 'string' || !issue.url || !Number.isSafeInteger(issue.number) || (issue.number as number) < 1 || typeof issue.title !== 'string' || !issue.title || (issue.state !== 'OPEN' && issue.state !== 'CLOSED'));
+      const invalidContent = !issue || typeof issue !== 'object' || !['Issue', 'PullRequest', 'DraftIssue'].includes(issue.__typename);
+      if (invalidContent || invalidIssue) membershipComplete = false;
       const repository = issue?.repository?.nameWithOwner;
       if (issue?.__typename !== 'Issue' || invalidIssue || !repository || (registered && !registered.has(repository.toLowerCase()))) {
         skipped += 1;
         continue;
       }
-      if (!issue.labels || !Array.isArray(issue.labels.nodes) || issue.labels.pageInfo?.hasNextPage !== false) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
+      if (!issue.labels || !Array.isArray(issue.labels.nodes) || issue.labels.pageInfo?.hasNextPage !== false || issue.labels.nodes.some((label) => !label || typeof label.name !== 'string' || !label.name)) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
+      if (issue.assignees && (!Array.isArray(issue.assignees.nodes) || issue.assignees.nodes.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login))) return { ok: false, error: { code: 'project.pagination-incomplete' } };
       const state = issue.state === 'CLOSED' ? 'closed' : 'open';
       const labels = (issue.labels?.nodes ?? []).map((label) => label.name);
       const taskId = TASK_TITLE.exec(issue.title ?? '')?.[1];
       const fields: Record<string, string> = {};
+      const fieldsRead: Record<string, boolean> = {};
       extraFields.forEach((name, i) => {
         const value = node[`f${i}`];
         const text = value?.name ?? value?.text;
-        if (text) fields[name] = text;
+        fieldsRead[name] = value === null || typeof text === 'string';
+        if (typeof text === 'string') fields[name] = text;
       });
       const pulls = mergeCardPulls(
-        (issue.closedByPullRequestsReferences?.nodes ?? []).filter((n): n is RawPull => n !== null),
-        (issue.timelineItems?.nodes ?? []).map((n) => n?.source).filter((n): n is RawPull => n !== null && n !== undefined),
+        (Array.isArray(issue.closedByPullRequestsReferences?.nodes) ? issue.closedByPullRequestsReferences.nodes : []).filter((n): n is RawPull => n !== null),
+        (Array.isArray(issue.timelineItems?.nodes) ? issue.timelineItems.nodes : []).map((n) => n?.source).filter((n): n is RawPull => n !== null && n !== undefined),
       );
       cards.push({
         repository,
@@ -191,7 +201,7 @@ export async function readProject(
         assignees: (issue.assignees?.nodes ?? []).map((a) => a.login),
         boardStatusRead: statusOptions !== undefined && (node.fieldValueByName === null || (typeof node.fieldValueByName?.name === 'string' && node.fieldValueByName.name.length > 0)),
         ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}),
-        ...(extraFields.length > 0 ? { fields } : {}),
+        ...(extraFields.length > 0 ? { fields, fieldsRead } : {}),
         ...(taskId ? { taskId } : {}),
         ...(issue.updatedAt ? { updatedAt: issue.updatedAt } : {}),
         ...(issue.closedByPullRequestsReferences && issue.timelineItems &&

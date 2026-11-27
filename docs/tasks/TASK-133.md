@@ -31,6 +31,8 @@ Linked implementation PR and passing diagnostic and repair tests, including unce
 
 Status: implementation and verification in progress; final review is outstanding.
 
+Completion evidence gap (2026-11-28): GitHub reported Issue #395 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.
+
 ## Work in progress (2026-11-27 KST)
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.

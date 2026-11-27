@@ -32,6 +32,8 @@ Link the implementation PR, relevant decision if changed, passing targeted autom
 
 Status: implementation and verification in progress; final review is outstanding.
 
+Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.
+
 The projection compatibility decision [DEC-031](../decisions/DEC-031-label-project-status-projection.md) was accepted on 2026-11-28 following the user's instruction to proceed. Board-ahead cases remain report-only under DEC-012; a change to that boundary needs a separately reviewed decision.
 
 On 2026-11-28 the implementation was tightened to report rather than offer a Project Status action when the actual Status options were not read ([PR #401](https://github.com/ebrAIn-Lab-3B/Weaver/pull/401), with CLI read-state propagation corrected in [PR #402](https://github.com/ebrAIn-Lab-3B/Weaver/pull/402)). [PR #403](https://github.com/ebrAIn-Lab-3B/Weaver/pull/403) also reports closed-Issue Project status gaps without proposing a write. All three PRs were merged with passing CI; targeted reconciliation tests and the full `npm test` suite passed.

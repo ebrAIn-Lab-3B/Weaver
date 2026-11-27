@@ -46,16 +46,23 @@ if (multiRepository) {
   fs.writeFileSync(workspaceArg, JSON.stringify({ folders: [{ path: firstFolder }, { path: second }] }));
 }
 const result = path.join(temp, 'result.json');
-const testFile = process.argv[2] === 'packaged-overview' ? 'packagedOverviewHost.cjs' : process.argv[2] === 'reconciliation' ? 'reconciliationHost.cjs' : process.argv[2] === 'assignment-proposal' ? 'assignmentProposalHost.cjs' : process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
-if (process.argv[2] === 'packaged-overview' && !process.env.WEAVER_PACKAGED_EXTENSION_PATH) throw new Error('Set WEAVER_PACKAGED_EXTENSION_PATH to the installed VSIX extension directory.');
-const extensionPath = process.argv[2] === 'packaged-overview' ? path.resolve(process.env.WEAVER_PACKAGED_EXTENSION_PATH) : path.join(root, 'apps/vscode-extension');
+const liveOverview = process.argv[2] === 'packaged-live-overview';
+const packagedOverview = process.argv[2] === 'packaged-overview' || liveOverview;
+const testFile = liveOverview ? 'packagedLiveOverviewHost.cjs' : process.argv[2] === 'packaged-overview' ? 'packagedOverviewHost.cjs' : process.argv[2] === 'reconciliation' ? 'reconciliationHost.cjs' : process.argv[2] === 'assignment-proposal' ? 'assignmentProposalHost.cjs' : process.argv[2] === 'status-read' ? 'statusReadHost.cjs' : process.argv[2] === 'save-conflict' ? 'saveConflictHost.cjs' : process.argv[2] === 'repository-identity' ? 'repositoryIdentityHost.cjs' : nestedRepository ? 'nestedRepositoryHost.cjs' : multiRepository ? 'multiRepositoryHost.cjs' : 'authorDocumentHost.cjs';
+if (packagedOverview && !process.env.WEAVER_PACKAGED_EXTENSION_PATH) throw new Error('Set WEAVER_PACKAGED_EXTENSION_PATH to the installed VSIX extension directory.');
+if (liveOverview) {
+  if (process.env.WEAVER_LIVE_CONFIRM_READ !== '1' || !process.env.WEAVER_LIVE_WORKSPACE || !process.env.WEAVER_LIVE_PROJECT_TITLE || !process.env.WEAVER_LIVE_STATUS_OPTIONS) throw new Error('Live test requires explicit read consent, a workspace, Project title, and expected Status options.');
+  workspaceArg = path.resolve(process.env.WEAVER_LIVE_WORKSPACE);
+  if (!fs.statSync(workspaceArg).isDirectory()) throw new Error('WEAVER_LIVE_WORKSPACE must be an existing directory.');
+}
+const extensionPath = packagedOverview ? path.resolve(process.env.WEAVER_PACKAGED_EXTENSION_PATH) : path.join(root, 'apps/vscode-extension');
 const output = fs.openSync(path.join(temp, 'stdout.log'), 'w');
 const errors = fs.openSync(path.join(temp, 'stderr.log'), 'w');
 const executable = process.env.WEAVER_VSCODE_EXECUTABLE || path.join(process.env.LOCALAPPDATA, 'Programs', 'Microsoft VS Code', 'Code.exe');
 const env = { ...process.env, WEAVER_AUTHOR_RESULT: result, TMP: temp, TEMP: temp };
 delete env.ELECTRON_RUN_AS_NODE;
 for (const name of Object.keys(env)) if (name.startsWith('VSCODE_')) delete env[name];
-const child = spawn(executable, [workspaceArg, '--user-data-dir', path.join(temp, 'profile'), '--extensions-dir', path.join(temp, 'extensions'),
+const child = spawn(executable, [workspaceArg, ...(liveOverview ? ['--locale', 'en', '--disable-workspace-trust'] : []), '--user-data-dir', path.join(temp, 'profile'), '--extensions-dir', path.join(temp, 'extensions'),
   '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--extensionDevelopmentPath', extensionPath,
   '--extensionTestsPath', path.join(root, 'apps/vscode-extension/test', testFile)],
 { env, windowsHide: true, stdio: ['ignore', output, errors] });

@@ -192,7 +192,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
       }
       case 'task-without-issue': {
         // A change to repository files, so it is offered as a pull request (DEC-012, TASK-053).
-        const task = input.artifacts.find((a): a is TaskArtifact => a.kind === 'task' && a.id === m.args.task);
+        const task = input.artifacts.find((a): a is TaskArtifact => a.kind === 'task' && a.path === m.path && a.id === m.args.task);
         const requirement = task && requirementForTask(task, input.artifacts);
         // A Project-only search cannot prove that no Issue exists outside this board. Link a unique
         // visible match, but never create another Issue from an incomplete identity search.

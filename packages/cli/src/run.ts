@@ -343,7 +343,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const currentKeys = new Set(current.map(key));
       const show = (m: typeof current[number]) => ({ kind: m.kind, subject: m.subject, message: formatNotice({ code: `mismatch.${m.kind}` as MessageKey, args: m.args }, locale), ...(m.url ? { url: m.url } : {}) });
       const incomplete = missingPulls.length > 0 || latest.read.membershipComplete === false || latest.read.statusOptions === undefined || latest.read.cards.some((card) => card.pullsIncomplete);
-      return { status: incomplete ? 'incomplete' : 'read', resolved: initial.filter((m) => !currentKeys.has(key(m)) && (m.kind !== 'merged-pr-not-linked' || missingPulls.length === 0) && (m.kind !== 'issue-not-on-project' || latest.read.membershipComplete !== false) && (!['board-status-differs', 'board-status-missing'].includes(m.kind) || latest.read.statusOptions !== undefined)).map(show), remaining: current.map(show), ...(missingPulls.length ? { unavailablePullRepositories: missingPulls } : {}) };
+      const statusKinds = new Set(['board-status-differs', 'board-status-missing', 'projection-unmapped', 'status-source-needs-decision']);
+      const stillHasStatusGap = (m: typeof initial[number]) => statusKinds.has(m.kind) && current.some((now) => statusKinds.has(now.kind) && now.url === m.url);
+      return { status: incomplete ? 'incomplete' : 'read', resolved: initial.filter((m) => !currentKeys.has(key(m)) && !stillHasStatusGap(m) && (m.kind !== 'merged-pr-not-linked' || missingPulls.length === 0) && (m.kind !== 'issue-not-on-project' || latest.read.membershipComplete !== false) && (!statusKinds.has(m.kind) || latest.read.statusOptions !== undefined)).map(show), remaining: current.map(show), ...(missingPulls.length ? { unavailablePullRepositories: missingPulls } : {}) };
     };
     return confirmAndRun(plan.actions, [], { report: plan.reports, dryRun, context, recheck });
   }

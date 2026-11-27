@@ -779,6 +779,8 @@ describe('rule-based status reconciliation flow', () => {
     const { deps, out } = setup();
     let status = 'Todo';
     let writes = 0;
+    let issueLabels = ['status:in-progress'];
+    let changeLabelOnWrite = false;
     let fileReads = 0;
     let failFileRead = 0;
     let processReads = 0;
@@ -793,9 +795,9 @@ describe('rule-based status reconciliation flow', () => {
         return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
       }
       const { query } = JSON.parse(init.body);
-      if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
+      if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: issueLabels.map((name) => ({ name })) }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
       if (query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT', field: { id: 'FIELD', options: [{ id: 'PROGRESS', name: 'In Progress' }] } } } } }) };
-      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
+      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; if (changeLabelOnWrite) issueLabels = []; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
       return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
     };
     expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
@@ -837,5 +839,15 @@ describe('rule-based status reconciliation flow', () => {
     const changed = JSON.parse(out.join(''));
     expect(changed.recheck).toMatchObject({ status: 'incomplete' });
     expect(changed.recheck.reason).toContain('Project fields changed');
+
+    // Replacing a board mismatch with a missing source label is a remaining problem, not resolution.
+    status = 'Todo'; issueLabels = ['status:in-progress']; changeAtProcessRead = 0; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const fourthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; changeLabelOnWrite = true;
+    expect(await run(['reconcile', '--approve', fourthAction.id], deps)).toBe(EXIT.failed);
+    const changedSource = JSON.parse(out.join(''));
+    expect(changedSource.recheck.remaining).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision' }));
+    expect(changedSource.recheck.resolved).not.toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
   });
 });

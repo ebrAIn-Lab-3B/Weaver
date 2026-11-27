@@ -934,6 +934,8 @@ describe('task creation resume by explicit Issue', () => {
     const plan = JSON.parse(first.out.join('')).actions;
     expect(plan.map((a: { kind: string }) => a.kind)).toEqual(['files.pull-request']);
     expect(JSON.parse(first.out.join('')).context).toMatchObject({ task: 'TASK-041', issue: { url, labels: ['status:ready'] }, project: { membership: 'observed', item: 'ITEM77' }, files: 'unverified' });
+    expect(JSON.parse(first.out.join('')).context.issue.intent).toBe('unverified');
+    expect(first.err.join('')).toContain('no registration intent digest');
     const s = fixture({ onProject: true });
     expect(await run([...args, '--approve', plan[0].id], s.deps)).toBe(EXIT.unconfirmed);
     const result = JSON.parse(s.out.join(''));
@@ -942,6 +944,41 @@ describe('task creation resume by explicit Issue', () => {
     expect(s.createCount()).toBe(0);
     expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(false);
     expect(s.written.find((entry) => entry.file.endsWith('TASK-041.md'))?.text).toContain(`issue: ${url}`);
+  });
+
+  it('checks the original registration intent before resuming a newly created Issue', async () => {
+    const createArgs = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001'];
+    const plan = setup();
+    await run(createArgs, plan.deps);
+    const action = JSON.parse(plan.out.join('')).actions[0].id;
+    const creator = setup();
+    const original = creator.deps.fetch as Fetch;
+    let body = '';
+    creator.deps.fetch = async (request, init) => {
+      if (request.endsWith('/issues') && init.method === 'POST') body = (JSON.parse(init.body) as { body: string }).body;
+      return original(request, init);
+    };
+    await run([...createArgs, '--approve', action], creator.deps);
+    expect(body).toContain('weaver-registration:v2');
+    const same = fixture({ onProject: true, body });
+    expect(await run(args, same.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(same.out.join('')).actions[0].kind).toBe('files.pull-request');
+    expect(JSON.parse(same.out.join('')).context.issue.intent).toBe('matched');
+    expect(same.err.join('')).not.toContain('no registration intent digest');
+    for (const changedArgs of [['--assignee', 'other-agent'], ['--area', 'other-area'], ['--assignee-type', 'human'], ['--criteria', 'AC-001']]) {
+      const changed = fixture({ onProject: true, body });
+      expect(await run([...args, ...changedArgs], changed.deps)).toBe(EXIT.failed);
+      expect(JSON.parse(changed.out.join('')).error.code).toBe('cli.task-create.resume-unsafe');
+      expect(changed.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
+      expect(changed.shell.some((entry) => entry.args[0] === 'push')).toBe(false);
+    }
+  });
+
+  it('warns in Korean when the original intent cannot be checked', async () => {
+    const s = fixture({ onProject: true });
+    s.deps.env.WEAVER_LANG = 'ko';
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    expect(s.err.join('')).toContain('등록 요청의 지문이 없습니다');
   });
 
   it('adds a missing Project item without creating another Issue', async () => {

@@ -6,7 +6,7 @@ import { attribution, PlannedAction } from './actions';
 import type { System } from './contract';
 import { openFilesPullRequest } from './filesPullRequest';
 import { hasTaskTitleCandidate, taskIssueInventory, taskPullInventory } from './taskIssueInventory';
-import { registrationMarker, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from './taskReservation';
+import { registrationIntentDigest, registrationMarker, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from './taskReservation';
 
 export { addTaskToRequirement, nextTaskNumber, renderTaskFile, slugOf, taskIdOf, taskListLine, type TaskFileInput } from '@ebrain-lab/weaver-markdown';
 import { slugOf, taskIdOf, taskListLine, renderTaskFile, addTaskToRequirement } from '@ebrain-lab/weaver-markdown';
@@ -85,7 +85,8 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       try { titles = await taskIssueInventory(input.token, input.repository, input.fetch); }
       catch { throw new NoticeError({ code: 'cli.task-create.inventory-unavailable', args: { repository: input.repository } }); }
       if (hasTaskTitleCandidate(titles, input.title) || titles.some((title) => new RegExp(`^\\[${id}\\]`, 'i').test(title))) throw new NoticeError({ code: 'cli.task-create.identity-ambiguous', args: { repository: input.repository } });
-      const body = `${attribution(input.locale, input.login)}\n\nA task of ${input.requirement.id} (${input.requirement.title}). The definition is ${taskPath}.\n\n${registrationMarker(reservations.operation, id)}`;
+      const digest = registrationIntentDigest({ repository: input.repository, project: input.project, requirement: input.requirement, title: input.title, criteria: input.criteria, assigneeType: input.assigneeType, assignee: input.assignee, area: input.area, contract: input.contract, taskDirectory: input.taskDirectory, process: input.approvalProcess });
+      const body = `${attribution(input.locale, input.login)}\n\nA task of ${input.requirement.id} (${input.requirement.title}). The definition is ${taskPath}.\n\n${registrationMarker(reservations.operation, id, digest)}`;
       const made = await createIssue(input.token, input.repository, { title: `[${id}] ${input.title}`, body, labels }, input.fetch);
       created.number = made.number;
       created.url = made.url;

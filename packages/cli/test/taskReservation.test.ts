@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { Fetch } from '@ebrain-lab/weaver-github';
-import { operationReservationVisible, reserveRecovery, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from '../src/taskReservation';
+import { operationReservationVisible, registrationIntentDigest, reserveRecovery, reserveRecoveryFromDefault, reserveTask, taskReservationRefs } from '../src/taskReservation';
 
 describe('repository task reservations', () => {
+  it('binds the intent digest to task details, process and target Project', () => {
+    const intent = { repository: 'Owner/Repo', project: { owner: 'Owner', number: 1 }, requirement: { id: 'REQ-001', repository: 'Owner/Repo' }, title: 'Title', criteria: ['AC-001'], assigneeType: 'agent', assignee: 'alice', area: 'api', contract: { fields: ['a'] }, taskDirectory: 'docs/tasks', process: { version: 1 } };
+    const digest = registrationIntentDigest(intent);
+    expect(registrationIntentDigest({ ...intent, repository: 'owner/repo', project: { owner: 'owner', number: 1 } })).toBe(digest);
+    for (const change of [
+      { project: { owner: 'Owner', number: 2 } }, { requirement: { id: 'REQ-002' } },
+      { criteria: ['AC-002'] }, { assignee: 'bob' }, { area: 'ui' },
+      { contract: { fields: ['b'] } }, { taskDirectory: 'tasks' }, { process: { version: 2 } },
+    ]) expect(registrationIntentDigest({ ...intent, ...change })).not.toBe(digest);
+  });
+
   function server(uncertainFirst = false) {
     const refs = new Set<string>();
     let calls = 0;

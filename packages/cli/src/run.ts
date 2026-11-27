@@ -38,7 +38,7 @@ import { nextTaskNumber, planTaskCreate, renderTaskFile, slugOf, taskIdOf, taskL
 import { hasTaskTitleCandidate, taskIssueCandidates, taskIssueInventory, taskPullInventory } from './taskIssueInventory';
 import { observeExistingTaskPull, observeMergedTaskPull } from './taskExistingPull';
 import { verifyTaskFiles } from './taskExistingPull';
-import { operationReservationVisible, registrationMarker, reserveRecovery, taskReservationRefs } from './taskReservation';
+import { operationReservationVisible, registrationIntentDigest, registrationMarker, reserveRecovery, taskReservationRefs } from './taskReservation';
 
 export { Deps, EXIT, SCHEMA } from './contract';
 
@@ -275,9 +275,14 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const body = await fetchIssueBody(token, repository, ref.number, deps.fetch as unknown as FetchFn | undefined).catch(() => undefined);
       const expected = `A task of ${requirement.id} (${requirement.title}). The definition is ${taskDirectory}/${id}.md.`;
       const markers = body?.match(/<!--\s*weaver-registration:[\s\S]*?-->/g) ?? [];
-      const expectedMarker = registrationMarker(taskReservationRefs(repository, requirement.id, requirement.repository, requirement.repositoryServer, title, id).operation, id);
+      const operation = taskReservationRefs(repository, requirement.id, requirement.repository, requirement.repositoryServer, title, id).operation;
+      const digest = registrationIntentDigest({ repository, project: setup.project, requirement, title, criteria, assigneeType, assignee: args.options.assignee, area: args.options.area, contract, taskDirectory, process: processReport.process });
+      const expectedMarker = registrationMarker(operation, id);
+      const expectedIntentMarker = registrationMarker(operation, id, digest);
       const statusLabels = Object.values(columns.labels).filter((label) => issue.labels.some((actual) => actual.toLowerCase() === label.toLowerCase()));
-      if (body === undefined || !body.includes(expected) || (markers.length > 0 && (markers.length !== 1 || markers[0] !== expectedMarker)) || (columns.source === 'labels' && statusLabels.length !== 1) || (contract?.labels ?? []).some((label) => !issue.labels.includes(label))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      if (body === undefined || !body.includes(expected) || (markers.length > 0 && (markers.length !== 1 || (markers[0] !== expectedMarker && markers[0] !== expectedIntentMarker))) || (columns.source === 'labels' && statusLabels.length !== 1) || (contract?.labels ?? []).some((label) => !issue.labels.includes(label))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const intentMatched = markers.length === 1 && markers[0] === expectedIntentMarker;
+      if (!intentMatched) deps.err(`${say('cli.task-create.legacy-intent', { issue: issue.url })}\n`);
       const contractFields = contract?.projectFields ?? [];
       const fieldNames = [...new Set(contractFields.map((field) => field.field))];
       let observedProject = read.read;
@@ -317,7 +322,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
         return true;
       };
       resume = { number: ref.number, url: issue.url, item: cards[0]?.projectItemId, needsInitialStatus, pendingProjectFields, onStatusRestored: () => { statusRestored = true; }, onFieldRestored: (field) => { restoredFields.add(field); }, revalidate };
-      registrationContext = { observedAt: deps.now().toISOString(), task: id, issue: { url: issue.url, state: issue.state, labels: issue.labels, source: 'github' }, project: { ...setup.project, membership: cards.length ? 'observed' : 'absent', item: cards[0]?.projectItemId ?? null, status: cards[0]?.boardStatus ?? null }, columnSource: columns.source, files: 'unverified' };
+      registrationContext = { observedAt: deps.now().toISOString(), task: id, issue: { url: issue.url, state: issue.state, labels: issue.labels, source: 'github', intent: intentMatched ? 'matched' : 'unverified' }, project: { ...setup.project, membership: cards.length ? 'observed' : 'absent', item: cards[0]?.projectItemId ?? null, status: cards[0]?.boardStatus ?? null }, columnSource: columns.source, files: 'unverified' };
       const relatedPulls = Array.from({ length: pullTexts.length / 2 }, (_, index) => pullTexts.slice(index * 2, index * 2 + 2)).filter((pair) => pair.some((value) => value.toLowerCase().includes(id.toLowerCase())));
       if (relatedPulls.length > 0) {
         if (relatedPulls.length !== 1 || cards.length !== 1 || !(await revalidate())) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });

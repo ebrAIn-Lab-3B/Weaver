@@ -9,8 +9,27 @@ export function taskReservationRefs(repository: string, requirement: string, req
 }
 
 /** A recoverable association hint, not evidence that a prior creator has stopped. */
-export function registrationMarker(operationRef: string, task: string): string {
-  return `<!-- weaver-registration:v1 operation=${operationRef} task=${task} -->`;
+export function registrationMarker(operationRef: string, task: string, intentDigest?: string): string {
+  return intentDigest
+    ? `<!-- weaver-registration:v2 operation=${operationRef} task=${task} intent=${intentDigest} -->`
+    : `<!-- weaver-registration:v1 operation=${operationRef} task=${task} -->`;
+}
+
+/** Bind recovery to the requested task details, independently of approval IDs and transient state. */
+export function registrationIntentDigest(intent: {
+  repository: string; project: { owner: string; number: number };
+  requirement: { id: string; repository?: string; repositoryServer?: string };
+  title: string; criteria: string[]; assigneeType: string; assignee?: string; area?: string;
+  contract?: unknown; taskDirectory: string; process?: unknown;
+}): string {
+  return createHash('sha256').update(JSON.stringify({
+    repository: intent.repository.toLowerCase(),
+    project: { owner: intent.project.owner.toLowerCase(), number: intent.project.number },
+    requirement: { id: intent.requirement.id, repository: intent.requirement.repository?.toLowerCase() ?? null, server: intent.requirement.repositoryServer?.toLowerCase() ?? null },
+    title: intent.title, criteria: intent.criteria, assigneeType: intent.assigneeType,
+    assignee: intent.assignee ?? null, area: intent.area ?? null, contract: intent.contract ?? null,
+    taskDirectory: intent.taskDirectory, process: intent.process ?? null,
+  })).digest('hex');
 }
 
 /** A visible operation reservation blocks a new plan; 404 is not an atomic absence guarantee. */

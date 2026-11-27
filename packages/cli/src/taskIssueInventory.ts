@@ -53,7 +53,9 @@ export async function taskIssueCandidates(token: string, repository: string, tit
       const ref = typeof item.html_url === 'string' ? parseIssueUrl(item.html_url) : undefined;
       if (!ref || `${ref.owner}/${ref.repo}`.toLowerCase() !== repository.toLowerCase() || (typeof item.body !== 'string' && item.body !== null)) throw new Error('Issue candidate identity incomplete');
       const task = match[1].toUpperCase();
-      candidates.push({ task, url: item.html_url as string, markerMatches: typeof item.body === 'string' && item.body.includes(registrationMarker(operationRef, task)) });
+      const v2Prefix = `<!-- weaver-registration:v2 operation=${operationRef} task=${task} intent=`;
+      const markerMatches = typeof item.body === 'string' && (item.body.includes(registrationMarker(operationRef, task)) || (item.body.includes(v2Prefix) && new RegExp(`${v2Prefix}[a-f0-9]{64} -->`).test(item.body)));
+      candidates.push({ task, url: item.html_url as string, markerMatches });
       if (candidates.length > 100) throw new Error('Too many Issue candidates');
     }
     if (items.length < 100) return candidates;

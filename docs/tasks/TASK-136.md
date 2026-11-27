@@ -38,6 +38,8 @@ PRs [#411](https://github.com/ebrAIn-Lab-3B/Weaver/pull/411) and [#412](https://
 
 The subsequent per-item Status completeness fix refuses a repair when a fresh item field is unread, and marks a post-write reread with an unread field incomplete rather than resolved. Stateful mock tests cover both conditions; they do not reproduce the response against live GitHub.
 
+After [PR #414](https://github.com/ebrAIn-Lab-3B/Weaver/pull/414) was merged, a read-only `reconcile` run on 2026-11-28 against ebrAIn.lab Kanban returned the actual Status options and 24 reports with no unread-item-Status finding. It planned six comments but executed none. This checks an ordinary live read, not a malformed response or a status write.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #398 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

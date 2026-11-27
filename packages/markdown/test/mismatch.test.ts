@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMismatches, loadWorkspace, placeIssue, taskIdsOfPull, partialIssuesOfPull, type MergedPull, type MismatchCard } from '../src';
+import { findMismatches, loadWorkspace, placeIssue, parseProcess, taskIdsOfPull, partialIssuesOfPull, type MergedPull, type MismatchCard } from '../src';
 
 const REPO = 'o/a';
 const url = (n: number) => `https://github.com/o/a/issues/${n}`;
@@ -45,6 +45,19 @@ describe('findMismatches', () => {
     expect(found).toMatchObject([{ kind: 'issue-not-on-project', subject: 'TASK-001', url: url(9) }]);
   });
 
+  it('does not claim Project membership is absent when an item cannot be read', () => {
+    const files = artifacts({ 'TASK-001.md': task('TASK-001', `issue: ${url(9)}\n`) });
+    const found = findMismatches({ artifacts: files, cards: [], repositories: [REPO], projectMembershipComplete: false });
+    expect(found.map((m) => m.kind)).toEqual(['issue-project-unknown']);
+  });
+
+  it('reports shared Issues as an association for review without declaring an error', () => {
+    const files = artifacts({ 'TASK-001.md': task('TASK-001', `issue: ${url(1)}\n`), 'TASK-002.md': task('TASK-002', `issue: ${url(1)}\n`) });
+    const found = findMismatches({ artifacts: files, cards: [card(1, { boardStatus: 'Todo' })], repositories: [REPO] });
+    expect(found.filter((m) => m.kind === 'shared-issue')).toMatchObject([{ args: { tasks: 'TASK-001, TASK-002', issue: url(1) } }]);
+    expect(found.some((m) => m.kind === 'broken-issue-link')).toBe(false);
+  });
+
   it('does not judge tasks of repositories that are not registered', () => {
     const files = artifacts({ 'REQ-001.md': req(), 'TASK-001.md': task('TASK-001').replace(REPO, 'x/y') });
     expect(findMismatches({ artifacts: files, cards: [], repositories: [REPO] })).toEqual([]);
@@ -60,9 +73,26 @@ describe('findMismatches', () => {
     expect(found).toMatchObject([{ kind: 'card-without-file', subject: '#1' }]);
   });
 
+  it('does not assert a task file is absent when workspace artifacts are invalid', () => {
+    const files = artifacts({ 'REQ-001.md': req() });
+    const found = findMismatches({ artifacts: files, cards: [card(1)], repositories: [REPO], workspaceComplete: false });
+    expect(found.map((m) => m.kind)).toContain('card-file-unknown');
+    expect(found.map((m) => m.kind)).not.toContain('card-without-file');
+  });
+
   it('counts a task listed under its requirement as a file', () => {
     const files = artifacts({ 'REQ-001.md': req(`- \`TASK-001\` T — [GitHub Issue #1](${url(1)})\n`) });
     expect(findMismatches({ artifacts: files, cards: [card(1)], repositories: [REPO] })).toEqual([]);
+  });
+
+  it('offers a decision path when the authoritative label or board status is missing', () => {
+    const noLabel = card(1, { labels: [], placement: placeIssue({ state: 'open', labels: [] }) });
+    const labelFindings = findMismatches({ artifacts: [], cards: [noLabel], repositories: [REPO] });
+    expect(labelFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'labels' }) }));
+    const rules = parseProcess('process.yaml', 'columns:\n  source: board-status\n').process.columns;
+    const noBoard = card(1, { placement: placeIssue({ state: 'open', labels: [] }, rules) });
+    const boardFindings = findMismatches({ artifacts: [], cards: [noBoard], repositories: [REPO], boardSourced: [REPO], rulesFor: () => rules });
+    expect(boardFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'board-status' }) }));
   });
 
   describe('board status', () => {
@@ -73,6 +103,13 @@ describe('findMismatches', () => {
       expect(run(card(1, { boardStatus: 'In Progress' }))).toMatchObject([
         { kind: 'board-status-differs', args: { board: 'In Progress', expected: 'Todo', column: 'Backlog' } },
       ]);
+    });
+
+    it('uses an explicit projection and does not equate Backlog with Todo', () => {
+      const rules = parseProcess('process.yaml', 'columns:\n  projection:\n    Backlog: Backlog\n').process.columns;
+      const check = (status: string) => findMismatches({ artifacts: files, cards: [card(1, { boardStatus: status })], repositories: [REPO], rulesFor: () => rules });
+      expect(check('Backlog')).toEqual([]);
+      expect(check('Todo')).toMatchObject([{ kind: 'board-status-differs', args: { board: 'Todo', expected: 'Backlog' } }]);
     });
 
     it('folds columns the way DEC-003 does', () => {
@@ -96,6 +133,10 @@ describe('findMismatches', () => {
       repository: REPO, number: 80, title: 'feat: card (TASK-033)', url: 'https://github.com/o/a/pull/80', branch: 'feat/task-033-x', closes: [], ...extra,
     });
     const run = (pulls: MergedPull[], list = files) => findMismatches({ artifacts: list, cards, repositories: [REPO], pulls });
+
+    it('does not assert a missing closing reference when that connection is incomplete', () => {
+      expect(run([pull({ closingIncomplete: true })]).some((m) => m.kind === 'merged-pr-not-linked')).toBe(false);
+    });
 
     it('reports a merged pull request that names the task but does not close its Issue', () => {
       expect(run([pull({})])).toMatchObject([{ kind: 'merged-pr-not-linked', args: { pull: 80, task: 'TASK-033', number: 65 }, url: 'https://github.com/o/a/pull/80' }]);

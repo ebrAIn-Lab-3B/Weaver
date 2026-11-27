@@ -1,5 +1,5 @@
 import type { MessageArgs } from './i18n';
-import type { KanbanColumn, KanbanPlacement } from './kanban';
+import type { ColumnRules, KanbanColumn, KanbanPlacement } from './kanban';
 import { normalizeIssueUrl, requirementsByIssue } from './overview';
 import type { Artifact } from './types';
 import { contractGaps, type ContractGapKind, type TaskContract } from './taskContract';
@@ -8,9 +8,16 @@ export type MismatchKind =
   | 'task-without-issue'
   | 'broken-issue-link'
   | 'issue-not-on-project'
+  | 'issue-project-unknown'
   | 'card-without-file'
+  | 'card-file-unknown'
   | 'merged-pr-not-linked'
   | 'board-status-differs'
+  | 'shared-issue'
+  | 'projection-unmapped'
+  | 'board-status-missing'
+  | 'pulls-incomplete'
+  | 'status-source-needs-decision'
   | ContractGapKind;
 
 /** One place where the repository files, the Issues, and the central Project do not agree. */
@@ -32,7 +39,10 @@ export interface MismatchCard {
   title: string;
   url: string;
   taskId?: string;
+  pullsIncomplete?: boolean;
   boardStatus?: string;
+  /** True when Project Status was actually read, including an unset field. */
+  boardStatusRead?: boolean;
   /** A closed Issue has nothing left to close, so a pull request that did not close it is not a mismatch. */
   state?: 'open' | 'closed';
   placement: KanbanPlacement;
@@ -50,6 +60,8 @@ export interface MergedPull {
   branch: string;
   /** Issue numbers the pull request closes, as GitHub records them. */
   closes: number[];
+  /** Closing references were truncated and cannot establish absence. */
+  closingIncomplete?: boolean;
   /** Issues explicitly identified as partial work, not a closing claim. */
   partial?: number[];
 }
@@ -106,6 +118,10 @@ export interface MismatchInput {
   cards: readonly MismatchCard[];
   /** The registered repositories, `owner/name`. */
   repositories: readonly string[];
+  /** False if Project membership cannot be determined from the read. */
+  projectMembershipComplete?: boolean;
+  /** False when malformed workspace artifacts prevent a reliable file inventory. */
+  workspaceComplete?: boolean;
   /** Recently merged pull requests of the registered repositories; leave empty when they were not read. */
   pulls?: readonly MergedPull[];
   /** Repositories whose process takes the column from the board Status (DEC-015); the board cannot differ from itself. */
@@ -116,6 +132,8 @@ export interface MismatchInput {
   closingNotRequired?: readonly string[];
   /** The task contract of a repository's process (DEC-016); without one, tasks are not judged against a contract. */
   contractFor?: (repository: string) => TaskContract | undefined;
+  /** Effective column rules for each repository. */
+  rulesFor?: (repository: string) => ColumnRules | undefined;
 }
 
 /**
@@ -155,22 +173,49 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     } else if (!cardByUrl.has(normalizeIssueUrl(artifact.issue))) {
       const where = /github\.com\/([\w.-]+\/[\w.-]+)\//i.exec(artifact.issue)?.[1].toLowerCase();
       if (where && registered.has(where)) {
-        found.push({ kind: 'issue-not-on-project', subject: artifact.id, args: { task: artifact.id, issue: artifact.issue }, path: artifact.path, url: artifact.issue });
+        found.push({ kind: input.projectMembershipComplete === false ? 'issue-project-unknown' : 'issue-not-on-project', subject: artifact.id, args: { task: artifact.id, issue: artifact.issue }, path: artifact.path, url: artifact.issue });
       }
     }
+  }
+
+  // A shared Issue may be intentional. Report the association for review, not as an invalid link.
+  const shared = new Map<string, { url: string; tasks: string[] }>();
+  for (const artifact of artifacts) {
+    if (artifact.kind !== 'task' || !artifact.issue || !ISSUE_URL.test(artifact.issue.trim())) continue;
+    const repository = artifact.repository?.toLowerCase();
+    if (repository && !registered.has(repository)) continue;
+    const key = normalizeIssueUrl(artifact.issue);
+    const entry = shared.get(key) ?? { url: artifact.issue, tasks: [] };
+    entry.tasks.push(artifact.id);
+    shared.set(key, entry);
+  }
+  for (const entry of shared.values()) {
+    if (entry.tasks.length > 1) found.push({ kind: 'shared-issue', subject: entry.tasks.join(', '), args: { tasks: entry.tasks.join(', '), issue: entry.url }, url: entry.url });
   }
 
   for (const card of cards) {
     const repository = card.repository.toLowerCase();
     const label = `#${card.number}`;
+    if (card.pullsIncomplete) found.push({ kind: 'pulls-incomplete', subject: label, args: { repository: card.repository, number: card.number }, url: card.url });
+    const statusGaps = card.placement.gaps.filter((gap) => ['gap.no-status-label', 'gap.multiple-status-labels', 'gap.no-board-status', 'gap.unmapped-board-status'].includes(gap.code));
+    if (statusGaps.length) {
+      const source = input.rulesFor?.(card.repository)?.source ?? (boardSourced.has(repository) ? 'board-status' : 'labels');
+      found.push({ kind: 'status-source-needs-decision', subject: label, args: { repository: card.repository, number: card.number, source, observed: source === 'labels' ? (card.labels?.join(', ') || '—') : (card.boardStatus ?? '—') }, url: card.url });
+    }
     // A repository whose process lets a card be an Issue with no file does not miss it (DEC-016 item 3).
     const filesNeeded = input.contractFor?.(repository)?.requireFile !== false;
     if (filesNeeded && seen.has(repository) && !links.has(normalizeIssueUrl(card.url))) {
-      found.push({ kind: 'card-without-file', subject: label, args: { number: card.number, repository: card.repository, title: card.title }, url: card.url });
+      found.push({ kind: input.workspaceComplete === false ? 'card-file-unknown' : 'card-without-file', subject: label, args: { number: card.number, repository: card.repository, title: card.title }, url: card.url });
     }
     // The label rules already report an inconsistent card; compare the board only when they are quiet.
-    const expected = expectedBoardStatus(card.placement.column);
-    if (card.boardStatus && !boardSourced.has(repository) && card.placement.gaps.length === 0 && card.boardStatus !== expected) {
+    const rules = input.rulesFor?.(card.repository);
+    const expected = rules?.projection === undefined ? expectedBoardStatus(card.placement.column) : rules.projection[card.placement.column];
+    if (!boardSourced.has(repository) && card.placement.gaps.length === 0 && !expected) {
+      found.push({ kind: 'projection-unmapped', subject: label, args: { number: card.number, repository: card.repository, column: card.placement.column }, url: card.url });
+    } else if (!boardSourced.has(repository) && card.placement.gaps.length === 0 && expected && card.boardStatusRead === true && !card.boardStatus) {
+      found.push({ kind: 'board-status-missing', subject: label, args: { number: card.number, repository: card.repository, expected }, url: card.url });
+    }
+    if (expected && card.boardStatus && !boardSourced.has(repository) && card.placement.gaps.length === 0 && card.boardStatus !== expected) {
       found.push({
         kind: 'board-status-differs',
         subject: label,
@@ -190,7 +235,7 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     for (const taskId of taskIdsOfPull(pull)) {
       if (exceptions.has(taskId)) continue;
       const card = cards.find((c) => c.taskId === taskId && c.repository.toLowerCase() === pull.repository.toLowerCase());
-      if (card && card.state !== 'closed' && !pull.closes.includes(card.number) && !pull.partial?.includes(card.number) && !closingNotRequired.has(pull.repository.toLowerCase())) {
+      if (card && !pull.closingIncomplete && card.state !== 'closed' && !pull.closes.includes(card.number) && !pull.partial?.includes(card.number) && !closingNotRequired.has(pull.repository.toLowerCase())) {
         found.push({
           kind: 'merged-pr-not-linked',
           subject: taskId,

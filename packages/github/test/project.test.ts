@@ -11,7 +11,7 @@ const issue = (repository: string, number: number, extra: Record<string, unknown
     url: `https://github.com/${repository}/issues/${number}`,
     state: 'OPEN',
     repository: { nameWithOwner: repository },
-    labels: { nodes: [{ name: 'status:backlog' }] },
+    labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:backlog' }] },
     assignees: { nodes: [] },
     ...extra,
   },
@@ -53,7 +53,7 @@ describe('readProject', () => {
           issue('me/Weaver', 61, {
             title: '[TASK-029] Verify access',
             state: 'CLOSED',
-            labels: { nodes: [{ name: 'task' }, { name: 'status:verified' }] },
+            labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'task' }, { name: 'status:verified' }] },
             assignees: { nodes: [{ login: 'me' }] },
           }),
         ],
@@ -74,6 +74,33 @@ describe('readProject', () => {
     });
   });
 
+  it('marks membership unknown for inaccessible or incomplete Project item identities', async () => {
+    const { fetchImpl } = fake({ body: page([{ content: null }, { fieldValueByName: null, content: { __typename: 'Issue', number: 1 } }], null) });
+    const result = await readProject('t', project, undefined, fetchImpl);
+    expect(result.ok && result.read.membershipComplete).toBe(false);
+  });
+
+  it('does not infer that an Issue is open when its state is missing', async () => {
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { state: null })], null) });
+    const result = await readProject('t', project, undefined, fetchImpl);
+    expect(result.ok && result.read.membershipComplete).toBe(false);
+    expect(result.ok && result.read.cards).toEqual([]);
+  });
+
+  it('fails closed when the Issue label connection is truncated', async () => {
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [], pageInfo: { hasNextPage: true } } })], null) });
+    const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
+    expect(result).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+  });
+
+  it('refuses Project and label connections with missing page metadata', async () => {
+    const missingLabels = fake({ body: page([issue('me/Weaver', 1, { labels: { nodes: [] } })], null) });
+    expect(await readProject('t', project, undefined, missingLabels.fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.labels-incomplete' } });
+    const missingPage = page([], null);
+    delete (missingPage.data.repositoryOwner.projectV2.items as { pageInfo?: unknown }).pageInfo;
+    expect(await readProject('t', project, undefined, fake({ body: missingPage }).fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+  });
+
   it('follows the cursor until the last page', async () => {
     const { fetchImpl, asked } = fake(
       { body: page([issue('me/Weaver', 1), issue('me/Weaver', 2)], 'cursor-1') },
@@ -82,6 +109,23 @@ describe('readProject', () => {
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
     expect(result.ok && result.read.cards.map((c) => c.number)).toEqual([1, 2, 3]);
     expect(asked.map((a) => a.variables.c)).toEqual([null, 'cursor-1']);
+  });
+
+  it('refuses a Project read when the Status options change between pages', async () => {
+    const first = page([issue('me/Weaver', 1)], 'cursor-1');
+    const second = page([issue('me/Weaver', 2)], null);
+    Object.assign(first.data.repositoryOwner.projectV2, { field: { options: [{ name: 'Todo' }] } });
+    Object.assign(second.data.repositoryOwner.projectV2, { field: { options: [{ name: 'Backlog' }] } });
+    const { fetchImpl } = fake({ body: first }, { body: second });
+    expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.changed-during-read' } });
+  });
+
+  it('refuses repeated or absent pagination cursors', async () => {
+    const repeated = fake({ body: page([], 'same') }, { body: page([], 'same') });
+    expect(await readProject('t', project, undefined, repeated.fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+    const missing = page([], null);
+    missing.data.repositoryOwner.projectV2.items.pageInfo.hasNextPage = true;
+    expect(await readProject('t', project, undefined, fake({ body: missing }).fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
   });
 
   it('keeps only registered repositories, ignoring case, and counts what it left out', async () => {
@@ -129,6 +173,8 @@ describe('readProject', () => {
     // An answer without those fields leaves them out rather than guessing zero.
     expect(cards[1] && 'updatedAt' in cards[1]).toBe(false);
     expect(cards[1] && 'pullCount' in cards[1]).toBe(false);
+    expect(cards[0].pullsIncomplete).toBe(true);
+    expect(cards[1].pullsIncomplete).toBe(true);
   });
 
   it('reads the pull requests themselves, open first, a pull request of both lists once, and nothing that is not a pull request (DEC-022)', async () => {
@@ -158,6 +204,8 @@ describe('readProject', () => {
     // No pull request, or an answer without the lists: no `pulls` at all, not an empty list.
     expect('pulls' in cards[1]).toBe(false);
     expect('pulls' in cards[2]).toBe(false);
+    expect(cards[1].pullsIncomplete).toBeUndefined();
+    expect(cards[2].pullsIncomplete).toBe(true);
   });
 
   it('asks for the pull requests in the same query, and adds no request', async () => {
@@ -236,7 +284,8 @@ describe('readProject', () => {
       expect(!result.ok && result.error.code).toBe('project.unreachable');
     });
     it('stops when the Project is endless', async () => {
-      const endless: Fetch = async () => ({ ok: true, status: 200, json: async () => page([], 'again') });
+      let pageNumber = 0;
+      const endless: Fetch = async () => ({ ok: true, status: 200, json: async () => page([], `cursor-${++pageNumber}`) });
       const result = await readProject('t', project, ['me/Weaver'], endless);
       expect(!result.ok && result.error.code).toBe('project.too-large');
     });

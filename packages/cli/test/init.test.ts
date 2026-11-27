@@ -13,7 +13,7 @@ const issue = (repository: string, number: number, assignees: string[] = []) => 
     url: `https://github.com/${repository}/issues/${number}`,
     state: 'OPEN',
     repository: { nameWithOwner: repository },
-    labels: { nodes: [] },
+    labels: { pageInfo: { hasNextPage: false }, nodes: [] },
     assignees: { nodes: assignees.map((login) => ({ login })) },
   },
 });

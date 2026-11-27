@@ -103,6 +103,17 @@ describe('fetchEvidence', () => {
     expect(result.evidence.pulls).toMatchObject([{ number: 7, state: 'merged', link: 'closes' }]);
   });
 
+  it('refuses to infer evidence from a truncated timeline or check-run list', async () => {
+    const timeline = routes(() => ({ json: Array.from({ length: 100 }, () => ({ event: 'commented' })) }));
+    expect(await fetchEvidence('t', ISSUE, timeline.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+    const checks = routes((call) => {
+      if (call.url.includes('/timeline')) return { json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'feat', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] };
+      if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'abc' } } };
+      return { json: { total_count: 2, check_runs: [{ status: 'completed', conclusion: 'success' }] } };
+    });
+    expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+  });
+
   it('turns a failed call into a notice', async () => {
     const result = await fetchEvidence('t', ISSUE, routes(() => ({ status: 500 })).fetchFn);
     expect(result).toMatchObject({ ok: false, error: { code: 'github.err.http' } });

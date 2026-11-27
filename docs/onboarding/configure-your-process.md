@@ -66,6 +66,21 @@ columns:
     Review: needs-review
 ```
 
+When labels decide the column, a repository can explicitly map each Weaver column to an exact Project Status option:
+
+```yaml
+columns:
+  source: labels
+  projection:
+    Backlog: Backlog
+    Ready: Ready
+    In progress: In Progress
+    Review: Review
+    Verified: Done
+```
+
+This map replaces the legacy fixed projection, rather than merging with it. An omitted column has no projection and needs a decision; `Backlog` and `Todo` are distinct option names. Without `projection`, Weaver retains its legacy `Todo` / `In Progress` / `Done` mapping for compatibility. The map is not the board-source `board` map: it is used when labels are authoritative. A missing Project option cannot be written.
+
 **Your team uses the Project board's Status** and does not want labels. Let the board decide:
 
 ```yaml

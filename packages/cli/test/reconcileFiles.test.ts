@@ -202,12 +202,25 @@ describe('planReconcile with the file fixes', () => {
     ...(files ? { files } : {}),
   });
 
-  it('turns both mismatches into pull-request actions when it can, and keeps them as reports when it cannot', async () => {
+  it('matches duplicate task IDs by their file and repository before linking an Issue', async () => {
+    const items = loaded([
+      { path: 'a/TASK-011.md', text: TASK_11.replace('me/Weaver', 'me/A') },
+      { path: 'b/TASK-011.md', text: TASK_11.replace('me/Weaver', 'me/B') },
+    ]);
+    const b = card(31, { repository: 'me/B', url: 'https://github.com/me/B/issues/31', taskId: 'TASK-011' });
+    const planned = await planReconcile({ ...base(context(world(), github())), repositories: ['me/A', 'me/B'], artifacts: items, cards: [b] });
+    const links = planned.actions.filter((a) => a.kind === 'files.pull-request');
+    expect(links).toHaveLength(1);
+    expect(links[0].target).toContain('me/B');
+    expect(planned.reports.filter((r) => r.kind === 'task-without-issue').map((r) => r.path)).toContain('a/TASK-011.md');
+  });
+
+  it('reports an unlinked task when a Project-only search cannot rule out an existing Issue', async () => {
     const w = world();
     const g = github('REQ-001');
     const withFiles = await planReconcile(base(context(w, g)));
-    expect(withFiles.actions.map((a) => a.kind).sort()).toEqual(['files.pull-request', 'files.pull-request', 'issue.create', 'project.add']);
-    expect(withFiles.reports.map((r) => r.kind)).not.toContain('task-without-issue');
+    expect(withFiles.actions.map((a) => a.kind)).toEqual(['files.pull-request']);
+    expect(withFiles.reports.map((r) => r.kind)).toContain('task-without-issue');
     expect(withFiles.reports.map((r) => r.kind)).not.toContain('card-without-file');
 
     const without = await planReconcile(base());

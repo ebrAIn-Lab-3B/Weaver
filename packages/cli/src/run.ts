@@ -2,9 +2,11 @@ import * as path from 'path';
 import {
   Artifact,
   DEFAULT_STALE_DAYS,
+  PROJECT_STATUS_FOR_COLUMN,
   honoredException,
   RequirementArtifact,
   formatNotice,
+  findMismatches,
   Locale,
   LOCALES,
   loadWorkspace,
@@ -104,7 +106,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   const repositories = effectiveRepositories(setup, read.read.cards.map((card) => card.repository)).map((r) => r.repository);
 
   /** Shows the plan, takes the confirmations, runs what was approved, and prints the result. */
-  const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean } = {}): Promise<number> => {
+  const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean; context?: unknown; recheck?: () => Promise<unknown> } = {}): Promise<number> => {
+    if (options.context !== undefined && !options.dryRun) deps.err(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(options.context)}\n`);
     const results = await executeActions(actions, {
       locale,
       approved: parseApproved(args.options.approve),
@@ -116,7 +119,12 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       now: () => deps.now(),
       note: (text) => deps.err(text),
     });
-    return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun });
+    let recheck: unknown;
+    if (options.recheck && results.some((result) => result.outcome === 'done' || result.outcome === 'failed')) {
+      try { recheck = await options.recheck(); }
+      catch { recheck = { status: 'unavailable', reason: t('cli.reconcile.recheck-unavailable', locale) }; }
+    }
+    return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun, context: options.context, recheck });
   };
 
   if (args.command === 'process' && args.positional[0] === 'start') {
@@ -166,7 +174,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     return confirmAndRun(plan.actions, plan.skipped);
   }
 
-  const artifacts: Artifact[] = loadWorkspace(await deps.files(root)).artifacts;
+  const workspace = loadWorkspace(await deps.files(root));
+  const artifacts: Artifact[] = workspace.artifacts;
+  const workspaceComplete = !workspace.issues.some((issue) => issue.severity === 'error' && !artifacts.some((artifact) => artifact.path === issue.path));
   if (args.command === 'task') {
     const matches = artifacts.filter((a): a is RequirementArtifact => a.kind === 'requirement' && a.id === args.options.requirement && (!args.options['requirement-repository'] || a.repository?.toLowerCase() === args.options['requirement-repository'].toLowerCase()) && (!args.options['requirement-server'] || sameServer(a.repositoryServer, args.options['requirement-server'])));
     if (matches.length > 1) return fail(EXIT.usage, 'cli.requirement-ambiguous', { id: args.options.requirement });
@@ -227,7 +237,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   }
   const rulesFor = (repository: string) => {
     const found = processes.get(repository.toLowerCase());
-    return found?.file === 'read' ? found.process.columns : undefined;
+    return found && found.file !== 'failed' && !found.issues.some((issue) => issue.severity === 'error') ? found.process.columns : undefined;
   };
   const idleDaysFor = (repository: string) => {
     const found = processes.get(repository.toLowerCase());
@@ -243,15 +253,23 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   };
   // A contract field that lives in a Project field can be compared only when that field is read (DEC-016 item 5).
   const projectFields = [...new Set(repositories.flatMap((name) => contractFor(name)?.fields.flatMap((f) => (f.projectField ? [f.projectField] : [])) ?? []))];
-  let boardCards = read.read.cards;
+  let boardRead = read.read;
   if (args.command === 'reconcile' && projectFields.length > 0) {
     const again = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch, projectFields);
-    if (again.ok) boardCards = again.read.cards;
+    if (!again.ok) {
+      report(again.error.code, formatNotice(again.error, locale));
+      return EXIT.failed;
+    }
+    boardRead = again.read;
   }
-  const cards = placeWithRules(boardCards, rulesFor);
+  const cards = placeWithRules(boardRead.cards, rulesFor);
   const all = toCliCards(cards, artifacts, deps.now(), idleDaysFor, evidenceFor);
 
   if (args.command === 'reconcile') {
+    const setupUnchanged = async () => {
+      const current = await loadSetup(root, deps, locale);
+      return current.ok && current.setup.project.owner.toLowerCase() === setup.project.owner.toLowerCase() && current.setup.project.number === setup.project.number && JSON.stringify(current.setup.repositories ?? null) === JSON.stringify(setup.repositories ?? null);
+    };
     const merged = await Promise.all(repositories.map((repository) => readMergedPulls(token, repository, 50, deps.fetch)));
     const plan = await planReconcile({
       token,
@@ -260,7 +278,21 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       project: setup.project,
       repositories,
       cards,
+      statusOptions: boardRead.statusOptions ?? [],
+      projectMembershipComplete: boardRead.membershipComplete,
+      workspaceComplete,
+      unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),
       rulesFor,
+      freshSetupMatches: setupUnchanged,
+      freshTaskIssue: async (taskPath) => {
+        const latest = loadWorkspace(await deps.files(root)).artifacts.find((artifact) => artifact.kind === 'task' && artifact.path === taskPath);
+        return latest?.kind === 'task' ? latest.issue : undefined;
+      },
+      freshRulesFor: async (repository) => {
+        const [fresh] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline);
+        if (!fresh || fresh.file === 'failed' || fresh.issues.some((issue) => issue.severity === 'error')) return undefined;
+        return fresh.process.columns;
+      },
       idleDaysFor,
       evidenceFor,
       contractFor,
@@ -288,7 +320,50 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     });
     // Without --apply (or --approve) this only shows the plan, even at a terminal.
     const dryRun = !args.flags.has('apply') && !args.options.approve;
-    return confirmAndRun(plan.actions, [], { report: plan.reports, dryRun });
+    const context = {
+      project: setup.project,
+      statusOptions: boardRead.statusOptions ?? null,
+      incompletePullRepositories: merged.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]),
+      repositories: repositories.map((repository) => {
+        const report = processes.get(repository.toLowerCase());
+        const rules = !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error') ? undefined : report.process.columns;
+        return { repository, file: report?.file ?? 'failed', columnsSource: report?.sources.columns ?? 'unknown', rules: rules ?? null, projectionOrigin: rules?.source === 'labels' ? (rules.projection ? 'repository' : 'legacy-default') : null, projection: rules?.source === 'labels' ? (rules.projection ?? PROJECT_STATUS_FOR_COLUMN) : null, issues: report?.issues ?? [] };
+      }),
+    };
+    const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: boardRead.membershipComplete, workspaceComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
+    const recheck = async () => {
+      if (!await setupUnchanged()) return { status: 'incomplete', reason: t('cli.reconcile.recheck-setup-changed', locale) };
+      let refreshedArtifacts: Artifact[];
+      try {
+        const refreshed = loadWorkspace(await deps.files(root));
+        refreshedArtifacts = refreshed.artifacts;
+        if (refreshed.issues.some((issue) => issue.severity === 'error' && !refreshedArtifacts.some((artifact) => artifact.path === issue.path))) return { status: 'incomplete', reason: t('cli.reconcile.recheck-artifact-invalid', locale) };
+      } catch {
+        return { status: 'unavailable', reason: t('cli.reconcile.recheck-files', locale) };
+      }
+      const latest = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch, projectFields);
+      if (!latest.ok) return { status: 'unavailable', reason: formatNotice(latest.error, locale) };
+      const latestProcesses = await readProcesses(token, repositories, locale, deps.fetch as unknown as FetchFn | undefined, setup.guideline);
+      const failed = latestProcesses.filter((r) => r.file === 'failed' || r.issues.some((issue) => issue.severity === 'error'));
+      if (failed.length) return { status: 'incomplete', reason: failed.map((r) => r.repository) };
+      const latestFields = [...new Set(latestProcesses.flatMap((r) => r.process.task?.fields.flatMap((field) => field.projectField ? [field.projectField] : []) ?? []))];
+      if (JSON.stringify([...latestFields].sort()) !== JSON.stringify([...projectFields].sort())) return { status: 'incomplete', reason: t('cli.reconcile.recheck-fields-changed', locale) };
+      if (latestProcesses.some((current) => { const before = processes.get(current.repository.toLowerCase()); return !before || before.file !== current.file || JSON.stringify(before.process) !== JSON.stringify(current.process); })) return { status: 'incomplete', reason: t('cli.reconcile.recheck-process-changed', locale) };
+      const processByRepo = new Map(latestProcesses.map((r) => [r.repository.toLowerCase(), r]));
+      const currentRules = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.columns;
+      const currentContract = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.task;
+      const latestPulls = await Promise.all(repositories.map((repository) => readMergedPulls(token, repository, 50, deps.fetch)));
+      const missingPulls = latestPulls.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]);
+      const current = findMismatches({ artifacts: refreshedArtifacts, cards: placeWithRules(latest.read.cards, currentRules), repositories, projectMembershipComplete: latest.read.membershipComplete, pulls: latestPulls.flatMap((r) => r.ok ? r.pulls : []), rulesFor: currentRules, boardSourced: repositories.filter((name) => currentRules(name)?.source === 'board-status'), contractFor: currentContract });
+      const key = (m: { kind: string; subject: string; path?: string; url?: string }) => JSON.stringify([m.kind, m.subject, m.path ?? null, m.url ?? null]);
+      const currentKeys = new Set(current.map(key));
+      const show = (m: typeof current[number]) => ({ kind: m.kind, subject: m.subject, message: formatNotice({ code: `mismatch.${m.kind}` as MessageKey, args: m.args }, locale), ...(m.url ? { url: m.url } : {}) });
+      const incomplete = missingPulls.length > 0 || latest.read.membershipComplete === false || latest.read.statusOptions === undefined || latest.read.cards.some((card) => card.pullsIncomplete);
+      const statusKinds = new Set(['board-status-differs', 'board-status-missing', 'projection-unmapped', 'status-source-needs-decision']);
+      const stillHasStatusGap = (m: typeof initial[number]) => statusKinds.has(m.kind) && current.some((now) => statusKinds.has(now.kind) && now.url === m.url);
+      return { status: incomplete ? 'incomplete' : 'read', resolved: initial.filter((m) => !currentKeys.has(key(m)) && !stillHasStatusGap(m) && (m.kind !== 'merged-pr-not-linked' || missingPulls.length === 0) && (m.kind !== 'issue-not-on-project' || latest.read.membershipComplete !== false) && (!statusKinds.has(m.kind) || latest.read.statusOptions !== undefined)).map(show), remaining: current.map(show), ...(missingPulls.length ? { unavailablePullRepositories: missingPulls } : {}) };
+    };
+    return confirmAndRun(plan.actions, [], { report: plan.reports, dryRun, context, recheck });
   }
 
   if (args.command === 'card' || args.command === 'evidence') {

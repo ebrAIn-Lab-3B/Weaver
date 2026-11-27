@@ -71,6 +71,16 @@ describe('planMove with the rules of a repository', () => {
     }
   });
 
+  it('does not choose arbitrarily among board-source options for one column', () => {
+    const ambiguous = rulesOf('columns:\n  source: board-status\n  board:\n    Backlog: Backlog\n    Todo: Backlog\n');
+    expect(planMove({ state: 'open', labels: [], boardStatus: 'Backlog' }, 'Backlog', ambiguous)).toMatchObject({ unavailable: true });
+  });
+
+  it('does not invent a label-sourced Project projection for an omitted column', () => {
+    const rules = rulesOf('columns:\n  projection:\n    Backlog: Backlog\n');
+    expect(planMove({ state: 'open', labels: ['status:backlog'] }, 'Review', rules)).toMatchObject({ unavailable: true });
+  });
+
   it('uses a board option the process maps to the column', () => {
     const custom = rulesOf('columns:\n  source: board-status\n  board:\n    Next: Ready\n    Doing: In progress\n    Done: Verified\n');
     expect(planMove({ state: 'open', labels: [], boardStatus: 'Doing' }, 'Ready', custom).projectStatus).toBe('Next');

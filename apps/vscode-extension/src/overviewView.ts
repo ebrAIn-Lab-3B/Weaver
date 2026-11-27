@@ -585,7 +585,7 @@ export class OverviewView {
       log(`load #${request} pull requests read after ${Date.now() - started} ms${request !== this.request ? ' (newer request, dropped)' : ''}`);
       if (request !== this.request) return;
       this.pulls = pulls.flatMap((r) => (r.ok ? r.pulls : []));
-      this.skippedChecks = pulls.flatMap((r) => (r.ok ? [] : [r.error]));
+      this.skippedChecks = pulls.flatMap((r, index) => r.ok ? (r.incomplete ? [{ code: 'pulls.incomplete' as const, args: { repository: repositories[index] } }] : []) : [r.error]);
       this.read = result.read;
       this.readAt = new Date().toISOString();
       void this.store.update(SNAPSHOT_KEY, makeSnapshot(registry.project, result.read.title, result.read.cards, new Date(this.readAt)));
@@ -753,10 +753,11 @@ export class OverviewView {
     const idleSetting = vscode.workspace.getConfiguration('weaver').get<number>('staleDays', 14);
     const placedCards = this.placed(this.read.cards);
     // Cards of a lane whose process is not read yet are not judged: they would be judged by guessed rules.
-    const checkedCards = placedCards.filter((card) => !this.reading.has(card.repository));
-    const checkedRepositories = this.registry.registry.repositories.map((r) => r.repository).filter((name) => !this.reading.has(name));
+    const workspaceComplete = !this.loaded?.issues.some((issue) => issue.severity === 'error' && issue.path?.toLowerCase().endsWith('.md') && !this.loaded?.artifacts.some((artifact) => artifact.path === issue.path));
+    const checkedCards = placedCards.filter((card) => !this.reading.has(card.repository) && !processStore.diagnosisUnavailable(card.repository));
+    const checkedRepositories = this.registry.registry.repositories.map((r) => r.repository).filter((name) => !this.reading.has(name) && !processStore.diagnosisUnavailable(name));
     const cards: OverviewCard[] = placedCards.map((card) => {
-      if (this.reading.has(card.repository)) return { ...card, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] };
+      if (this.reading.has(card.repository) || processStore.diagnosisUnavailable(card.repository)) return { ...card, placement: { ...card.placement, gaps: [{ code: 'gap.process-unavailable' as const }] }, requirement: links.get(normalizeIssueUrl(card.url)), stale: [] };
       const requirement = links.get(normalizeIssueUrl(card.url));
       const task = requirement?.taskPath ? tasks.get(requirement.taskPath) : undefined;
       const assignmentRules = processStore.assignmentFor(card.repository);
@@ -799,6 +800,13 @@ export class OverviewView {
     return {
       kind: 'ready',
       projectTitle: this.read.title,
+      ...(this.read.statusOptions ? { statusOptions: this.read.statusOptions } : {}),
+      processMappings: checkedRepositories.map((repository) => {
+        const summary = processStore.summary(repository);
+        const columns = summary.process.columns;
+        const mapping = columns.source === 'board-status' ? columns.board : columns.projection ?? { Backlog: 'Todo', Ready: 'Todo', 'In progress': 'In Progress', Blocked: 'In Progress', Review: 'In Progress', Verified: 'Done' };
+        return { repository, source: columns.source, origin: columns.source === 'labels' && !columns.projection ? 'legacy-default' : summary.sources.columns, mapping: Object.entries(mapping).map(([from, to]) => columns.source === 'labels' ? `${from}: ${columns.labels[from as keyof typeof columns.labels]} → ${to}` : `${from} → ${to}`).join(', ') };
+      }),
       lanes: this.showFinished ? ordered : folds.map((fold) => fold.lane),
       showFinished: this.showFinished,
       finished: Object.fromEntries(folds.map((fold) => [fold.repository, fold.folded])),
@@ -808,14 +816,17 @@ export class OverviewView {
       mismatches: findMismatches({
         artifacts: this.loaded?.artifacts ?? [],
         cards: checkedCards,
+        projectMembershipComplete: this.read.membershipComplete,
+        workspaceComplete,
         repositories: checkedRepositories,
         pulls: this.pulls,
         exceptionsIgnored: checkedRepositories.filter((name) => processStore.evidenceFor(name)?.exceptions === false),
         closingNotRequired: checkedRepositories.filter((name) => processStore.evidenceFor(name)?.closingPullRequest === false),
         boardSourced: checkedRepositories.filter((name) => processStore.rulesFor(name)?.source === 'board-status'),
         contractFor: processStore.taskFor,
+        rulesFor: processStore.rulesFor,
       }),
-      skippedChecks: this.skippedChecks,
+      skippedChecks: [...this.skippedChecks, ...(!workspaceComplete ? [{ code: 'cli.reconcile.recheck-artifact-invalid' as const }] : []), ...(this.read.statusOptions === undefined ? [{ code: 'project.status-options-unavailable' as const }] : []), ...(this.read.membershipComplete === false ? [{ code: 'project.membership-incomplete' as const }] : []), ...this.registry.registry.repositories.filter((r) => !this.reading.has(r.repository) && processStore.diagnosisUnavailable(r.repository)).map((r): Notice => ({ code: 'cli.reconcile.process-unavailable', args: { repository: r.repository } }))],
       reading: [...this.reading],
       focusActive: focused.size > 0,
       ...(rosterStore.shown() ? { roster: rosterStore.shown() } : {}),

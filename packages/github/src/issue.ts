@@ -270,6 +270,7 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
       );
       events.push(...batch);
       if (batch.length < 100) break;
+      if (page === 3) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
     }
 
     const sources = new Map<string, NonNullable<NonNullable<TimelineEvent['source']>['issue']>>();
@@ -285,9 +286,10 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
         const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx,
           `${source.repository_url}/pulls/${source.number}`,
         );
-        const runs = await getJson<{ check_runs: CheckRunLike[] }>(ctx,
+        const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx,
           `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`,
         );
+        if (typeof runs.total_count === 'number' && runs.total_count > runs.check_runs.length) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
         return {
           number: source.number,
           title: source.title,

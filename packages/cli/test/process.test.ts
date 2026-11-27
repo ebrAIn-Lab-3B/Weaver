@@ -7,6 +7,7 @@ import { setup } from './helpers';
 /** GitHub's answer for the process file of each repository; any other repository has none. */
 function contents(files: Record<string, { status: number; text?: string; etag?: string } | 'offline'>, trace: { inFlight: number; peak: number; asked: string[] } = { inFlight: 0, peak: 0, asked: [] }) {
   const fetchFn = (async (url: string) => {
+    if (url.endsWith('/contents/')) return { ok: true, status: 200 };
     const repository = /\/repos\/([^/]+\/[^/]+)\/contents\//.exec(url)?.[1] ?? '';
     trace.asked.push(repository);
     trace.inFlight += 1;

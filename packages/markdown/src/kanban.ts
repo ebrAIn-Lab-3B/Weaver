@@ -110,7 +110,8 @@ export interface BoardItem {
 export function boardGaps(column: KanbanColumn, items: BoardItem[] | undefined, project?: string, rules?: ColumnRules): Notice[] {
   // When the board is the source of the column, there is nothing for it to differ from.
   if (!items || rules?.source === 'board-status') return [];
-  const expected = PROJECT_STATUS_FOR_COLUMN[column];
+  const expected = rules?.projection === undefined ? PROJECT_STATUS_FOR_COLUMN[column] : rules.projection[column];
+  if (!expected) return [];
   return items
     .filter((item) => !project || item.project === project)
     .filter((item) => item.status !== expected)
@@ -138,16 +139,19 @@ export function planMove(issue: Pick<IssueSnapshot, 'state' | 'labels'> & { boar
 
   if (rules.source === 'board-status') {
     // The board option that means the target. A board with three options cannot show Ready, Blocked, or Review.
-    const projectStatus = Object.keys(rules.board).find((status) => rules.board[status] === target);
+    const options = Object.keys(rules.board).filter((status) => rules.board[status] === target);
+    const projectStatus = options.length === 1 ? options[0] : undefined;
     if (projectStatus === undefined) return { column: target, removeLabels: [], state, unavailable: true, noop: false };
     return { column: target, removeLabels: [], state, projectStatus, noop: issue.state === state && issue.boardStatus === projectStatus };
   }
 
+  const projectedStatus = rules.projection === undefined ? PROJECT_STATUS_FOR_COLUMN[target] : rules.projection[target];
+  if (!projectedStatus) return { column: target, removeLabels: [], state, unavailable: true, noop: false };
   const addLabel = rules.labels[target];
   const statusLabels = new Set(Object.values(rules.labels));
   const removeLabels = issue.labels.filter((label) => statusLabels.has(label) && label !== addLabel);
   const noop = removeLabels.length === 0 && issue.labels.includes(addLabel) && issue.state === state;
-  return { column: target, addLabel, removeLabels, state, projectStatus: PROJECT_STATUS_FOR_COLUMN[target], noop };
+  return { column: target, addLabel, removeLabels, state, projectStatus: projectedStatus, noop };
 }
 
 /** What a move will change, one notice per line, for the confirmation dialog. */

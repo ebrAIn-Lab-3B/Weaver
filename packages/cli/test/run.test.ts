@@ -756,3 +756,151 @@ describe('where the configuration comes from', () => {
     expect(JSON.parse(workspace.out.join('')).error.message).toContain('fabric.yaml');
   });
 });
+
+
+describe('rule-based status reconciliation flow', () => {
+  it('treats an invalid task document as an incomplete file inventory', async () => {
+    const { deps, out } = setup();
+    deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: '---\ntype: task\nid: [\n---\n' }];
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'workspace-invalid' }));
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'card-file-unknown', subject: '#11' }));
+    expect(result.actions.filter((a: { kind: string }) => a.kind === 'files.pull-request')).toEqual([]);
+  });
+
+  it('uses the same Project snapshot for cards and completeness when fields are reread', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    let projectReads = 0;
+    deps.fetch = async (url, init) => {
+      if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        projectReads += 1;
+        const nodes = projectReads === 1 ? [] : [{ fieldValueByName: null, content: null }];
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } } }) };
+      }
+      return originalFetch(url, init);
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.actions.filter((a: { kind: string }) => a.kind === 'project.add')).toEqual([]);
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'issue-project-unknown' }));
+  });
+
+  it('stops when the Project field reread fails rather than planning from an older snapshot', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    let projectReads = 0;
+    deps.fetch = async (url, init) => {
+      if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        projectReads += 1;
+        if (projectReads === 2) return { ok: false, status: 503, json: async () => ({}) };
+      }
+      return originalFetch(url, init);
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).error).toMatchObject({ code: 'project.unreachable' });
+  });
+
+  it('plans, approves, changes only the selected item, rechecks and is idempotent', async () => {
+    const { deps, out } = setup();
+    let status = 'Todo';
+    let writes = 0;
+    let issueLabels = ['status:in-progress'];
+    let changeLabelOnWrite = false;
+    let switchSetupOnWrite = false;
+    let switchedSetup = false;
+    const originalReadText = deps.readText;
+    deps.readText = async (file) => switchedSetup ? 'project: {owner: other, number: 9}\nrepositories:\n  - me/Weaver\n' : originalReadText(file);
+    let fileReads = 0;
+    let failFileRead = 0;
+    let processReads = 0;
+    let changeAtProcessRead = 0;
+    let changedProcess = 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n';
+    const originalFiles = deps.files;
+    deps.files = async (root) => { fileReads += 1; if (fileReads === failFileRead) throw new Error('disk unavailable'); return originalFiles(root); };
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
+      if (url.includes('/contents/.weaver/')) {
+        processReads += 1;
+        if (changeAtProcessRead && processReads >= changeAtProcessRead) return { ok: true, status: 200, headers: { get: () => null }, text: async () => changedProcess } as never;
+        return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
+      }
+      const { query } = JSON.parse(init.body);
+      if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'ITEM', fieldValueByName: { name: status }, content: { __typename: 'Issue', number: 10, title: '[TASK-010] Card', url: 'https://github.com/me/Weaver/issues/10', state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: issueLabels.map((name) => ({ name })) }, assignees: { nodes: [] }, closedByPullRequestsReferences: { totalCount: 0, nodes: [] }, timelineItems: { totalCount: 0, nodes: [] } } }] } } } } }) };
+      if (query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT', field: { id: 'FIELD', options: [{ id: 'PROGRESS', name: 'In Progress' }] } } } } }) };
+      if (query.includes('updateProjectV2ItemFieldValue')) { writes += 1; status = 'In Progress'; if (changeLabelOnWrite) issueLabels = []; if (switchSetupOnWrite) switchedSetup = true; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) }; }
+      return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const planned = JSON.parse(out.join('')); out.length = 0;
+    const action = planned.actions.find((item: { kind: string }) => item.kind === 'board.status');
+    expect(action.summary).toContain('me/1');
+    expect(action.summary).toContain('Todo');
+    expect(writes).toBe(0);
+    expect(await run(['reconcile', '--approve', action.id], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join('')); out.length = 0;
+    expect(result.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
+    expect(result.recheck.status).toBe('read');
+    expect(fileReads).toBe(3);
+    expect(result.recheck.resolved).toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
+    expect(writes).toBe(1);
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    expect(JSON.parse(out.join('')).actions.filter((item: { kind: string }) => item.kind === 'board.status')).toEqual([]);
+    expect(writes).toBe(1);
+
+    // An unavailable workspace after the mutation must not be reported as a clean recheck.
+    status = 'Todo'; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const secondAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0;
+    failFileRead = fileReads + 2;
+    expect(await run(['reconcile', '--approve', secondAction.id], deps)).toBe(EXIT.failed);
+    const partial = JSON.parse(out.join(''));
+    expect(partial.status).toBe('incomplete');
+    expect(partial.recheck).toMatchObject({ status: 'unavailable' });
+    expect(partial.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'done' }));
+
+    // A newly configured Project field was not in the earlier snapshot; do not claim a clean reread.
+    status = 'Todo'; out.length = 0; failFileRead = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const thirdAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0;
+    changeAtProcessRead = processReads + 4;
+    expect(await run(['reconcile', '--approve', thirdAction.id], deps)).toBe(EXIT.failed);
+    const changed = JSON.parse(out.join(''));
+    expect(changed.recheck).toMatchObject({ status: 'incomplete' });
+    expect(changed.recheck.reason).toContain('Project fields changed');
+
+    // Replacing a board mismatch with a missing source label is a remaining problem, not resolution.
+    status = 'Todo'; issueLabels = ['status:in-progress']; changeAtProcessRead = 0; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const fourthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; changeLabelOnWrite = true;
+    expect(await run(['reconcile', '--approve', fourthAction.id], deps)).toBe(EXIT.failed);
+    const changedSource = JSON.parse(out.join(''));
+    expect(changedSource.recheck.remaining).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision' }));
+    expect(changedSource.recheck.resolved).not.toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
+
+    // A changed process must not make an earlier finding look resolved under different rules.
+    status = 'Todo'; issueLabels = ['status:in-progress']; changeLabelOnWrite = false; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const fifthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; changedProcess = 'columns:\n  labels:\n    In progress: doing\n'; changeAtProcessRead = processReads + 4;
+    expect(await run(['reconcile', '--approve', fifthAction.id], deps)).toBe(EXIT.failed);
+    const changedRules = JSON.parse(out.join(''));
+    expect(changedRules.recheck).toMatchObject({ status: 'incomplete' });
+    expect(changedRules.recheck.reason).toContain('process rules changed');
+
+    // A change to the selected Project during a write must not be reported as a clean recheck.
+    status = 'Todo'; changeAtProcessRead = 0; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const sixthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; switchSetupOnWrite = true;
+    expect(await run(['reconcile', '--approve', sixthAction.id], deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).recheck).toMatchObject({ status: 'incomplete' });
+    expect(JSON.parse(out.join('')).recheck.reason).toContain('Project or repository scope changed');
+  });
+});

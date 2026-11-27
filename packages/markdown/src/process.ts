@@ -23,6 +23,8 @@ export interface ProcessConfig {
     labels: Record<KanbanColumn, string>;
     /** Project board Status option to column, used when the source is `board-status`. */
     board: Record<string, KanbanColumn>;
+    /** Explicit label-sourced column to Project Status projection; absent uses the legacy defaults. */
+    projection?: Partial<Record<KanbanColumn, string>>;
   };
   evidence: {
     /** Whether a pull request is expected in Review and Verified. */
@@ -89,7 +91,7 @@ const isColumn = (name: string): name is KanbanColumn => (KANBAN_COLUMNS as read
 
 function readColumns(data: Record<string, unknown>, add: Add): ProcessConfig['columns'] {
   const result = defaultProcess().columns;
-  for (const field of Object.keys(data)) if (!['source', 'labels', 'board'].includes(field)) add('warning', 'unknown-field', { field: `columns.${field}` });
+  for (const field of Object.keys(data)) if (!['source', 'labels', 'board', 'projection'].includes(field)) add('warning', 'unknown-field', { field: `columns.${field}` });
 
   if (data.source !== undefined) {
     if ((COLUMN_SOURCES as readonly unknown[]).includes(data.source)) result.source = data.source as ColumnSource;
@@ -127,6 +129,18 @@ function readColumns(data: Record<string, unknown>, add: Add): ProcessConfig['co
         else board[status.trim()] = name;
       }
       result.board = board;
+    }
+  }
+  if (data.projection !== undefined) {
+    if (!isMapping(data.projection)) add('error', 'process-section-not-a-mapping', { section: 'columns.projection' });
+    else {
+      const projection: Partial<Record<KanbanColumn, string>> = {};
+      for (const [column, value] of Object.entries(data.projection)) {
+        if (!isColumn(column)) add('error', 'process-unknown-column', { column });
+        else if (!str(value)) add('error', 'process-invalid-label', { column });
+        else projection[column] = str(value) as string;
+      }
+      result.projection = projection;
     }
   }
   return result;

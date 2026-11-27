@@ -12,10 +12,10 @@ export const issue = (number: number, extra: Record<string, unknown> = {}) => ({
     url: `https://github.com/me/Weaver/issues/${number}`,
     state: 'OPEN',
     updatedAt: '2026-10-01T00:00:00Z',
-    closedByPullRequestsReferences: { totalCount: 0 },
-    timelineItems: { totalCount: 0 },
+    closedByPullRequestsReferences: { totalCount: 0, nodes: [] },
+    timelineItems: { totalCount: 0, nodes: [] },
     repository: { nameWithOwner: 'me/Weaver' },
-    labels: { nodes: [{ name: 'status:in-progress' }] },
+    labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] },
     assignees: { nodes: [] },
     ...extra,
   },
@@ -41,6 +41,7 @@ export function setup(options: { token?: string | undefined; registry?: string; 
   const written: { file: string; text: string }[] = [];
   const fetchImpl: Fetch = async (url, init) => {
     // No repository has a process file unless a test says so (DEC-015).
+    if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
     if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
     if (url.includes('/repos/')) {
       writes.push(`REST ${url}`);
@@ -57,8 +58,8 @@ export function setup(options: { token?: string | undefined; registry?: string; 
       return { ok: true, status: 200, json: async () => body };
     }
     if (options.pullsFail) return { ok: false, status: 500, json: async () => ({}) };
-    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { nodes: [{ number: 10 }] } }];
-    return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { nodes } } } }) };
+    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10 }] } }];
+    return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes } } } }) };
   };
   const deps: Deps = {
     cwd: '/work',
@@ -100,7 +101,7 @@ export function withGitHub(deps: Deps, options: { linkedPull?: boolean; pullMerg
   const original = deps.fetch as Fetch;
   deps.fetch = async (url, init) => {
     const reply = (json: unknown, status = 200) => ({ ok: status < 400, status, json: async () => json });
-    if (url.includes('/contents/.weaver/')) return original(url, init);
+    if (url.includes('/contents/.weaver/') || url.endsWith('/contents/')) return original(url, init);
     if (url.includes('/repos/')) {
       const method = init?.method ?? 'GET';
       calls.push(`${method} ${url.replace('https://api.github.com', '')}`);

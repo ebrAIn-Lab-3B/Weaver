@@ -2,6 +2,8 @@
 
 Status: design and implementation in progress for REQ-024, TASK-131 and TASK-132. This document describes the implemented protections and the remaining limits of the candidate safety contract.
 
+The retained-reservation and explicit-handoff tradeoff is proposed for maintainer review in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md).
+
 ## Observed boundaries
 
 The CLI includes paginated repository Issue and PR inventories in number allocation, rejects a matching task-title candidate, and repeats the Issue inventory immediately before Issue creation. It follows valid next-page links, including GitHub's numeric-repository and cursor form after confirming the repository identity; failed, unexpected or incomplete pages fail closed, and each inventory has a 50-page ceiling. These reads are not an atomic snapshot or a lock and do not exclude external writers. A later process may explicitly supply a known Issue URL through the limited `--resume-issue` path described in TASK-132; one verified open PR can be reported as pending, and a verified pushed branch without a PR can be offered for a separately approved PR. Unknown outcomes still require investigation. The VS Code authoring workflow drafts files and opens a PR; it does not make an Issue and Project membership part of an atomic transaction. Reconcile can link a task to a unique matching Project card, but cannot establish the absence of an Issue outside the Project. The action executor requests approval per write and stops after failure; its log is not a transaction journal and a successful log entry alone is not an authoritative GitHub read.

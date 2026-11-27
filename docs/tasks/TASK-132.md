@@ -28,6 +28,8 @@ Linked implementation PR and passing targeted automated tests with partial-failu
 
 Status: ready for review. The implementation and observations below have not yet been independently reviewed or established as complete.
 
+The implemented recovery boundary is proposed in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md); its acceptance is not inferred from this implementation.
+
 Implementation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
 
 Newly created Issues now carry a v2 registration marker with a digest of task details, Project and effective process. Resume refuses a mismatched digest; fixtures exercise a real create-to-resume flow and changes to criteria and assignment. Older v1 or unmarked Issues have no digest and require an explicit operator comparison against the original request. An editable Issue body is not an immutable intent manifest.

@@ -436,7 +436,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.reconcile.stale': 'Project, Issue 또는 프로세스가 변경되었거나 읽을 수 없습니다. 새로 고치고 계획을 다시 확인해 주세요.',
   'cli.reconcile.verify-failed': '변경 결과를 확인하지 못했습니다. 다시 시도하기 전에 같은 Project를 새로 고쳐 주세요.',
   'cli.reconcile.board-status': 'Project {owner}/{project}에서 {ref}의 Status를 {board}에서 {status}(으)로 변경합니다. 정본 라벨은 {column}에 대응합니다.',
-  'cli.reconcile.board-status-reason': '확인 후 설정된 Project 대응 값을 정본 Issue 라벨에 맞춥니다.',
+  'cli.reconcile.board-status-reason': '확인 후 설정된 Project 대응 값을 정본 Issue 라벨에 맞춥니다. Project 자동화가 Issue를 변경할 수도 있습니다.',
   'cli.reconcile.comment': '{ref}에 병합된 풀 리퀘스트 #{pull}이(가) {task}를 가리키지만 Issue를 닫지 않았다는 댓글을 답니다. Issue는 그대로 열어 둡니다.',
   'cli.reconcile.comment-reason': '병합된 풀 리퀘스트가 이 태스크를 가리키는데 Issue가 열려 있어서 그 연결을 Issue에 적습니다. 닫는 일은 사람이 합니다.',
   'cli.reconcile.relabel-reason': 'Issue가 닫혔고 닫힌 태스크 Issue는 Verified인데(DEC-003), 이전 상태 라벨이 남아 있습니다.',

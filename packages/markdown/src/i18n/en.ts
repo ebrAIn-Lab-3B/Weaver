@@ -437,7 +437,7 @@ export const en = {
   'cli.reconcile.stale': 'The Project, Issue or process changed or could not be read. Refresh and review a new plan.',
   'cli.reconcile.verify-failed': 'The write could not be verified. Refresh the same Project before retrying.',
   'cli.reconcile.board-status': 'Set {ref} on Project {owner}/{project} from {board} to {status}; its authoritative label maps to {column}.',
-  'cli.reconcile.board-status-reason': 'The configured Project projection can be aligned with the authoritative Issue label after confirmation.',
+  'cli.reconcile.board-status-reason': 'The configured Project projection can be aligned with the authoritative Issue label after confirmation. Project automations may also change the Issue.',
   'cli.reconcile.comment': 'Comment on {ref} that merged pull request #{pull} names {task} but does not close the Issue. The Issue stays open.',
   'cli.reconcile.comment-reason': 'A merged pull request names this task and the Issue is still open, so the link is written on the Issue. Closing it stays with a person.',
   'cli.reconcile.relabel-reason': 'The Issue is closed, and a closed task Issue is Verified (DEC-003), but it kept an older status label.',

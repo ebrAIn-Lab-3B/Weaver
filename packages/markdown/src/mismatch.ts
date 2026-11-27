@@ -1,5 +1,6 @@
 import type { MessageArgs } from './i18n';
-import type { ColumnRules, KanbanColumn, KanbanPlacement } from './kanban';
+import { KANBAN_COLUMNS, type ColumnRules, type KanbanColumn, type KanbanPlacement } from './kanban';
+import { defaultProcess } from './process';
 import { normalizeIssueUrl, requirementsByIssue } from './overview';
 import type { Artifact } from './types';
 import { contractGaps, type ContractGapKind, type TaskContract } from './taskContract';
@@ -207,19 +208,24 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     if (filesNeeded && seen.has(repository) && !links.has(normalizeIssueUrl(card.url))) {
       found.push({ kind: input.workspaceComplete === false ? 'card-file-unknown' : 'card-without-file', subject: label, args: { number: card.number, repository: card.repository, title: card.title }, url: card.url });
     }
-    // The label rules already report an inconsistent card; compare the board only when they are quiet.
     const rules = input.rulesFor?.(card.repository);
-    const expected = rules?.projection === undefined ? expectedBoardStatus(card.placement.column) : rules.projection[card.placement.column];
-    if (!boardSourced.has(repository) && card.placement.gaps.length === 0 && !expected) {
-      found.push({ kind: 'projection-unmapped', subject: label, args: { number: card.number, repository: card.repository, column: card.placement.column }, url: card.url });
-    } else if (!boardSourced.has(repository) && card.placement.gaps.length === 0 && expected && card.boardStatusRead === true && !card.boardStatus) {
+    // Closed Issues are displayed in Review, but the label may name a different column.
+    const closedGap = card.placement.gaps.some((gap) => gap.code === 'gap.closed-without-verified');
+    const labelRules = rules?.labels ?? defaultProcess().columns.labels;
+    const labeledColumns = closedGap && card.labels ? KANBAN_COLUMNS.filter((column) => card.labels!.includes(labelRules[column])) : [];
+    const actualColumn = closedGap ? (labeledColumns.length === 1 ? labeledColumns[0] : undefined) : card.placement.column;
+    const comparableStatus = actualColumn !== undefined && card.placement.gaps.every((gap) => gap.code === 'gap.closed-without-verified');
+    const expected = actualColumn === undefined ? undefined : rules?.projection === undefined ? expectedBoardStatus(actualColumn) : rules.projection[actualColumn];
+    if (!boardSourced.has(repository) && comparableStatus && !expected) {
+      found.push({ kind: 'projection-unmapped', subject: label, args: { number: card.number, repository: card.repository, column: actualColumn! }, url: card.url });
+    } else if (!boardSourced.has(repository) && comparableStatus && expected && card.boardStatusRead === true && !card.boardStatus) {
       found.push({ kind: 'board-status-missing', subject: label, args: { number: card.number, repository: card.repository, expected }, url: card.url });
     }
-    if (expected && card.boardStatus && !boardSourced.has(repository) && card.placement.gaps.length === 0 && card.boardStatus !== expected) {
+    if (expected && card.boardStatus && !boardSourced.has(repository) && comparableStatus && card.boardStatus !== expected) {
       found.push({
         kind: 'board-status-differs',
         subject: label,
-        args: { number: card.number, repository: card.repository, board: card.boardStatus, expected, column: card.placement.column },
+        args: { number: card.number, repository: card.repository, board: card.boardStatus, expected, column: actualColumn! },
         url: card.url,
       });
     }

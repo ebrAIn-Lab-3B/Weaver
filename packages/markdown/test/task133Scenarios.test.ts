@@ -71,4 +71,18 @@ describe('TASK-133 fixture scenarios', () => {
     const findings = findMismatches({ artifacts, cards: [closed], repositories: [repository], rulesFor: () => rules('labels.yaml') });
     expect(findings).toContainEqual(expect.objectContaining({ kind: 'pulls-incomplete', subject: '#2' }));
   });
+
+  it('reports missing Project status on a closed issue without inferring Verified', () => {
+    const labels = ['status:review'];
+    const { boardStatus: _unused, ...base } = issue(2, 'In Progress');
+    const closed = { ...base, state: 'closed' as const, labels, boardStatusRead: true, placement: placeIssue({ state: 'closed', labels }, rules('labels.yaml')) };
+    const findings = findMismatches({ artifacts, cards: [closed], repositories: [repository], rulesFor: () => rules('labels.yaml') });
+    expect(closed.placement.column).toBe('Review');
+    expect(findings).toContainEqual(expect.objectContaining({ kind: 'board-status-missing', args: expect.objectContaining({ expected: 'In Progress' }) }));
+    const backlogLabels = ['status:backlog'];
+    const backlog = { ...issue(2, 'Done'), state: 'closed' as const, labels: backlogLabels, placement: placeIssue({ state: 'closed', labels: backlogLabels, boardStatus: 'Done' }, rules('labels.yaml')) };
+    expect(backlog.placement.column).toBe('Review');
+    expect(findMismatches({ artifacts, cards: [backlog], repositories: [repository], rulesFor: () => rules('labels.yaml') }))
+      .toContainEqual(expect.objectContaining({ kind: 'board-status-differs', args: expect.objectContaining({ column: 'Backlog', expected: 'Backlog' }) }));
+  });
 });

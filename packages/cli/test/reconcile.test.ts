@@ -181,6 +181,17 @@ describe('planReconcile', () => {
     expect(unavailable.reports.map((r) => r.kind)).toContain('process-unavailable');
   });
 
+  it('reports missing and conflicting Project status on closed Issues without proposing a status write', async () => {
+    const rules = defaultProcess().columns;
+    for (const boardStatus of [undefined, 'Todo']) {
+      const closed = card(10, { state: 'closed', labels: ['status:review'], boardStatusRead: true, boardStatus });
+      const plan = await planReconcile(input({ artifacts: quiet, cards: [closed], pulls: [], rulesFor: () => rules }));
+      expect(plan.actions.some((action) => action.kind === 'board.status')).toBe(false);
+      const report = plan.reports.find((item) => item.kind === (boardStatus ? 'board-status-differs' : 'board-status-missing'));
+      expect(report?.message).toContain('is closed');
+    }
+  });
+
   it('uses an explicit projection to compare known options and refuses unknown ordering', async () => {
     const rules = parseProcess('process.yaml', 'columns:\n  projection:\n    Backlog: Backlog\n    In progress: Working\n').process.columns;
     const behind = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Backlog' })], pulls: [], rulesFor: () => rules, statusOptions: ['Backlog', 'Working'] }));

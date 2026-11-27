@@ -28,6 +28,8 @@ Linked implementation PR and passing targeted automated tests with partial-failu
 
 Status: in progress. The implementation and observations below are not yet complete or independently reviewed.
 
+Implementation draft: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). CI and review of the final revision remain outstanding.
+
 ## Work in progress (2026-11-28 KST)
 
 The CLI rejects an unreadable or invalid target process and an ambiguous initial state before planning writes. `columns.initial` selects the initial column (default Backlog). Label-sourced creation uses its configured label; board-status creation plans a separately approved Status write only for a unique mapping to an actual option, reads the item before and after, and refuses to overwrite a different value. `npm run check` and the CLI tests exercised these paths with mocks, including denied process reads. These changes do not provide resumable identity, concurrent exclusion, complete post-write verification, or complete registration; rerunning creation after an uncertain write can still create another Issue. The board Status read and write are not atomic. Do not treat this work as task completion.

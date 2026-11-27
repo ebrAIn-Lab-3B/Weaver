@@ -29,6 +29,8 @@ Design and investigation notes linked from this task, cited source and test obse
 
 Status: in progress. The investigation and design are documented below; review and completion evidence remain outstanding.
 
+Implementation and investigation draft: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). This is not completion evidence.
+
 ## Work in progress (2026-11-27 KST)
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.

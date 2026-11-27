@@ -37,6 +37,8 @@ Final review also identified that a response with Status options but a missing p
 
 After that fix was merged in [PR #414](https://github.com/ebrAIn-Lab-3B/Weaver/pull/414), a read-only `reconcile` run on 2026-11-28 against ebrAIn.lab Kanban completed with Project options `Todo`, `In Progress` and `Done`, 24 reports and no unread-item-Status finding. It planned six Issue comments but did not approve or execute them. This verifies an ordinary live read after the fix, not a live malformed response.
 
+After PR #414, `npm run package` built `weaver-0.1.25.vsix`. Installing it into a separate temporary VS Code extension directory and running `node scripts/test-author-host.js packaged-overview` passed in VS Code 1.148.0. This verifies packaged activation and Overview opening in an empty isolated workspace, not a live GitHub diagnosis or the user's installed extension.
+
 Status: implementation and verification in progress; final review is outstanding.
 
 Completion evidence gap (2026-11-28): GitHub reported Issue #395 open with zero closing pull request references. This repository's process requires a merged closing PR for Verified. The merged implementation PRs listed below are evidence of implementation, but do not by themselves establish that required closing relationship. Do not infer Verified from their merge or from Project Status.

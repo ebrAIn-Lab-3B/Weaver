@@ -92,6 +92,15 @@ describe('planReconcile', () => {
     expect(plan.reports.some((r) => r.kind === 'closed-without-verified')).toBe(true);
   });
 
+  it('does not plan a Project status write for an open Issue labeled Verified', async () => {
+    for (const boardStatus of [undefined, 'Todo', 'In Progress']) {
+      const openVerified = card(10, { state: 'open', labels: ['task', 'status:verified'], boardStatus, boardStatusRead: true });
+      const plan = await planReconcile(input({ artifacts: quiet, cards: [openVerified], pulls: [], rulesFor: () => defaultProcess().columns, statusOptions: ['Todo', 'In Progress', 'Done'] }));
+      expect(openVerified.placement.gaps).toContainEqual({ code: 'gap.open-but-verified' });
+      expect(plan.actions.filter((action) => action.kind === 'board.status')).toEqual([]);
+    }
+  });
+
   it('does not comment again when the note is already on the Issue, and reports it when comments cannot be read', async () => {
     const marked = await planReconcile(input({ fetchFn: rest([{ body: 'x <!-- weaver:pull-50 -->' }]).fetchFn }));
     expect(marked.actions.some((a) => a.kind === 'issue.comment')).toBe(false);

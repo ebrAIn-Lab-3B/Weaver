@@ -488,6 +488,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       root,
       system: deps.system,
       fetch: deps.fetch,
+      wait: deps.wait,
       revalidateCheckout: checkoutSafe,
       revalidateProcess: async () => {
         const [current] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);

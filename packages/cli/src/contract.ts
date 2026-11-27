@@ -36,6 +36,8 @@ export interface Deps {
   files(root: string): Promise<SourceFile[]>;
   readText(file: string): Promise<string | undefined>;
   now(): Date;
+  /** Delay between read-only visibility checks; injectable for tests. */
+  wait?(milliseconds: number): Promise<void>;
   /** True when a person can answer a question on the terminal. */
   interactive: boolean;
   /** Asks the person one yes/no question; false for anything but yes. */

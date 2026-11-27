@@ -37,6 +37,8 @@ All write commands (`project add`, `task create`, `card move`, `evidence attach`
 
 When `task create` opens its file PR, its JSON status is `pending` and it exits 4: the PR has not yet been merged and the registration has not been verified. Inspect each action's identifiers and outcome, including after a failure. Exit 4 can also mean that an action awaits approval; the `status` and action outcomes distinguish the cases.
 
+After Project addition, `task create` rereads membership. If a complete read does not yet show the returned item, it waits 2, 4 and 8 seconds between up to three further reads; it never repeats the addition. An inaccessible or incomplete read, a conflicting item, or a still-unseen item stops the action with the known identifiers for investigation.
+
 The Issue creation action first creates two persistent `weaver/reservations/` branches in the target repository for the operation and task ID. The plan shows both refs before approval. They require repository write access and compatible branch rules and are not automatically removed, including after a failure or an uncertain response. Inspect the refs and prior attempts before any manual cleanup; deleting a reservation while its creator may still run can permit a duplicate. This coordinates cooperating creators for the same key, not external writers or all recovery actions.
 
 Initial file-PR creation and recovery of an already pushed branch share a separate persistent `recover-pr-task-*` reservation, shown in their approval plans. If an attempt ends before its PR can be confirmed, inspect the prior executor, branch and PR before deciding how to recover; the reservation is not automatically removed or taken over.

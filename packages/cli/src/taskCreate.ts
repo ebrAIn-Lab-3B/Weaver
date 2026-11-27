@@ -38,6 +38,8 @@ export interface TaskCreateInput {
   root: string;
   system: System;
   fetch?: Fetch;
+  /** Read-only visibility wait; no mutation is retried by this delay. */
+  wait?: (milliseconds: number) => Promise<void>;
   /** Re-read the approved process before each mutation; a changed or failed read refuses the write. */
   revalidateProcess?: () => Promise<boolean>;
   revalidateCheckout?: () => Promise<boolean>;
@@ -123,11 +125,20 @@ export function planTaskCreate(input: TaskCreateInput): PlannedAction[] {
       try { created.item = await addIssueToProject(input.token, input.project, created.url, input.fetch); }
       catch (error) { throw new NoticeError({ code: 'cli.task-create.project-write-uncertain', args: { issue: created.url, detail: detailOf(error) } }); }
       card.identifiers = { ...card.identifiers, issue: created.url, projectItem: created.item };
-      const observed = await readProject(input.token, input.project, [input.repository], input.fetch);
-      if (!observed.ok || observed.read.membershipComplete === false || observed.read.cards.filter((entry) => entry.projectItemId === created.item && entry.url.toLowerCase() === created.url?.toLowerCase()).length !== 1) throw new NoticeError({ code: 'cli.task-create.project-unverified', args: { issue: created.url } });
-      const observedCard = observed.read.cards.find((entry) => entry.projectItemId === created.item && entry.url.toLowerCase() === created.url?.toLowerCase());
-      if (input.initialBoardProjection && (observed.read.statusOptions?.filter((option) => option === input.initialBoardProjection).length !== 1 || !observedCard?.boardStatusRead || observedCard.boardStatus !== input.initialBoardProjection)) throw new NoticeError({ code: 'cli.task-create.projection-unverified', args: { repository: input.repository } });
-      return { identifiers: { task: id, issue: created.url, projectItem: created.item } };
+      const delays = [2000, 4000, 8000];
+      const wait = input.wait ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+      for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+        const observed = await readProject(input.token, input.project, [input.repository], input.fetch);
+        if (!observed.ok || observed.read.membershipComplete === false) throw new NoticeError({ code: 'cli.task-create.project-unverified', args: { issue: created.url } });
+        const matches = observed.read.cards.filter((entry) => entry.url.toLowerCase() === created.url?.toLowerCase());
+        if (matches.length > 1 || (matches.length === 1 && matches[0].projectItemId !== created.item)) throw new NoticeError({ code: 'cli.task-create.project-unverified', args: { issue: created.url } });
+        if (matches.length === 1) {
+          if (input.initialBoardProjection && (observed.read.statusOptions?.filter((option) => option === input.initialBoardProjection).length !== 1 || !matches[0].boardStatusRead || matches[0].boardStatus !== input.initialBoardProjection)) throw new NoticeError({ code: 'cli.task-create.projection-unverified', args: { repository: input.repository } });
+          return { identifiers: { task: id, issue: created.url, projectItem: created.item } };
+        }
+        if (attempt < delays.length) await wait(delays[attempt]);
+      }
+      throw new NoticeError({ code: 'cli.task-create.project-unverified', args: { issue: created.url } });
     },
   };
 

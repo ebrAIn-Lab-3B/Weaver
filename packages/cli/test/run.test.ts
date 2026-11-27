@@ -489,6 +489,80 @@ describe('weaver task create', () => {
     expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
   });
 
+  it('rechecks a delayed Project item without repeating its addition', async () => {
+    const ids = await approvedIds();
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    const waits: number[] = [];
+    let reads = 0;
+    let additions = 0;
+    s.deps.wait = async (milliseconds) => { waits.push(milliseconds); };
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('addProjectV2ItemById')) additions += 1;
+      const response = await original(url, init);
+      if (url.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('items(first:')) {
+        reads += 1;
+        if (reads > 1 && reads <= 3) {
+          const body = await response.json() as { data: { repositoryOwner: { projectV2: { items: { nodes: unknown[] } } } } };
+          body.data.repositoryOwner.projectV2.items.nodes = body.data.repositoryOwner.projectV2.items.nodes.filter((node) => (node as { id?: string }).id !== 'ITEM');
+          return { ...response, json: async () => body };
+        }
+      }
+      return response;
+    };
+    expect(await run([...ARGS, '--approve', ids.slice(0, 2).join(',')], s.deps)).toBe(EXIT.unconfirmed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((action: { outcome: string }) => action.outcome)).toEqual(['done', 'done', 'unconfirmed']);
+    expect(additions).toBe(1);
+    expect(waits).toEqual([2000, 4000]);
+    expect(actions[1].identifiers.projectItem).toBe('ITEM');
+  });
+
+  it('does not retry an inaccessible Project read after adding an item', async () => {
+    const ids = await approvedIds();
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let reads = 0;
+    let waits = 0;
+    s.deps.wait = async () => { waits += 1; };
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('items(first:')) {
+        reads += 1;
+        if (reads > 1) return { ok: false, status: 403, json: async () => ({}) };
+      }
+      return original(url, init);
+    };
+    expect(await run([...ARGS, '--approve', ids.slice(0, 2).join(',')], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[1].identifiers.projectItem).toBe('ITEM');
+    expect(reads).toBe(2);
+    expect(waits).toBe(0);
+  });
+
+  it('does not proceed when the Project read has another item for the same Issue', async () => {
+    const ids = await approvedIds();
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let reads = 0;
+    let waits = 0;
+    s.deps.wait = async () => { waits += 1; };
+    s.deps.fetch = async (url, init) => {
+      const response = await original(url, init);
+      if (url.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('items(first:')) {
+        reads += 1;
+        if (reads > 1) {
+          const body = await response.json() as { data: { repositoryOwner: { projectV2: { items: { nodes: { id?: string }[] } } } } };
+          const existing = body.data.repositoryOwner.projectV2.items.nodes.find((node) => node.id === 'ITEM');
+          if (existing) body.data.repositoryOwner.projectV2.items.nodes.push({ ...existing, id: 'OTHER-ITEM' });
+          return { ...response, json: async () => body };
+        }
+      }
+      return response;
+    };
+    expect(await run([...ARGS, '--approve', ids.slice(0, 2).join(',')], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[1].identifiers.projectItem).toBe('ITEM');
+    expect(waits).toBe(0);
+  });
+
   it('reports an unverified PR with its URL when the post-create read fails', async () => {
     const ids = (await approvedIds()).join(',');
     const s = setup();

@@ -251,16 +251,16 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   };
   // A contract field that lives in a Project field can be compared only when that field is read (DEC-016 item 5).
   const projectFields = [...new Set(repositories.flatMap((name) => contractFor(name)?.fields.flatMap((f) => (f.projectField ? [f.projectField] : [])) ?? []))];
-  let boardCards = read.read.cards;
+  let boardRead = read.read;
   if (args.command === 'reconcile' && projectFields.length > 0) {
     const again = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch, projectFields);
     if (!again.ok) {
       report(again.error.code, formatNotice(again.error, locale));
       return EXIT.failed;
     }
-    boardCards = again.read.cards;
+    boardRead = again.read;
   }
-  const cards = placeWithRules(boardCards, rulesFor);
+  const cards = placeWithRules(boardRead.cards, rulesFor);
   const all = toCliCards(cards, artifacts, deps.now(), idleDaysFor, evidenceFor);
 
   if (args.command === 'reconcile') {
@@ -272,8 +272,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       project: setup.project,
       repositories,
       cards,
-      statusOptions: read.read.statusOptions ?? [],
-      projectMembershipComplete: read.read.membershipComplete,
+      statusOptions: boardRead.statusOptions ?? [],
+      projectMembershipComplete: boardRead.membershipComplete,
       unavailableRepositories: repositories.filter((name) => { const report = processes.get(name.toLowerCase()); return !report || report.file === 'failed' || report.issues.some((issue) => issue.severity === 'error'); }),
       rulesFor,
       freshRulesFor: async (repository) => {
@@ -310,7 +310,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     const dryRun = !args.flags.has('apply') && !args.options.approve;
     const context = {
       project: setup.project,
-      statusOptions: read.read.statusOptions ?? null,
+      statusOptions: boardRead.statusOptions ?? null,
       incompletePullRepositories: merged.flatMap((result, index) => result.ok && !result.incomplete ? [] : [repositories[index]]),
       repositories: repositories.map((repository) => {
         const report = processes.get(repository.toLowerCase());
@@ -318,7 +318,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
         return { repository, file: report?.file ?? 'failed', columnsSource: report?.sources.columns ?? 'unknown', rules: rules ?? null, projectionOrigin: rules?.source === 'labels' ? (rules.projection ? 'repository' : 'legacy-default') : null, projection: rules?.source === 'labels' ? (rules.projection ?? PROJECT_STATUS_FOR_COLUMN) : null, issues: report?.issues ?? [] };
       }),
     };
-    const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: read.read.membershipComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
+    const initial = findMismatches({ artifacts, cards, repositories, projectMembershipComplete: boardRead.membershipComplete, pulls: merged.flatMap((r) => r.ok ? r.pulls : []), rulesFor, boardSourced: repositories.filter((name) => rulesFor(name)?.source === 'board-status'), contractFor });
     const recheck = async () => {
       let refreshedArtifacts: Artifact[];
       try {

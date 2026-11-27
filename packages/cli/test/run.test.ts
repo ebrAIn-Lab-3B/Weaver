@@ -759,6 +759,25 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('uses the same Project snapshot for cards and completeness when fields are reread', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    let projectReads = 0;
+    deps.fetch = async (url, init) => {
+      if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        projectReads += 1;
+        const nodes = projectReads === 1 ? [] : [{ fieldValueByName: null, content: null }];
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } } }) };
+      }
+      return originalFetch(url, init);
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.actions.filter((a: { kind: string }) => a.kind === 'project.add')).toEqual([]);
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'issue-project-unknown' }));
+  });
+
   it('stops when the Project field reread fails rather than planning from an older snapshot', async () => {
     const { deps, out } = setup();
     const originalFetch = deps.fetch!;

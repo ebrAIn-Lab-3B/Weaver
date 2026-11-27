@@ -50,6 +50,8 @@ Project item pagination is not an atomic snapshot. The reader now rejects a miss
 
 This map points to evidence for review; it does not itself mark either task Verified. The detailed live observations and limitations above remain part of the evidence.
 
+On 2026-11-28, GitHub reported the `check` job successful on each merged PR #400–#409 and no submitted reviews on any of those PRs. The repository CI definition includes `npm run check`, `npm test`, packaging, and additional host and CLI smoke checks. These are CI results for the respective PR revisions, not evidence of an independent human review. A fresh local `npm run check` and `npm test` on `main` passed (701 Markdown, 157 GitHub and 285 CLI tests), as did the mock-GitHub extension-host reconciliation test. GitHub still reported no closing PR references for Issues #395 and #398. Final review and the DEC-006 completion evidence remain outstanding.
+
 | Area | Evidence | Boundary |
 | --- | --- | --- |
 | Missing and invalid links, shared Issues, both sources and distinct Backlog/Todo | `packages/markdown/test/task133Scenarios.test.ts`; `packages/markdown/test/mismatch.test.ts` | Fixture-based; shared references are reported for review. |

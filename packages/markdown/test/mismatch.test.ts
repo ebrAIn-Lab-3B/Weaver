@@ -134,6 +134,10 @@ describe('findMismatches', () => {
     });
     const run = (pulls: MergedPull[], list = files) => findMismatches({ artifacts: list, cards, repositories: [REPO], pulls });
 
+    it('does not assert a missing closing reference when that connection is incomplete', () => {
+      expect(run([pull({ closingIncomplete: true })]).some((m) => m.kind === 'merged-pr-not-linked')).toBe(false);
+    });
+
     it('reports a merged pull request that names the task but does not close its Issue', () => {
       expect(run([pull({})])).toMatchObject([{ kind: 'merged-pr-not-linked', args: { pull: 80, task: 'TASK-033', number: 65 }, url: 'https://github.com/o/a/pull/80' }]);
     });

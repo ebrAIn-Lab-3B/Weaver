@@ -51,7 +51,7 @@ export async function readMergedPulls(
     if (!response.ok || body.errors?.length || !found) return failed;
     return {
       ok: true,
-      ...(found.pullRequests.pageInfo?.hasNextPage || found.pullRequests.nodes.some((pull) => pull.closingIssuesReferences.pageInfo?.hasNextPage) ? { incomplete: true } : {}),
+      ...(found.pullRequests.pageInfo?.hasNextPage !== false || found.pullRequests.nodes.some((pull) => pull.closingIssuesReferences.pageInfo?.hasNextPage !== false) ? { incomplete: true } : {}),
       pulls: found.pullRequests.nodes.map((pull) => ({
         repository,
         number: pull.number,
@@ -59,7 +59,7 @@ export async function readMergedPulls(
         url: pull.url,
         branch: pull.headRefName,
         closes: pull.closingIssuesReferences.nodes.map((issue) => issue.number),
-        ...(pull.closingIssuesReferences.pageInfo?.hasNextPage ? { closingIncomplete: true } : {}),
+        ...(pull.closingIssuesReferences.pageInfo?.hasNextPage !== false ? { closingIncomplete: true } : {}),
         ...(partialIssuesOfPull(pull.body).length ? { partial: partialIssuesOfPull(pull.body) } : {}),
       })),
     };

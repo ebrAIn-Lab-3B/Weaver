@@ -8,12 +8,12 @@ const node = (number: number, closes: number[]) => ({
   title: `PR ${number}`,
   url: `https://github.com/o/a/pull/${number}`,
   headRefName: `feat/task-0${number}-x`,
-  closingIssuesReferences: { nodes: closes.map((n) => ({ number: n })) },
+  closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: closes.map((n) => ({ number: n })) },
 });
 
 describe('readMergedPulls', () => {
   it('returns the pull requests with the Issues each one closes', async () => {
-    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { nodes: [node(80, [65]), node(79, [])] } } } }));
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [node(80, [65]), node(79, [])] } } } }));
     expect(result).toEqual({
       ok: true,
       pulls: [
@@ -25,7 +25,7 @@ describe('readMergedPulls', () => {
 
   it('reads an explicit partial-work marker without treating it as a closing reference', async () => {
     const item = { ...node(80, []), body: 'Refs #65\nPartial: #65' };
-    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { nodes: [item] } } } }));
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [item] } } } }));
     expect(result).toMatchObject({ ok: true, pulls: [{ closes: [], partial: [65] }] });
   });
 
@@ -35,11 +35,17 @@ describe('readMergedPulls', () => {
     expect(result).toMatchObject({ ok: true, incomplete: true, pulls: [{ closingIncomplete: true }] });
   });
 
+  it('treats missing page metadata as incomplete instead of proving no closing reference', async () => {
+    const item = { ...node(80, []), closingIssuesReferences: { nodes: [] } };
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { nodes: [item] } } } }));
+    expect(result).toMatchObject({ ok: true, incomplete: true, pulls: [{ closingIncomplete: true }] });
+  });
+
   it('asks for the owner, the name, and the limit', async () => {
     let variables: unknown;
     const spy: Fetch = async (_url, init) => {
       variables = JSON.parse(init.body).variables;
-      return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { nodes: [] } } } }) };
+      return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
     };
     await readMergedPulls('t', 'me/repo', 20, spy);
     expect(variables).toEqual({ o: 'me', r: 'repo', n: 20 });

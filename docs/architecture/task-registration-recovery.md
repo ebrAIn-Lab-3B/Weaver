@@ -1,8 +1,8 @@
 # Task registration identity and recovery investigation
 
-Status: design and implementation in progress for REQ-024, TASK-131 and TASK-132. This document describes the implemented protections and the remaining limits of the candidate safety contract.
+Status: accepted design and merged implementation for TASK-131 and TASK-132 under REQ-024. This document describes the implemented protections and their remaining limits; REQ-024 has additional work outstanding.
 
-The retained-reservation and explicit-handoff tradeoff is proposed for maintainer review in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md).
+The retained-reservation and explicit-handoff tradeoff is accepted in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md).
 
 ## Observed boundaries
 
@@ -10,7 +10,7 @@ The CLI includes paginated repository Issue and PR inventories in number allocat
 
 These observations follow `packages/cli/src/taskCreate.ts`, `run.ts`, `actions.ts`, `reconcileFiles.ts`, `filesPullRequest.ts`, and `apps/vscode-extension/src/makeTaskFile.ts`. The partial-write fixture in `packages/cli/test/run.test.ts` observes an Issue and card write followed by a failed file-branch push; it does not simulate a second process or establish absence of a duplicate. The Project reads and limits are documented in [the reconciliation design](task-reconciliation-design.md). The HealthBridge incident and issue links are recorded in [REQ-024](../requirements/REQ-024-task-registration-recovery.md).
 
-## Candidate identity and coordination contract
+## Identity and coordination contract
 
 1. The candidate contract calls for a stable registration operation identifier with an immutable intent. The current implementation derives a conservative operation key from the repository, requirement identity and normalized title. New Issue bodies also carry a digest of the requested task details, target Project and effective process; resume refuses a different digest. This is an editable Issue body, not a tamper-proof immutable intent manifest. Older Issues with a v1 marker or no marker contain no such digest, so their intent must be checked against the original request by the operator. A canonical repository-qualified task ID is a separate identity: a title, label, Project card or search hit is not a unique key. Creation exposes the operation and task reservation refs before asking for approval.
 2. Cooperating creators need an atomic, repository-visible reservation of both operation ID and task ID before Issue creation. A local lock does not coordinate machines; a read followed by Issue creation is not atomic. The current implementation creates two permanent Git refs, one keyed by a hash of repository, requirement identity and normalized title and the other by task ID, pointing at the observed default-branch commit. It does not yet store a versioned immutable intent manifest. A failed or unknown response aborts without retrying or deleting any ref; an abandoned reservation needs investigation, and deletion or takeover is a separate explicit decision, not an automatic timeout. GitHub ref creation, repository permissions, branch rules and retained refs are external dependencies and must be verified on the target host.
@@ -21,7 +21,7 @@ These observations follow `packages/cli/src/taskCreate.ts`, `run.ts`, `actions.t
 
 ## Alternatives and open decisions
 
-An unrestricted title search was rejected as identity because titles are neither unique nor stable. The current hashed operation key is a conservative coordination key, not proof of task identity; two semantically identical requests with different titles need not share it. A local-only journal can preserve IDs on one host but cannot exclude another host or survive loss of the journal. A global hosted lock service would add an infrastructure dependency and needs durable fencing accepted by the GitHub mutation; a time-based lease without such fencing cannot prevent a paused former holder from writing. Repository refs reserve names atomically but cannot make subsequent Issue creation atomic. A manual, fail-closed handoff is safe only when the human can establish that no prior executor can still write; if that cannot be established, the state stays unresolved. The recovery protocol, intent manifest and cleanup UX remain open work.
+An unrestricted title search was rejected as identity because titles are neither unique nor stable. The current hashed operation key is a conservative coordination key, not proof of task identity; two semantically identical requests with different titles need not share it. A local-only journal can preserve IDs on one host but cannot exclude another host or survive loss of the journal. A global hosted lock service would add an infrastructure dependency and needs durable fencing accepted by the GitHub mutation; a time-based lease without such fencing cannot prevent a paused former holder from writing. Repository refs reserve names atomically but cannot make subsequent Issue creation atomic. A manual, fail-closed handoff is safe only when the human can establish that no prior executor can still write; if that cannot be established, the state stays unresolved. An immutable intent manifest, automated cleanup and stronger fencing remain future work, not guarantees of the accepted manual protocol.
 
 ## Investigating retained reservations
 

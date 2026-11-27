@@ -26,11 +26,11 @@ TASK-131 design and decisions.
 
 Linked implementation PR and passing targeted automated tests with partial-failure and retry results; record remaining concurrency or host limitations.
 
-Status: ready for review. The implementation and observations below have not yet been independently reviewed or established as complete.
+Status: implementation and targeted verification complete in the merged PR. The code has no recorded formal GitHub review or independent test run; neither is inferred from CI or the user's approval of the design.
 
-The implemented recovery boundary is proposed in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md); its acceptance is not inferred from this implementation.
+The implemented recovery boundary is accepted in [DEC-032](../decisions/DEC-032-recoverable-task-registration.md) following the user's explicit approval.
 
-Implementation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416). The PR's current checks and review status are the authoritative execution evidence; an open PR does not establish completion.
+Implementation: [PR #416](https://github.com/ebrAIn-Lab-3B/Weaver/pull/416), merged by the user as `912dd1b0c8a6fa8f4f75c6b5efbff547095cfe7f`. [CI run 46056736052](https://github.com/ebrAIn-Lab-3B/Weaver/actions/runs/46056736052) passed on PR head `87aecc0cf8e95e1e29dd4a8daf1af1b2504f7d75`, including build, tests, packaging and host smoke checks. Locally, the targeted CLI suite passed 363 tests, the GitHub suite 161 and the Markdown suite 703. The acceptance evidence map and isolated GitHub observations below record the exercised paths and residual host and concurrency limits.
 
 Newly created Issues now carry a v2 registration marker with a digest of task details, Project and effective process. Resume refuses a mismatched digest; fixtures exercise a real create-to-resume flow and changes to criteria and assignment. Older v1 or unmarked Issues have no digest and require an explicit operator comparison against the original request. An editable Issue body is not an immutable intent manifest.
 
@@ -71,7 +71,7 @@ The same conservative guidance now covers an uncertain file-branch push or PR cr
 | File branch and PR | CLI fixtures cover a rejected push, an existing branch, a changed branch, lost PR response, a hidden PR and retained reservation. Private PRs #6 and #12 exercise recovery of a previously pushed branch; PR #6 also exercises merged-file verification. The Issue #14 probe above discards the response after a real successful push and verifies a safe stop at the retained reservation. |
 | Authorization and languages | CLI tests exercise per-action approval, stale approval IDs and rejection of changed observations; both message catalogs are tested. The host can still change state between a read and write. |
 
-The table is a review aid, not a claim that all combinations, independent actors or host failure modes have been exercised. Final revision review and task completion evidence remain outstanding.
+The table is a review aid, not a claim that all combinations, independent actors or host failure modes have been exercised. The merged revision, its CI and the user's subsequent design approval are recorded above; no independent code review or test execution is claimed.
 
 ## Work in progress (2026-11-28 KST)
 

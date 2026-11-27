@@ -1,14 +1,15 @@
 # DEC-032: Recover task registration with retained reservations and explicit handoff
 
-- Status: proposed; maintainer review is required
+- Status: accepted
 - Date: 2026-11-28
+- Accepted: 2026-11-28, following the user's explicit approval of DEC-032.
 - Related: `REQ-024`, `TASK-131`, `TASK-132`; retains [DEC-007](DEC-007-central-project-is-configuration.md), [DEC-008](DEC-008-agent-identity-and-write-confirmation.md), [DEC-016](DEC-016-task-contract-in-process-file.md) and [DEC-031](DEC-031-label-project-status-projection.md)
 
 ## Context
 
 Task registration crosses repository files, GitHub Issues, a Project and a file PR. These systems do not provide one transaction. A request can succeed while its response is lost, a Project listing can lag an item addition, and an earlier executor can be paused while another process retries. A title search or a local lock cannot prove that another Issue will not be created.
 
-## Proposed decision
+## Decision
 
 1. Resolve initial state and task fields from the target repository's effective process. The organization owns mappings; Weaver does not assume an organization's labels, roles or Project. Missing, conflicting or unreadable required facts stop writes.
 2. Before creating an Issue, reserve repository-visible refs for a conservative operation key and repository-qualified task ID. Only an execution that receives confirmation for both new refs can create the Issue. Initial file-PR creation and recovery of a pushed branch share a separate task-specific PR reservation. Refs remain after success, failure or an unknown outcome; timeout alone never transfers ownership or removes them.
@@ -25,4 +26,4 @@ Title-only search was rejected as identity, a local-only journal cannot coordina
 
 ## Review and evidence
 
-The [investigation and recovery procedure](../architecture/task-registration-recovery.md) and [TASK-132 evidence map](../tasks/TASK-132.md#acceptance-evidence-map) describe the tested boundaries, private fixture observations and residual limits. This proposal asks the maintainer to decide whether the retained-ref and explicit-handoff tradeoff is acceptable; it is not an accepted decision or proof that either task is complete.
+The [investigation and recovery procedure](../architecture/task-registration-recovery.md) and [TASK-132 evidence map](../tasks/TASK-132.md#acceptance-evidence-map) describe the tested boundaries, private fixture observations and residual limits. The user accepted this retained-ref and explicit-handoff tradeoff; acceptance does not establish that all work under REQ-024 is complete.

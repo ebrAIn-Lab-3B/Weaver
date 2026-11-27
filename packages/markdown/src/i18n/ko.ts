@@ -432,6 +432,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.reconcile.process-unavailable': '{repository}: 프로세스 규칙을 읽을 수 없거나 유효하지 않습니다. 진단 또는 수정 전에 새로 고치거나 프로세스를 바로잡아 주세요.',
   'cli.reconcile.closed-review': '{ref} 이슈는 종료됐지만 Verified 상태가 아닙니다. 근거를 검토한 후 필요하면 명시적으로 확인하고 이동해 주세요.',
   'cli.reconcile.recheck-unavailable': '처리 후 재점검에 실패했습니다. 다시 시도할 항목을 결정하기 전에 새로 고쳐 주세요.',
+  'cli.reconcile.recheck-process-changed': '재점검 중 저장소 프로세스 규칙이 바뀌었습니다. 새로 고친 뒤 같은 규칙으로 다시 비교해 주세요.',
   'cli.reconcile.recheck-fields-changed': '재점검 중 설정된 Project 필드가 바뀌었습니다. 새 필드를 읽도록 새로 고쳐 주세요.',
   'cli.reconcile.recheck-files': '작업 공간 파일을 다시 읽지 못했습니다. 판단하기 전에 새로 고쳐 주세요.',
   'cli.reconcile.recheck': '처리 후 재점검',

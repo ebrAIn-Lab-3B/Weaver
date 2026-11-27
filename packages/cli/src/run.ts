@@ -333,6 +333,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       if (failed.length) return { status: 'incomplete', reason: failed.map((r) => r.repository) };
       const latestFields = [...new Set(latestProcesses.flatMap((r) => r.process.task?.fields.flatMap((field) => field.projectField ? [field.projectField] : []) ?? []))];
       if (JSON.stringify([...latestFields].sort()) !== JSON.stringify([...projectFields].sort())) return { status: 'incomplete', reason: t('cli.reconcile.recheck-fields-changed', locale) };
+      if (latestProcesses.some((current) => { const before = processes.get(current.repository.toLowerCase()); return !before || before.file !== current.file || JSON.stringify(before.process) !== JSON.stringify(current.process); })) return { status: 'incomplete', reason: t('cli.reconcile.recheck-process-changed', locale) };
       const processByRepo = new Map(latestProcesses.map((r) => [r.repository.toLowerCase(), r]));
       const currentRules = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.columns;
       const currentContract = (repository: string) => processByRepo.get(repository.toLowerCase())?.process.task;

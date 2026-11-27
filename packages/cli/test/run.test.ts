@@ -785,13 +785,14 @@ describe('rule-based status reconciliation flow', () => {
     let failFileRead = 0;
     let processReads = 0;
     let changeAtProcessRead = 0;
+    let changedProcess = 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n';
     const originalFiles = deps.files;
     deps.files = async (root) => { fileReads += 1; if (fileReads === failFileRead) throw new Error('disk unavailable'); return originalFiles(root); };
     deps.fetch = async (url, init) => {
       if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
       if (url.includes('/contents/.weaver/')) {
         processReads += 1;
-        if (changeAtProcessRead && processReads >= changeAtProcessRead) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n' } as never;
+        if (changeAtProcessRead && processReads >= changeAtProcessRead) return { ok: true, status: 200, headers: { get: () => null }, text: async () => changedProcess } as never;
         return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
       }
       const { query } = JSON.parse(init.body);
@@ -849,5 +850,15 @@ describe('rule-based status reconciliation flow', () => {
     const changedSource = JSON.parse(out.join(''));
     expect(changedSource.recheck.remaining).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision' }));
     expect(changedSource.recheck.resolved).not.toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
+
+    // A changed process must not make an earlier finding look resolved under different rules.
+    status = 'Todo'; issueLabels = ['status:in-progress']; changeLabelOnWrite = false; out.length = 0;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const fifthAction = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'board.status');
+    out.length = 0; changedProcess = 'columns:\n  labels:\n    In progress: doing\n'; changeAtProcessRead = processReads + 4;
+    expect(await run(['reconcile', '--approve', fifthAction.id], deps)).toBe(EXIT.failed);
+    const changedRules = JSON.parse(out.join(''));
+    expect(changedRules.recheck).toMatchObject({ status: 'incomplete' });
+    expect(changedRules.recheck.reason).toContain('process rules changed');
   });
 });

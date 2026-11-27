@@ -17,6 +17,7 @@ describe('readMarkdownFiles', () => {
     await write('notes.txt', 'not markdown');
     await write('node_modules/x/README.md', 'skipped');
     await write('examples/sample/tasks/TASK-100.md', 'skipped');
+    await write('packages/markdown/test/examples/task-133/TASK-001.md', 'skipped');
     await write('dist/out.md', 'skipped');
     await write('.claude/worktrees/agent-1/docs/tasks/TASK-001.md', 'skipped');
     await write('.claude/notes.md', 'kept');

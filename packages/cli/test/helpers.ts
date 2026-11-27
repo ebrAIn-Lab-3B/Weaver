@@ -39,10 +39,31 @@ export function setup(options: { token?: string | undefined; registry?: string; 
   const logged: LogEntry[] = [];
   const shell: { command: string; args: string[]; cwd?: string }[] = [];
   const written: { file: string; text: string }[] = [];
+  const reserved = new Set<string>();
+  let createdIssue: { title: string; body: string; labels: string[] } | undefined;
+  let addedIssue = false;
+  let createdPullBranch = '';
   const fetchImpl: Fetch = async (url, init) => {
     // No repository has a process file unless a test says so (DEC-015).
     if (url.endsWith('/contents/')) return { ok: true, status: 200, json: async () => [] } as never;
     if (url.includes('/contents/.weaver/')) return { ok: false, status: 404, json: async () => ({}), text: async () => '' } as never;
+    if (url.includes('/issues?state=all&')) return { ok: true, status: 200, json: async () => [] };
+    if (url.includes('/pulls?state=all&')) return { ok: true, status: 200, json: async () => [{ title: 'docs: add TASK-040 x', head: { ref: 'docs/task-040-x' } }] };
+    if (url === 'https://api.github.com/repos/me/Weaver' && init.method === 'GET') return { ok: true, status: 200, json: async () => ({ default_branch: 'main' }) };
+    if (url.endsWith('/commits/main') && init.method === 'GET') return { ok: true, status: 200, json: async () => ({ sha: 'a'.repeat(40) }) };
+    if (url.includes('/git/ref/heads/weaver/reservations/') && init.method === 'GET') {
+      const ref = `refs/${url.split('/git/ref/')[1]}`;
+      return reserved.has(ref) ? { ok: true, status: 200, json: async () => ({ ref }) } : { ok: false, status: 404, json: async () => ({}) };
+    }
+    if (url.endsWith('/git/refs') && init.method === 'POST') {
+      const { ref, sha } = JSON.parse(init.body) as { ref: string; sha: string };
+      writes.push(`RESERVE ${ref}`);
+      if (reserved.has(ref)) return { ok: false, status: 422, json: async () => ({}) };
+      reserved.add(ref);
+      return { ok: true, status: 201, json: async () => ({ ref, object: { sha } }) };
+    }
+    if (url.endsWith('/issues/77') && createdIssue) return { ok: true, status: 200, json: async () => ({ ...createdIssue, number: 77, html_url: 'https://github.com/me/Weaver/issues/77', state: 'open', assignees: [] }) };
+    if (url.endsWith('/issues') && init.method === 'POST') createdIssue = JSON.parse(init.body) as typeof createdIssue;
     if (url.includes('/repos/')) {
       writes.push(`REST ${url}`);
       return { ok: true, status: 201, json: async () => ({ number: 77, html_url: 'https://github.com/me/Weaver/issues/77' }) };
@@ -52,9 +73,11 @@ export function setup(options: { token?: string | undefined; registry?: string; 
     if (query.includes('resource(url')) {
       return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT' } }, resource: { id: 'ISSUE' } } }) };
     }
-    if (query.includes('addProjectV2ItemById')) return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) };
+    if (query.includes('addProjectV2ItemById')) { addedIssue = true; return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) }; }
     if (query.includes('projectV2')) {
-      const body = { data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [issue(10), issue(11)] } } } } };
+      const nodes = [issue(10), issue(11)];
+      if (addedIssue && createdIssue) nodes.push({ ...issue(77, { title: createdIssue.title, labels: { pageInfo: { hasNextPage: false }, nodes: createdIssue.labels.map((name) => ({ name })) } }), id: 'ITEM' } as ReturnType<typeof issue>);
+      const body = { data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } } };
       return { ok: true, status: 200, json: async () => body };
     }
     if (options.pullsFail) return { ok: false, status: 500, json: async () => ({}) };
@@ -79,7 +102,8 @@ export function setup(options: { token?: string | undefined; registry?: string; 
     system: {
       run: async (command, args, options) => {
         shell.push({ command, args, cwd: options?.cwd });
-        if (command === 'gh' && args[0] === 'pr' && args[1] === 'create') return 'https://github.com/me/Weaver/pull/200\n';
+        if (command === 'gh' && args[0] === 'pr' && args[1] === 'create') { createdPullBranch = args[args.indexOf('--head') + 1]; return 'https://github.com/me/Weaver/pull/200\n'; }
+        if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') return JSON.stringify({ url: 'https://github.com/me/Weaver/pull/200', state: 'OPEN', headRefName: createdPullBranch });
         if (command === 'gh' && args[0] === 'pr') return JSON.stringify([{ title: 'docs: add TASK-040 x', headRefName: 'docs/task-040-x' }]);
         if (command === 'gh') return 'main\n';
         if (args[0] === 'rev-parse') return '/work\n';

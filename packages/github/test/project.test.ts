@@ -340,6 +340,8 @@ describe('readProject: Project fields of a task contract (DEC-016)', () => {
     expect(query).toContain('f1:fieldValueByName(name:"Blocker \\"x\\"")');
     const cards = result.ok ? result.read.cards : [];
     expect(cards[0].fields).toEqual({ Level: 'high', 'Blocker "x"': 'waiting' });
+    expect(cards[0].fieldsRead).toEqual({ Level: true, 'Blocker "x"': true, Empty: true });
     expect(cards[1].fields).toEqual({});
+    expect(cards[1].fieldsRead).toEqual({ Level: false, 'Blocker "x"': false, Empty: false });
   });
 });

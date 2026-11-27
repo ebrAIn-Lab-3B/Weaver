@@ -7,7 +7,8 @@ export const SCHEMA = 1;
 
 /**
  * Exit codes. 4 and 5 are the two ways a write ends without changing anything: nobody confirmed it
- * (an agent has to show the plan to the user and run again with `--approve`), or the user said no.
+ * (an agent has to show the plan to the user and run again with `--approve`, or a task file PR is
+ * pending merge and verification), or the user said no.
  * 6 is a command that asks questions and was run without a terminal.
  */
 export const EXIT = { ok: 0, failed: 1, usage: 2, notFound: 3, unconfirmed: 4, declined: 5, needsTerminal: 6 } as const;

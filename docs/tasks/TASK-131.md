@@ -27,8 +27,10 @@ None.
 
 Design and investigation notes linked from this task, cited source and test observations, and review of unresolved decisions. No implementation completion is implied.
 
-Status: planned. No implementation or completion evidence has been recorded.
+Status: in progress. The investigation and design are documented below; review and completion evidence remain outstanding.
 
 ## Work in progress (2026-11-27 KST)
 
 The [reconciliation design](../architecture/task-reconciliation-design.md) records the current safety contract and limits. Implementation and verification are in progress; this does not establish task completion.
+
+The [registration identity investigation](../architecture/task-registration-recovery.md) inventories the current creation boundary and proposes identity, reservation, uncertainty and recovery rules. In particular, a Git ref or expiring lease alone cannot fence a paused Issue creator; the execution and takeover protocol remains unresolved. The existing partial-push-failure fixture is synthetic evidence of one boundary, not the complete test matrix. This task remains in progress.

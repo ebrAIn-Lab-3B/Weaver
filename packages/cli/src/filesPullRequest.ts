@@ -18,7 +18,7 @@ export interface FilesPullRequest {
  * on a new branch cut from the default branch, so the user's own checkout and the default branch
  * stay untouched; the worktree is removed afterwards, whether it worked or not.
  */
-export async function openFilesPullRequest(input: FilesPullRequest): Promise<void> {
+export async function openFilesPullRequest(input: FilesPullRequest): Promise<string> {
   const { system } = input;
   const top = (await system.run('git', ['rev-parse', '--show-toplevel'], { cwd: input.root })).trim();
   const base = (await system.run('gh', ['repo', 'view', input.repository, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'])).trim();
@@ -30,7 +30,7 @@ export async function openFilesPullRequest(input: FilesPullRequest): Promise<voi
     await system.run('git', ['add', '-A'], { cwd: work });
     await system.run('git', ['commit', '-m', input.commitMessage], { cwd: work });
     await system.run('git', ['push', '-u', 'origin', input.branch], { cwd: work });
-    await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body]);
+    return (await system.run('gh', ['pr', 'create', '--repo', input.repository, '--head', input.branch, '--base', base, '--title', input.title, '--body', input.body])).trim();
   } finally {
     await system.run('git', ['worktree', 'remove', '--force', work], { cwd: top }).catch(() => undefined);
   }

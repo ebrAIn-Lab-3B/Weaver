@@ -101,7 +101,9 @@ columns:
     Done: Verified
 ```
 
-With `board-status`, Weaver reads and writes no label. A card whose Status is not in the map is shown in Backlog with a note, and a closed card that is not Done is shown in Review with a note.
+With `board-status`, Weaver reads and writes no status label. A card whose Status is not in the map is shown in Backlog with a note, and a closed card that is not Done is shown in Review with a note.
+
+For task creation, `columns.initial` may name a Weaver column; it defaults to `Backlog` when omitted. The selected column must have a unique label or a single mapped Project Status option, according to `columns.source`. Board-status creation checks the actual Project options and will not overwrite a different Status assigned by an automation. Registration recovery is still under development: after an uncertain write, inspect the Issue and Project before retrying creation.
 
 > **A board with only Todo, In Progress, and Done cannot tell Ready, Blocked, and Review apart.** With `board-status` on such a board those three columns stay empty, and a move to one of them is refused with a message instead of guessed. That is a limit of the board. Either keep the labels, or give the board a richer Status field and map it as above.
 

@@ -33,7 +33,7 @@ This page is the contract. Every JSON example below is checked by a test against
 | 1 | Failed: no configuration, no token, GitHub unreachable, or a write failed |
 | 2 | The command was wrong or refused (unknown command, missing argument, a move to Verified without evidence, a pull request that is not merged) |
 | 3 | The card was not found |
-| 4 | A write was **not confirmed**: nothing was changed (see below) |
+| 4 | A write awaits confirmation, or task registration has a proposed file PR and remains pending. Inspect `status` and individual `actions` to distinguish these cases. |
 | 5 | A write was **declined** by the person at the terminal: nothing was changed |
 | 6 | A command that asks questions (`weaver init`) was run without a terminal |
 
@@ -237,8 +237,10 @@ When the user describes work in a conversation and agrees that it should be trac
 
 1. Find the requirement it belongs to (`weaver list` shows the requirements of the cards) and the criteria it serves.
 2. Run `weaver task create --title "<short title>" --requirement REQ-### --criteria AC-###`. A title cannot contain a colon or a line break.
-3. Show the three planned actions to the user: the Issue, the Project card, and the pull request that adds the task file. The pull request is made in a separate worktree from the default branch, so nothing is committed to the default branch and the user's checkout is not touched.
-4. After the user approves, run the command again with the approved ids in `--approve`. Give the user the Issue and pull request addresses from the result.
+3. Show all planned actions to the user: the Issue, the Project card, any configured Project fields, and the pull request that adds the task file. The pull request is made in a separate worktree from the default branch, so nothing is committed to the default branch and the user's checkout is not touched.
+4. After the user approves, run the command again with the approved ids in `--approve`. Give the user the identifiers from each action. A `pending` result means the file PR is proposed, not merged, and registration is not yet verified. After an uncertain failure inspect the Issue, Project and pull requests before retrying; complete automatic recovery and concurrent exclusion are not yet implemented.
+
+If the prior Issue URL is known, `--resume-issue <url>` can reuse it after identity and status checks. It proposes only missing steps; for a unique matching open PR with a Project item it checks both files at the PR head and reports `pending` without a new write. It refuses ambiguous files, branches, PRs or shared associations. It does not resolve an unknown Issue-creation outcome or provide concurrent exclusion for recovery; inspect unresolved cases before acting.
 
 <!-- example: task -->
 ```json
@@ -250,7 +252,8 @@ When the user describes work in a conversation and agrees that it should be trac
       "id": "4f7e2115bd5f",
       "kind": "issue.create",
       "target": "me/Weaver",
-      "summary": "Create the Issue \"[TASK-041] Add the export button\" in me/Weaver with the labels task, status:backlog.",
+      "identifiers": {"task": "TASK-041", "repository": "me/Weaver", "requirement": "REQ-001", "operationReservation": "refs/heads/weaver/reservations/op-example", "taskReservation": "refs/heads/weaver/reservations/task-041"},
+      "summary": "Reserve refs/heads/weaver/reservations/op-example and refs/heads/weaver/reservations/task-041 in me/Weaver, then create Issue \"[TASK-041] Add the export button\" with labels task, status:backlog. Reservations remain for recovery.",
       "reason": "A ticket becomes a task: the Issue, the Project card, and the task file are created together so it is not forgotten.",
       "outcome": "unconfirmed"
     },
@@ -258,6 +261,7 @@ When the user describes work in a conversation and agrees that it should be trac
       "id": "ae3be644cdd9",
       "kind": "project.add",
       "target": "me/Weaver TASK-041",
+      "identifiers": {"task": "TASK-041", "project": "me/1"},
       "summary": "Add the new Issue to the Project me/1.",
       "reason": "A ticket becomes a task: the Issue, the Project card, and the task file are created together so it is not forgotten.",
       "outcome": "unconfirmed"
@@ -266,7 +270,8 @@ When the user describes work in a conversation and agrees that it should be trac
       "id": "3f6403f44b24",
       "kind": "files.pull-request",
       "target": "me/Weaver docs/task-041-add-the-export-button",
-      "summary": "Open a pull request in me/Weaver that adds tasks/TASK-041.md and lists TASK-041 under REQ-001. The default branch is not touched.",
+      "identifiers": {"task": "TASK-041", "branch": "docs/task-041-add-the-export-button", "path": "tasks/TASK-041.md", "requirement": "REQ-001"},
+      "summary": "Open a pull request in me/Weaver that adds tasks/TASK-041.md and lists TASK-041 under REQ-001. Criteria: AC-001; assignee type: agent; assignee: -. The default branch is not touched.",
       "reason": "A ticket becomes a task: the Issue, the Project card, and the task file are created together so it is not forgotten.",
       "outcome": "unconfirmed"
     }

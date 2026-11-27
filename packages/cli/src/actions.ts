@@ -24,9 +24,11 @@ export interface PlannedAction {
    * that is not the change itself. Without it the id comes from the kind, target, and English summary.
    */
   fingerprint?: string;
+  /** Known identity, also reported if the write fails or waits for approval. */
+  identifiers?: Record<string, string>;
   /** Actions that must have succeeded first; this one is skipped otherwise. */
   dependsOn?: PlannedAction[];
-  run(): Promise<void>;
+  run(): Promise<void | { identifiers: Record<string, string> }>;
 }
 
 export type Outcome = 'done' | 'failed' | 'declined' | 'unconfirmed' | 'skipped';
@@ -40,6 +42,7 @@ export interface ActionResult {
   outcome: Outcome;
   /** The error of a failed action. */
   message?: string;
+  identifiers?: Record<string, string>;
 }
 
 /** One line of the local action log: who or what did it, to what, and why. */
@@ -122,6 +125,7 @@ export async function executeActions(actions: readonly PlannedAction[], ctx: Exe
       summary: formatNotice(action.summary, ctx.locale),
       reason: formatNotice(action.reason, ctx.locale),
       outcome: 'skipped',
+      ...(action.identifiers ? { identifiers: { ...action.identifiers } } : {}),
     };
     results.set(action, result);
 
@@ -154,10 +158,12 @@ export async function executeActions(actions: readonly PlannedAction[], ctx: Exe
 
     const entry = { time: ctx.now().toISOString(), actor: ctx.actor, ...(ctx.onBehalfOf ? { onBehalfOf: ctx.onBehalfOf } : {}), action: action.kind, target: action.target, reason: formatNotice(action.reason, 'en') };
     try {
-      await action.run();
+      const details = await action.run();
+      if (details) result.identifiers = { ...result.identifiers, ...details.identifiers };
       result.outcome = 'done';
       await ctx.log.append({ ...entry, outcome: 'done' });
     } catch (error) {
+      if (action.identifiers) result.identifiers = { ...result.identifiers, ...action.identifiers };
       result.outcome = 'failed';
       result.message = errorText(error, ctx.locale);
       stopped = true;
@@ -202,6 +208,11 @@ export interface FinishOptions {
   /** Diagnostic context returned for reconciliation. */
   context?: unknown;
   recheck?: unknown;
+  /** A file PR is proposed, not merged; task registration remains incomplete. */
+  registration?: boolean;
+  existingPull?: boolean;
+  verifiedRegistration?: boolean;
+  registrationRecheck?: boolean;
 }
 
 export function finishActions(
@@ -211,22 +222,27 @@ export function finishActions(
   text: boolean,
   options: FinishOptions = {},
 ): number {
-  const { skipped = [], report = [], dryRun = false, context, recheck } = options;
+  const { skipped = [], report = [], dryRun = false, context, recheck, registration = false, existingPull = false, verifiedRegistration = false, registrationRecheck = false } = options;
   const recheckIncomplete = typeof recheck === 'object' && recheck !== null && 'status' in recheck && (recheck.status === 'unavailable' || recheck.status === 'incomplete');
   const actionCode = dryRun && exitCodeOf(results) === EXIT.unconfirmed ? EXIT.ok : exitCodeOf(results);
-  const code = recheckIncomplete && actionCode === EXIT.ok ? EXIT.failed : actionCode;
+  const pendingRegistration = registration && actionCode === EXIT.ok && (existingPull || results.some((result) => result.kind === 'files.pull-request' && result.outcome === 'done'));
+  const needsRegistrationRecheck = registration && registrationRecheck && actionCode === EXIT.ok && results.some((result) => result.outcome === 'done');
+  const code = recheckIncomplete && actionCode === EXIT.ok ? EXIT.failed : pendingRegistration || needsRegistrationRecheck ? EXIT.unconfirmed : actionCode;
   if (text) {
-    if (context !== undefined) deps.out(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(context)}\n`);
+    if (context !== undefined) deps.out(`${t(registration ? 'cli.task-create.context' : 'cli.reconcile.context', locale)}\t${JSON.stringify(context)}\n`);
     if (recheck !== undefined) deps.out(`${t('cli.reconcile.recheck', locale)}\t${JSON.stringify(recheck)}\n`);
     for (const s of skipped) deps.err(`${t(`cli.skip.${s.reason}` as MessageKey, locale)}\t${s.ref}\n`);
-    for (const r of results) deps.out(`${t(`cli.outcome.${r.outcome}`, locale)}\t${r.kind}\t${r.target}${r.message ? `\t${r.message}` : ''}\n`);
+    for (const r of results) deps.out(`${t(`cli.outcome.${r.outcome}`, locale)}\t${r.kind}\t${r.target}${r.identifiers ? `\t${JSON.stringify(r.identifiers)}` : ''}${r.message ? `\t${r.message}` : ''}\n`);
+    if (pendingRegistration) deps.out(`${t('cli.task-create.files-pending', locale)}\n`);
+    if (needsRegistrationRecheck) deps.out(`${t('cli.task-create.recheck-registration', locale)}\n`);
+    if (verifiedRegistration) deps.out(`${t('cli.task-create.registration-verified', locale)}\n`);
     for (const r of report) deps.out(`${r.tier}\t${r.kind}\t${r.subject}\t${r.message}\n`);
     const waiting = results.filter((r) => r.outcome === 'unconfirmed').map((r) => r.id);
     if (waiting.length) deps.err(`${t('cli.unconfirmed-hint', locale, { ids: waiting.join(',') })}\n`);
   } else {
     const waiting = results.some((r) => r.outcome === 'unconfirmed');
-    const status = actionCode === EXIT.failed ? 'failed' : recheckIncomplete ? 'incomplete' : results.length === 0 ? 'nothing' : code === EXIT.failed ? 'failed' : code === EXIT.declined ? 'declined' : waiting ? (dryRun ? 'plan' : 'unconfirmed') : 'done';
-    deps.out(`${JSON.stringify({ schema: SCHEMA, status, actions: results, skipped, report, ...(context !== undefined ? { context } : {}), ...(recheck !== undefined ? { recheck } : {}) })}\n`);
+    const status = actionCode === EXIT.failed ? 'failed' : recheckIncomplete || needsRegistrationRecheck ? 'incomplete' : pendingRegistration ? 'pending' : verifiedRegistration ? 'done' : results.length === 0 ? 'nothing' : code === EXIT.failed ? 'failed' : code === EXIT.declined ? 'declined' : waiting ? (dryRun ? 'plan' : 'unconfirmed') : 'done';
+    deps.out(`${JSON.stringify({ schema: SCHEMA, status, actions: results, skipped, report, ...(needsRegistrationRecheck ? { message: t('cli.task-create.recheck-registration', locale) } : pendingRegistration ? { message: t('cli.task-create.files-pending', locale) } : verifiedRegistration ? { message: t('cli.task-create.registration-verified', locale) } : {}), ...(context !== undefined ? { context } : {}), ...(recheck !== undefined ? { recheck } : {}) })}\n`);
   }
   return code;
 }

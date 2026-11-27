@@ -238,11 +238,53 @@ describe('weaver task create', () => {
     expect(shell.filter((s) => s.args[0] === 'push' || s.args[0] === 'worktree')).toEqual([]);
   });
 
+  it('binds approval to task criteria and assignment as well as the visible target', async () => {
+    const first = setup();
+    await run(ARGS, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    expect(plan[2].summary).toContain('AC-001, AC-002');
+    expect(plan[2].summary).toContain('claude-code');
+    const changed = setup();
+    const modified = ARGS.map((value) => value === 'claude-code' ? 'other-agent' : value);
+    expect(await run([...modified, '--approve', plan.map((a: { id: string }) => a.id).join(',')], changed.deps)).toBe(EXIT.unconfirmed);
+    const result = JSON.parse(changed.out.join(''));
+    expect(result.actions.every((action: { outcome: string }) => action.outcome === 'unconfirmed')).toBe(true);
+    expect(changed.writes.filter((w) => w.startsWith('REST') || w.includes('addProjectV2ItemById'))).toEqual([]);
+  });
+
+  it('permits only one concurrent creator to reach Issue creation', async () => {
+    const first = setup();
+    await run(ARGS, first.deps);
+    const ids = JSON.parse(first.out.join('')).actions.map((a: { id: string }) => a.id).join(',');
+    const reservations = new Set<string>();
+    const workers = [setup(), setup()];
+    for (const worker of workers) {
+      const original = worker.deps.fetch as Fetch;
+      worker.deps.fetch = async (url, init) => {
+        if (url.endsWith('/git/refs') && init.method === 'POST') {
+          const { ref, sha } = JSON.parse(init.body) as { ref: string; sha: string };
+          if (reservations.has(ref)) return { ok: false, status: 422, json: async () => ({}) };
+          reservations.add(ref);
+          return { ok: true, status: 201, json: async () => ({ ref, object: { sha } }) };
+        }
+        return original(url, init);
+      };
+    }
+    const results = await Promise.all(workers.map((worker) => run([...ARGS, '--approve', ids], worker.deps)));
+    expect(results.sort()).toEqual([EXIT.failed, EXIT.unconfirmed].sort());
+    expect(workers.flatMap((worker) => worker.writes).filter((write) => write === 'REST https://api.github.com/repos/me/Weaver/issues')).toHaveLength(1);
+    expect(reservations.size).toBe(2);
+  });
+
   it('creates the Issue, adds the card, and opens a pull request from a separate worktree once all three are approved', async () => {
     const ids = (await approvedIds()).join(',');
     const { deps, out, writes, shell, written, logged } = setup();
-    expect(await run([...ARGS, '--approve', ids], deps)).toBe(EXIT.ok);
-    expect(JSON.parse(out.join('')).status).toBe('done');
+    expect(await run([...ARGS, '--approve', ids], deps)).toBe(EXIT.unconfirmed);
+    const result = JSON.parse(out.join(''));
+    expect(result.status).toBe('pending');
+    expect(result.actions[0].identifiers).toMatchObject({ task: 'TASK-041', issue: 'https://github.com/me/Weaver/issues/77' });
+    expect(result.actions[1].identifiers.projectItem).toBe('ITEM');
+    expect(result.actions[2].identifiers.pullRequest).toBe('https://github.com/me/Weaver/pull/200');
     expect(writes).toContain('REST https://api.github.com/repos/me/Weaver/issues');
     expect(writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(true);
     expect(logged.map((l) => l.action)).toEqual(['issue.create', 'project.add', 'files.pull-request']);
@@ -281,9 +323,202 @@ describe('weaver task create', () => {
     const ids = (await approvedIds()).join(',');
     const { deps, out } = setup();
     const original = deps.fetch as Fetch;
-    deps.fetch = async (url, init) => (url.includes('/repos/') ? { ok: false, status: 422, json: async () => ({ message: 'Validation Failed' }) } : original(url, init));
+    deps.fetch = async (url, init) => (url.endsWith('/issues') ? { ok: false, status: 422, json: async () => ({ message: 'Validation Failed' }) } : original(url, init));
     expect(await run([...ARGS, '--approve', ids], deps)).toBe(EXIT.failed);
     expect(JSON.parse(out.join('')).actions.map((a: { outcome: string }) => a.outcome)).toEqual(['failed', 'skipped', 'skipped']);
+  });
+
+  it('retains the Issue URL and stops when its post-write read fails or disagrees', async () => {
+    const ids = (await approvedIds()).join(',');
+    for (const scenario of ['unavailable', 'wrong-title'] as const) {
+      const s = setup();
+      const original = s.deps.fetch as Fetch;
+      s.deps.fetch = async (url, init) => {
+        if (url.endsWith('/issues/77')) {
+          if (scenario === 'unavailable') return { ok: false, status: 403, json: async () => ({}) };
+          const response = await original(url, init);
+          const issue = await response.json() as Record<string, unknown>;
+          return { ...response, json: async () => ({ ...issue, title: 'changed by another actor' }) };
+        }
+        return original(url, init);
+      };
+      expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+      const actions = JSON.parse(s.out.join('')).actions;
+      expect(actions.map((a: { outcome: string }) => a.outcome)).toEqual(['failed', 'skipped', 'skipped']);
+      expect(actions[0].identifiers.issue).toBe('https://github.com/me/Weaver/issues/77');
+      expect(actions[0].message).toContain('could not be verified');
+      expect(s.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
+    }
+  });
+
+  it('retains the Project item ID and stops when the new membership is not observed', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let projectReads = 0;
+    s.deps.fetch = async (url, init) => {
+      const response = await original(url, init);
+      if (url.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('items(first:')) {
+        projectReads += 1;
+        if (projectReads > 1) {
+          const body = await response.json() as { data: { repositoryOwner: { projectV2: { items: { nodes: unknown[] } } } } };
+          body.data.repositoryOwner.projectV2.items.nodes = body.data.repositoryOwner.projectV2.items.nodes.filter((node) => (node as { id?: string }).id !== 'ITEM');
+          return { ...response, json: async () => body };
+        }
+      }
+      return response;
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'failed', 'skipped']);
+    expect(actions[1].identifiers).toMatchObject({ issue: 'https://github.com/me/Weaver/issues/77', projectItem: 'ITEM' });
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('reports an unverified PR with its URL when the post-create read fails', async () => {
+    const ids = (await approvedIds()).join(',');
+    const s = setup();
+    const original = s.deps.system.run;
+    s.deps.system.run = async (command, args, options) => {
+      if (command === 'gh' && args[0] === 'pr' && args[1] === 'view') throw new Error('read unavailable');
+      return original(command, args, options);
+    };
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'done', 'failed']);
+    expect(actions[2].identifiers.pullRequest).toBe('https://github.com/me/Weaver/pull/200');
+    expect(actions[2].message).toContain('could not be verified');
+  });
+
+  it('fails closed when the target process cannot be read', async () => {
+    const { deps, out, writes } = setup();
+    const original = deps.fetch as Fetch;
+    deps.fetch = async (url, init) => url.includes('/contents/.weaver/process.yaml')
+      ? { ok: false, status: 403, json: async () => ({ message: 'Forbidden' }) }
+      : original(url, init);
+    expect(await run(ARGS, deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).error.code).toBe('cli.task-create.process-unsafe');
+    expect(writes.filter((w) => w.startsWith('REST') || w.includes('addProjectV2ItemById'))).toEqual([]);
+  });
+
+  it('stops a retry when an Issue outside the Project has the same task title', async () => {
+    const { deps, out, writes } = setup();
+    const original = deps.fetch as Fetch;
+    deps.fetch = async (url, init) => url.includes('/issues?state=all&')
+      ? { ok: true, status: 200, json: async () => [{ title: '[TASK-041] Add the export button', html_url: 'https://github.com/me/Weaver/issues/77', body: 'Earlier issue' }] }
+      : original(url, init);
+    expect(await run(ARGS, deps)).toBe(EXIT.failed);
+    expect(JSON.parse(out.join('')).error.code).toBe('cli.task-create.identity-ambiguous');
+    expect(JSON.parse(out.join('')).error.details.candidates).toEqual([{ task: 'TASK-041', url: 'https://github.com/me/Weaver/issues/77', markerMatches: false }]);
+    expect(writes.filter((w) => w.startsWith('REST'))).toEqual([]);
+  });
+
+  it('exposes a marked Issue candidate after a lost creation response without creating another Issue', async () => {
+    const first = setup();
+    await run(ARGS, first.deps);
+    const issueAction = JSON.parse(first.out.join('')).actions[0].id;
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let posted: { title: string; body: string } | undefined;
+    let createCalls = 0;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/issues') && init.method === 'POST') {
+        createCalls += 1;
+        posted = JSON.parse(init.body) as { title: string; body: string };
+        throw new Error('response lost');
+      }
+      if (url.includes('/issues?state=all&') && posted) return { ok: true, status: 200, json: async () => [{ title: posted!.title, body: posted!.body, html_url: 'https://github.com/me/Weaver/issues/77' }] };
+      return original(url, init);
+    };
+    expect(await run([...ARGS, '--approve', issueAction], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[0].identifiers.issue).toBeUndefined();
+    s.out.length = 0;
+    expect(await run(ARGS, s.deps)).toBe(EXIT.failed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.error.details.candidates).toEqual([{ task: 'TASK-041', url: 'https://github.com/me/Weaver/issues/77', markerMatches: true }]);
+    expect(result.error.message).toContain('--resume-issue');
+    expect(createCalls).toBe(1);
+  });
+
+  it('refuses a new plan when an earlier operation reservation is visible but the Issue list is stale', async () => {
+    const first = setup();
+    await run(ARGS, first.deps);
+    const issueAction = JSON.parse(first.out.join('')).actions[0].id;
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let createCalls = 0;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/issues') && init.method === 'POST') { createCalls += 1; throw new Error('response lost'); }
+      return original(url, init);
+    };
+    expect(await run([...ARGS, '--approve', issueAction], s.deps)).toBe(EXIT.failed);
+    s.out.length = 0;
+    expect(await run(ARGS, s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.operation-reserved');
+    expect(createCalls).toBe(1);
+  });
+
+  it('stops before creating an Issue if the repository inventory becomes unavailable or changes after planning', async () => {
+    for (const outcome of ['denied', 'candidate'] as const) {
+      const first = setup();
+      await run(ARGS, first.deps);
+      const id = JSON.parse(first.out.join('')).actions[0].id;
+      const { deps, out, writes } = setup();
+      const original = deps.fetch as Fetch;
+      let reads = 0;
+      deps.fetch = async (url, init) => {
+        if (!url.includes('/issues?state=all&')) return original(url, init);
+        reads += 1;
+        if (reads === 1) return { ok: true, status: 200, json: async () => [] };
+        return outcome === 'denied'
+          ? { ok: false, status: 403, json: async () => ({}) }
+          : { ok: true, status: 200, json: async () => [{ title: '[TASK-041] Another title' }] };
+      };
+      expect(await run([...ARGS, '--approve', id], deps)).toBe(EXIT.failed);
+      expect(JSON.parse(out.join('')).actions[0].outcome).toBe('failed');
+      expect(writes.filter((w) => w.startsWith('REST'))).toEqual([]);
+    }
+  });
+
+  it('fails closed when a PR inventory page cannot be read or is malformed', async () => {
+    for (const malformed of [false, true]) {
+      const { deps, out, writes } = setup();
+      const original = deps.fetch as Fetch;
+      deps.fetch = async (url, init) => {
+        if (url.includes('/pulls?state=all&')) return malformed
+          ? { ok: true, status: 200, json: async () => [{ title: 'missing head' }] }
+          : { ok: false, status: 403, json: async () => ({}) };
+        return original(url, init);
+      };
+      expect(await run(ARGS, deps)).toBe(EXIT.failed);
+      expect(JSON.parse(out.join('')).error.code).toBe('cli.task-create.inventory-unavailable');
+      expect(writes.filter((w) => w.startsWith('REST'))).toEqual([]);
+    }
+  });
+
+  it('stops later writes if the process changes after Issue creation', async () => {
+    const first = setup();
+    const initialFetch = first.deps.fetch as Fetch;
+    first.deps.fetch = (async (url: string, init: unknown) => url.includes('/contents/.weaver/')
+      ? { ok: true, status: 200, headers: { get: () => null }, text: async () => 'columns:\n  source: labels\n' }
+      : initialFetch(url, init as never)) as unknown as Fetch;
+    await run(ARGS, first.deps);
+    const ids = JSON.parse(first.out.join('')).actions.map((a: { id: string }) => a.id).join(',');
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let reads = 0;
+    s.deps.fetch = (async (url: string, init: unknown) => {
+      if (url.includes('/contents/.weaver/')) {
+        reads += 1;
+        return { ok: true, status: 200, headers: { get: () => null }, text: async () => reads < 4 ? 'columns:\n  source: labels\n' : 'columns:\n  source: board-status\n' };
+      }
+      return original(url, init as never);
+    }) as unknown as Fetch;
+    expect(await run([...ARGS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((a: { outcome: string }) => a.outcome)).toEqual(['done', 'failed', 'skipped']);
+    expect(actions[0].identifiers.issue).toBe('https://github.com/me/Weaver/issues/77');
+    expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(false);
   });
 
   it('refuses a missing requirement, a colon in the title, an unknown criterion, and a missing option', async () => {
@@ -320,10 +555,11 @@ describe('weaver task create with a task contract (DEC-016)', () => {
   const BASE = ['task', 'create', '--title', 'Add the export button', '--requirement', 'REQ-001'];
 
   /** The repository has the process file, and the Project has a Priority field; every write is recorded. */
-  function withContract(text: string | null = PROCESS) {
+  function withContract(text: string | null = PROCESS, options: { existingPriority?: string; omitFieldRead?: boolean; ignoreWrite?: boolean } = {}) {
     const s = setup();
     const original = s.deps.fetch as Fetch;
     const posted: { url: string; body: Record<string, unknown> }[] = [];
+    let priority: string | undefined = options.existingPriority;
     s.deps.fetch = (async (url: string, init: { method?: string; body?: string }) => {
       if (url.includes('/contents/.weaver/')) {
         if (text === null) return original(url, init as never);
@@ -336,10 +572,17 @@ describe('weaver task create with a task contract (DEC-016)', () => {
       }
       if (typeof body.query === 'string' && body.query.includes('updateProjectV2ItemFieldValue')) {
         posted.push({ url: 'field', body });
+        if (!options.ignoreWrite) priority = 'P1';
         return reply({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } });
       }
       if (url.endsWith('/issues')) posted.push({ url, body });
-      return original(url, init as never);
+      const response = await original(url, init as never);
+      if (typeof body.query === 'string' && body.query.includes('f0:fieldValueByName')) {
+        const json = await response.json() as { data: { repositoryOwner: { projectV2: { items: { nodes: { id?: string; f0?: unknown }[] } } } } };
+        for (const node of json.data.repositoryOwner.projectV2.items.nodes) if (node.id === 'ITEM' && !options.omitFieldRead) node.f0 = priority ? { name: priority } : null;
+        return { ...response, json: async () => json };
+      }
+      return response;
     }) as unknown as Fetch;
     return { ...s, posted };
   }
@@ -364,14 +607,28 @@ describe('weaver task create with a task contract (DEC-016)', () => {
     const ids = (JSON.parse(first.out.join('')).actions as { id: string }[]).map((a) => a.id).join(',');
 
     const { deps, out, posted, written } = withContract();
-    expect(await run([...BASE, ...FIELDS, '--approve', ids], deps)).toBe(EXIT.ok);
-    expect(JSON.parse(out.join('')).status).toBe('done');
+    expect(await run([...BASE, ...FIELDS, '--approve', ids], deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(out.join('')).status).toBe('pending');
     expect((posted.find((p) => p.url.endsWith('/issues'))?.body as { labels: string[] }).labels).toEqual(['task', 'status:backlog', 'owner:alpha']);
     expect(posted.find((p) => p.url === 'field')?.body.variables).toEqual({ p: 'PROJECT', i: 'ITEM', f: 'FIELD', o: 'OPT1' });
     const task = written.find((w) => w.file.endsWith('TASK-041.md'))?.text ?? '';
     expect(task).toContain('owner: alpha');
     expect(task).not.toContain('priority');
     expect(task).toMatch(/## Context\n\n## Done when\n/);
+  });
+
+  it('refuses an existing different value, an incomplete read, or an unconfirmed field write', async () => {
+    const first = withContract();
+    await run([...BASE, ...FIELDS], first.deps);
+    const ids = (JSON.parse(first.out.join('')).actions as { id: string }[]).map((action) => action.id).join(',');
+    for (const options of [{ existingPriority: 'P0' }, { omitFieldRead: true }, { ignoreWrite: true }]) {
+      const s = withContract(PROCESS, options);
+      expect(await run([...BASE, ...FIELDS, '--approve', ids], s.deps)).toBe(EXIT.failed);
+      const actions = JSON.parse(s.out.join('')).actions;
+      expect(actions[2].outcome).toBe('failed');
+      expect(actions[3].outcome).toBe('skipped');
+      expect(s.posted.filter((post) => post.url === 'field')).toHaveLength(options.ignoreWrite ? 1 : 0);
+    }
   });
 
   it('stops with a gap and creates nothing when a required field has no value or a value is not allowed', async () => {
@@ -393,7 +650,7 @@ describe('weaver task create with a task contract (DEC-016)', () => {
     const plain = withContract('columns:\n  source: labels\n');
     expect(await run(BASE, plain.deps)).toBe(EXIT.unconfirmed);
     expect(JSON.parse(plain.out.join('')).actions.map((a: { kind: string }) => a.kind)).toEqual(['issue.create', 'project.add', 'files.pull-request']);
-    expect(plain.err.join('')).toContain('with the labels task, status:backlog.');
+    expect(plain.err.join('')).toContain('with labels task, status:backlog.');
 
     const none = withContract(null);
     expect(await run([...BASE, '--field', 'owner=alpha'], none.deps)).toBe(EXIT.usage);
@@ -415,6 +672,366 @@ describe('weaver task create with a task contract (DEC-016)', () => {
     const text = renderTaskFile({ id: 'TASK-001', title: 'T', requirement: 'REQ-001', issueUrl: 'https://github.com/me/x/issues/1', issueNumber: 1, repository: 'me/x', criteria: [], assigneeType: 'agent', fileFields: [{ name: 'owner', value: 'alpha' }, { name: 'note', value: 'a: b' }], sections: ['Context'] });
     expect(text).toContain('assignee_type: agent\nowner: alpha\nnote: "a: b"\n---');
     expect(text.endsWith('the Kanban column comes from the Issue.\n\n## Context\n')).toBe(true);
+  });
+});
+
+describe('task creation initial state', () => {
+  const args = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001'];
+  function configured(process: string, options: readonly string[] | null = ['Queue', 'Doing'], existingStatus?: string) {
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    const posted: { query?: string; variables?: Record<string, unknown>; labels?: string[] }[] = [];
+    let added = false;
+    let status: string | undefined = existingStatus;
+    s.deps.fetch = (async (url: string, init: { body: string }) => {
+      if (url.includes('/contents/.weaver/')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => process };
+      const body = JSON.parse(init.body || '{}');
+      if (url.endsWith('/issues')) posted.push(body);
+      if (body.query?.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: (options ?? []).map((name) => ({ id: `id-${name}`, name })) } } } } }) };
+      if (body.query?.includes('updateProjectV2ItemFieldValue')) {
+        posted.push(body);
+        status = String(body.variables.o).replace(/^id-/, '');
+        return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM' } } } }) };
+      }
+      if (body.query?.includes('addProjectV2ItemById')) added = true;
+      const response = await original(url, init as never);
+      if (body.query?.includes('items(first:')) {
+        const data = await response.json() as { data: { repositoryOwner: { projectV2: { field?: unknown; items: { nodes: unknown[] } } } } };
+        if (options) data.data.repositoryOwner.projectV2.field = { options: options.map((name) => ({ name })) };
+        if (added) {
+          data.data.repositoryOwner.projectV2.items.nodes = data.data.repositoryOwner.projectV2.items.nodes.filter((node) => (node as { id?: string }).id !== 'ITEM');
+          data.data.repositoryOwner.projectV2.items.nodes.push({ ...issue(77, { title: '[TASK-041] New task', labels: { pageInfo: { hasNextPage: false }, nodes: [] } }), id: 'ITEM', fieldValueByName: status ? { name: status } : null });
+        }
+        return { ...response, json: async () => data };
+      }
+      return response;
+    }) as unknown as Fetch;
+    return { ...s, posted };
+  }
+
+  it('uses the configured initial column label', async () => {
+    const process = 'columns:\n  source: labels\n  initial: Ready\n  labels:\n    Ready: state:queued\n';
+    const first = configured(process);
+    await run(args, first.deps);
+    const ids = JSON.parse(first.out.join('')).actions.map((a: { id: string }) => a.id).join(',');
+    const s = configured(process);
+    expect(await run([...args, '--approve', ids], s.deps)).toBe(EXIT.unconfirmed);
+    expect(s.posted[0].labels).toContain('state:queued');
+    expect(s.posted[0].labels).not.toContain('status:backlog');
+  });
+
+  it('plans and writes the exact configured board option', async () => {
+    const process = 'columns:\n  source: board-status\n  initial: Ready\n  board:\n    Queue: Ready\n    Doing: In progress\n';
+    const first = configured(process);
+    await run(args, first.deps);
+    const actions = JSON.parse(first.out.join('')).actions;
+    expect(actions.map((a: { kind: string }) => a.kind)).toEqual(['issue.create', 'project.add', 'project.field', 'files.pull-request']);
+    const s = configured(process);
+    expect(await run([...args, '--approve', actions.map((a: { id: string }) => a.id).join(',')], s.deps)).toBe(EXIT.unconfirmed);
+    expect(s.posted[0].labels).not.toContain('status:backlog');
+    expect(s.posted[1].variables).toMatchObject({ f: 'F', o: 'id-Queue', i: 'ITEM' });
+  });
+
+  it('refuses missing, ambiguous, or unreadable board options before any writes', async () => {
+    for (const [board, options] of [
+      ['    Queue: Ready\n    Other: Ready\n', ['Queue', 'Other']],
+      ['    Queue: Ready\n', ['Doing']],
+      ['    Queue: Ready\n', null],
+    ] as const) {
+      const s = configured(`columns:\n  source: board-status\n  initial: Ready\n  board:\n${board}`, options);
+      expect(await run(args, s.deps)).toBe(EXIT.failed);
+      expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.state-unsupported');
+      expect(s.posted).toEqual([]);
+    }
+  });
+
+  it('rejects an explicit label projection with a missing Project option', async () => {
+    const s = configured('columns:\n  source: labels\n  projection:\n    Backlog: Missing\n');
+    expect(await run(args, s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.state-unsupported');
+    expect(s.posted).toEqual([]);
+  });
+
+  it('does not continue to files when the explicit label projection is not observed after adding the item', async () => {
+    const process = 'columns:\n  source: labels\n  projection:\n    Backlog: Queue\n';
+    const first = configured(process);
+    await run(args, first.deps);
+    const actions = JSON.parse(first.out.join('')).actions;
+    const s = configured(process);
+    expect(await run([...args, '--approve', actions.map((action: { id: string }) => action.id).join(',')], s.deps)).toBe(EXIT.failed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.actions.map((action: { outcome: string }) => action.outcome)).toEqual(['done', 'failed', 'skipped']);
+    expect(result.actions[1].message).toContain('projection');
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('does not overwrite a status assigned by Project automation', async () => {
+    const process = 'columns:\n  source: board-status\n  initial: Ready\n  board:\n    Queue: Ready\n    Doing: In progress\n';
+    const first = configured(process);
+    await run(args, first.deps);
+    const actions = JSON.parse(first.out.join('')).actions;
+    const s = configured(process, ['Queue', 'Doing'], 'Doing');
+    expect(await run([...args, '--approve', actions.map((a: { id: string }) => a.id).join(',')], s.deps)).toBe(EXIT.failed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.actions[2].outcome).toBe('failed');
+    expect(result.actions[2].message).toContain('already has a different value');
+    expect(s.posted.filter((p) => p.query?.includes('updateProjectV2ItemFieldValue'))).toEqual([]);
+  });
+});
+
+describe('task creation resume by explicit Issue', () => {
+  const url = 'https://github.com/me/Weaver/issues/77';
+  const args = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001', '--resume-issue', url];
+  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable' } = {}) {
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    let createCount = 0;
+    let added = false;
+    let pullCreated = options.existingPull ?? false;
+    let branchReads = 0;
+    let boardStatus: string | undefined;
+    let statusWrites = 0;
+    let priorityValue: string | undefined = options.priority === 'P0' || options.priority === 'P1' ? options.priority : undefined;
+    let priorityWrites = 0;
+    const head = 'a'.repeat(40);
+    s.deps.fetch = (async (request: string, init: { method?: string; body?: string }) => {
+      if (options.priority && request.includes('/contents/.weaver/')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'task:\n  fields:\n    priority:\n      source: project\n      project-field: Priority\n      values: [P0, P1]\n' };
+      if (options.boardUnset && request.includes('/contents/.weaver/')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'columns:\n  source: board-status\n  board:\n    Queue: Backlog\n    Doing: In progress\n' };
+      const query = request.endsWith('/graphql') && init.body ? JSON.parse(init.body).query as string : '';
+      if (options.priority && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'P1', name: 'P1' }] } } } } }) };
+      if (options.priority && query.includes('updateProjectV2ItemFieldValue')) { priorityWrites += 1; priorityValue = 'P1'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
+      if (options.boardUnset && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'Q', name: 'Queue' }, { id: 'D', name: 'Doing' }] } } } } }) };
+      if (options.boardUnset && query.includes('updateProjectV2ItemFieldValue')) { statusWrites += 1; boardStatus = 'Queue'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
+      if (request.endsWith('/issues/77')) return { ok: true, status: 200, json: async () => ({ number: 77, title: options.issueTitle ?? '[TASK-041] New task', html_url: url, state: 'open', labels: [{ name: 'status:ready' }], assignees: [], body: options.body ?? 'A task of REQ-001 (First). The definition is tasks/TASK-041.md.' }) };
+      if (options.recoverBranch && request.includes('/contents/tasks/TASK-041.md?')) {
+        const content = renderTaskFile({ id: 'TASK-041', title: 'New task', requirement: 'REQ-001', issueUrl: url, issueNumber: 77, repository: 'me/Weaver', criteria: [], assigneeType: 'agent' });
+        return { ok: true, status: 200, json: async () => ({ type: 'file', encoding: 'base64', content: Buffer.from(content).toString('base64') }) };
+      }
+      if (options.recoverBranch && request.includes('/contents/requirements/REQ-001.md?')) return { ok: true, status: 200, json: async () => ({ type: 'file', encoding: 'base64', content: Buffer.from(taskListLine('TASK-041', 'New task', 77, url)).toString('base64') }) };
+      if (options.recoverBranch && (request.includes('/pulls?state=all&head=') || request.endsWith('/pulls/200'))) {
+        const item = { number: 200, html_url: 'https://github.com/me/Weaver/pull/200', state: 'open', head: { ref: 'docs/task-041-new-task', sha: head, repo: { full_name: 'me/Weaver' } }, base: { ref: 'main', repo: { full_name: 'me/Weaver' } } };
+        return { ok: true, status: 200, json: async () => request.endsWith('/pulls/200') ? item : pullCreated ? [item] : [] };
+      }
+      if (request.includes('/issues?state=all&')) return { ok: true, status: 200, json: async () => [{ title: options.issueTitle ?? '[TASK-041] New task', html_url: url }] };
+      if (request.includes('/pulls?state=all&') && options.existingPull) return { ok: true, status: 200, json: async () => [{ title: 'TASK-041', head: { ref: 'docs/task-041-new-task' } }] };
+      if (request.includes('/pulls?state=all&') && options.conflictingPull) return { ok: true, status: 200, json: async () => [{ title: 'TASK-041', head: { ref: 'task-041' } }] };
+      if (request.endsWith('/issues') && init.method === 'POST') createCount += 1;
+      if (request.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('addProjectV2ItemById')) added = true;
+      const response = await original(request, init as never);
+      if ((options.onProject || (added && !options.hideAddedItem)) && request.endsWith('/graphql') && init.body && JSON.parse(init.body).query.includes('items(first:')) {
+        const json = await response.json() as { data: { repositoryOwner: { projectV2: { field?: unknown; items: { nodes: unknown[] } } } } };
+        if (options.boardUnset) json.data.repositoryOwner.projectV2.field = { options: [{ name: 'Queue' }, { name: 'Doing' }] };
+        json.data.repositoryOwner.projectV2.items.nodes.push({ ...issue(77, { title: '[TASK-041] New task', labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:ready' }] } }), id: options.onProject ? 'ITEM77' : 'ITEM', ...(options.boardUnset ? { fieldValueByName: boardStatus ? { name: boardStatus } : null } : {}), ...(options.priority && options.priority !== 'unreadable' && query.includes('f0:fieldValueByName') ? { f0: priorityValue ? { name: priorityValue } : null } : {}) });
+        return { ...response, json: async () => json };
+      }
+      return response;
+    }) as unknown as Fetch;
+    if (options.branchExists) {
+      const runSystem = s.deps.system.run;
+      s.deps.system.run = async (command, argv, opts) => command === 'git' && argv[0] === 'ls-remote' ? 'existing refs/heads/docs/task-041-new-task\n' : runSystem(command, argv, opts);
+    }
+    if (options.recoverBranch) {
+      const runSystem = s.deps.system.run;
+      s.deps.system.run = async (command, argv, opts) => {
+        if (command === 'git' && argv[0] === 'ls-remote') {
+          branchReads += 1;
+          return `${options.changedBranch && branchReads > 2 ? 'b'.repeat(40) : head}\trefs/heads/docs/task-041-new-task\n`;
+        }
+        if (command === 'gh' && argv[0] === 'pr' && argv[1] === 'create') { pullCreated = true; return 'https://github.com/me/Weaver/pull/200\n'; }
+        return runSystem(command, argv, opts);
+      };
+    }
+    return { ...s, createCount: () => createCount, statusWrites: () => statusWrites, priorityWrites: () => priorityWrites };
+  }
+
+  it('reuses an existing Issue and Project item and only offers the file PR', async () => {
+    const first = fixture({ onProject: true });
+    expect(await run(args, first.deps)).toBe(EXIT.unconfirmed);
+    const plan = JSON.parse(first.out.join('')).actions;
+    expect(plan.map((a: { kind: string }) => a.kind)).toEqual(['files.pull-request']);
+    expect(JSON.parse(first.out.join('')).context).toMatchObject({ task: 'TASK-041', issue: { url, labels: ['status:ready'] }, project: { membership: 'observed', item: 'ITEM77' }, files: 'unverified' });
+    const s = fixture({ onProject: true });
+    expect(await run([...args, '--approve', plan[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.status).toBe('pending');
+    expect(result.actions[0].identifiers.issue).toBe(url);
+    expect(s.createCount()).toBe(0);
+    expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(false);
+    expect(s.written.find((entry) => entry.file.endsWith('TASK-041.md'))?.text).toContain(`issue: ${url}`);
+  });
+
+  it('adds a missing Project item without creating another Issue', async () => {
+    const first = fixture();
+    await run(args, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    expect(plan.map((a: { kind: string }) => a.kind)).toEqual(['project.add', 'files.pull-request']);
+    const s = fixture();
+    expect(await run([...args, '--approve', plan.map((a: { id: string }) => a.id).join(',')], s.deps)).toBe(EXIT.unconfirmed);
+    expect(s.createCount()).toBe(0);
+    expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(true);
+  });
+
+  it('restores an unset board status only after approval and verifies the result', async () => {
+    const first = fixture({ onProject: true, boardUnset: true });
+    await run(args, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    expect(plan.map((action: { kind: string }) => action.kind)).toEqual(['project.field', 'files.pull-request']);
+    expect(plan[0].summary).toContain('unset Project Status');
+    const s = fixture({ onProject: true, boardUnset: true });
+    expect(await run([...args, '--approve', plan.map((action: { id: string }) => action.id).join(',')], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('pending');
+    expect(s.statusWrites()).toBe(1);
+    expect(s.createCount()).toBe(0);
+  });
+
+  it('does not open a file PR while the unset status action awaits approval', async () => {
+    const first = fixture({ onProject: true, boardUnset: true });
+    await run(args, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    const s = fixture({ onProject: true, boardUnset: true });
+    expect(await run([...args, '--approve', plan[1].id], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).actions.map((action: { outcome: string }) => action.outcome)).toEqual(['unconfirmed', 'unconfirmed']);
+    expect(s.statusWrites()).toBe(0);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('resumes a missing configured Project field and skips an already matching field', async () => {
+    const taskArgs = [...args, '--field', 'priority=P1'];
+    const first = fixture({ onProject: true, priority: 'missing' });
+    await run(taskArgs, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    expect(plan.map((action: { kind: string }) => action.kind)).toEqual(['project.field', 'files.pull-request']);
+    const s = fixture({ onProject: true, priority: 'missing' });
+    expect(await run([...taskArgs, '--approve', plan.map((action: { id: string }) => action.id).join(',')], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('pending');
+    expect(s.priorityWrites()).toBe(1);
+    const matching = fixture({ onProject: true, priority: 'P1' });
+    await run(taskArgs, matching.deps);
+    expect(JSON.parse(matching.out.join('')).actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
+    expect(matching.priorityWrites()).toBe(0);
+  });
+
+  it('refuses conflicting or unreadable configured Project fields on resume', async () => {
+    for (const priority of ['P0', 'unreadable'] as const) {
+      const s = fixture({ onProject: true, priority });
+      expect(await run([...args, '--field', 'priority=P1'], s.deps)).toBe(EXIT.failed);
+      expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.resume-unsafe');
+      expect(s.priorityWrites()).toBe(0);
+    }
+  });
+
+  it('restores a missing configured field with an existing PR and then rechecks without a duplicate', async () => {
+    const s = fixture({ onProject: true, priority: 'missing', recoverBranch: true, existingPull: true });
+    const taskArgs = [...args, '--field', 'priority=P1'];
+    expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);
+    const plan = JSON.parse(s.out.join(''));
+    expect(plan.actions.map((action: { kind: string }) => action.kind)).toEqual(['project.field']);
+    expect(plan.context.files).toBe('proposed');
+    s.out.length = 0;
+    expect(await run([...taskArgs, '--approve', plan.actions[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('incomplete');
+    expect(s.priorityWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('pending');
+    expect(JSON.parse(s.out.join('')).actions).toEqual([]);
+    expect(s.priorityWrites()).toBe(1);
+  });
+
+  it('restores a missing configured field before proposing a PR from an existing branch', async () => {
+    const s = fixture({ onProject: true, priority: 'missing', recoverBranch: true });
+    const taskArgs = [...args, '--field', 'priority=P1'];
+    expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);
+    const plan = JSON.parse(s.out.join(''));
+    expect(plan.actions.map((action: { kind: string }) => action.kind)).toEqual(['project.field']);
+    expect(plan.context.files).toBe('branch-observed');
+    s.out.length = 0;
+    expect(await run([...taskArgs, '--approve', plan.actions[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('incomplete');
+    expect(s.priorityWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(taskArgs, s.deps)).toBe(EXIT.unconfirmed);
+    const next = JSON.parse(s.out.join(''));
+    expect(next.actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
+    expect(next.actions[0].summary).toContain('existing branch');
+    expect(s.priorityWrites()).toBe(1);
+  });
+
+  it('restores missing status without duplicating an existing verified PR', async () => {
+    const s = fixture({ onProject: true, boardUnset: true, recoverBranch: true, existingPull: true });
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const first = JSON.parse(s.out.join(''));
+    expect(first.actions.map((action: { kind: string }) => action.kind)).toEqual(['project.field']);
+    expect(first.context.files).toBe('proposed');
+    s.out.length = 0;
+    expect(await run([...args, '--approve', first.actions[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    const updated = JSON.parse(s.out.join(''));
+    expect(updated.status).toBe('incomplete');
+    expect(updated.actions[0].outcome).toBe('done');
+    expect(s.statusWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const checked = JSON.parse(s.out.join(''));
+    expect(checked.status).toBe('pending');
+    expect(checked.actions).toEqual([]);
+    expect(checked.context.pullRequest.url).toBe('https://github.com/me/Weaver/pull/200');
+    expect(s.statusWrites()).toBe(1);
+  });
+
+  it('refuses mismatched identity or a PR that may already contain the task', async () => {
+    for (const options of [{ body: 'A task of REQ-999' }, { body: 'A task of REQ-001 (First). The definition is tasks/TASK-041.md.\n\n<!-- weaver-registration:v1 operation=other task=TASK-041 -->' }, { issueTitle: '[TASK-041] Other' }, { conflictingPull: true }]) {
+      const s = fixture(options);
+      expect(await run(args, s.deps)).toBe(EXIT.failed);
+      expect(JSON.parse(s.out.join('')).error.code).toBe('cli.task-create.resume-unsafe');
+      expect(s.createCount()).toBe(0);
+    }
+  });
+
+  it('does not push over a branch left by an earlier uncertain attempt', async () => {
+    const first = fixture({ onProject: true });
+    await run(args, first.deps);
+    const id = JSON.parse(first.out.join('')).actions[0].id;
+    const s = fixture({ onProject: true, branchExists: true });
+    expect(await run([...args, '--approve', id], s.deps)).toBe(EXIT.failed);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('reports an uncertain Project addition and does not start the file PR when the post-read misses it', async () => {
+    const first = fixture();
+    await run(args, first.deps);
+    const plan = JSON.parse(first.out.join('')).actions;
+    const s = fixture({ hideAddedItem: true });
+    expect(await run([...args, '--approve', plan.map((a: { id: string }) => a.id).join(',')], s.deps)).toBe(EXIT.failed);
+    const actions = JSON.parse(s.out.join('')).actions;
+    expect(actions.map((a: { outcome: string }) => a.outcome)).toEqual(['failed', 'skipped']);
+    expect(actions[0].identifiers.issue).toBe(url);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('offers only a separately approved PR for a verified existing branch', async () => {
+    const s = fixture({ onProject: true, recoverBranch: true });
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const plan = JSON.parse(s.out.join('')).actions;
+    expect(plan).toHaveLength(1);
+    expect(plan[0].summary).toContain('existing branch');
+    s.out.length = 0;
+    expect(await run([...args, '--approve', plan[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.status).toBe('pending');
+    expect(result.actions[0].identifiers.pullRequest).toBe('https://github.com/me/Weaver/pull/200');
+    expect(s.createCount()).toBe(0);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
+  });
+
+  it('refuses a branch that changes after the recovery plan', async () => {
+    const s = fixture({ onProject: true, recoverBranch: true, changedBranch: true });
+    await run(args, s.deps);
+    const plan = JSON.parse(s.out.join('')).actions;
+    s.out.length = 0;
+    expect(await run([...args, '--approve', plan[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).actions[0].id).not.toBe(plan[0].id);
+    expect(s.createCount()).toBe(0);
+    expect(s.shell.some((call) => call.command === 'git' && call.args[0] === 'push')).toBe(false);
   });
 });
 

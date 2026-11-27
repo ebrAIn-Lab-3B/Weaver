@@ -23,6 +23,8 @@ export interface ProjectCard {
   boardStatusRead?: boolean;
   /** The values of the extra Project fields that were asked for (a task contract's `project-field`); a field with no value is left out. */
   fields?: Record<string, string>;
+  /** Whether each requested field value was returned, including an explicitly unset value. */
+  fieldsRead?: Record<string, boolean>;
   /** When the Issue last changed, as an ISO date. */
   updatedAt?: string;
   /** Pull requests that close or mention the Issue. */
@@ -171,10 +173,12 @@ export async function readProject(
       const labels = (issue.labels?.nodes ?? []).map((label) => label.name);
       const taskId = TASK_TITLE.exec(issue.title ?? '')?.[1];
       const fields: Record<string, string> = {};
+      const fieldsRead: Record<string, boolean> = {};
       extraFields.forEach((name, i) => {
         const value = node[`f${i}`];
         const text = value?.name ?? value?.text;
-        if (text) fields[name] = text;
+        fieldsRead[name] = value === null || typeof text === 'string';
+        if (typeof text === 'string') fields[name] = text;
       });
       const pulls = mergeCardPulls(
         (issue.closedByPullRequestsReferences?.nodes ?? []).filter((n): n is RawPull => n !== null),
@@ -191,7 +195,7 @@ export async function readProject(
         assignees: (issue.assignees?.nodes ?? []).map((a) => a.login),
         boardStatusRead: statusOptions !== undefined && (node.fieldValueByName === null || (typeof node.fieldValueByName?.name === 'string' && node.fieldValueByName.name.length > 0)),
         ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}),
-        ...(extraFields.length > 0 ? { fields } : {}),
+        ...(extraFields.length > 0 ? { fields, fieldsRead } : {}),
         ...(taskId ? { taskId } : {}),
         ...(issue.updatedAt ? { updatedAt: issue.updatedAt } : {}),
         ...(issue.closedByPullRequestsReferences && issue.timelineItems &&

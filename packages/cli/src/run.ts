@@ -15,12 +15,13 @@ import {
   MessageKey,
   effectiveRepositories,
   planTaskFields,
+  parseIssueUrl,
   Setup,
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
-import { executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
+import { fetchIssue, fetchIssueBody, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
 import { CliCard, findCards, toCliCards } from './cards';
@@ -32,7 +33,11 @@ import { openGuidelineCopies } from './guidelineCopies';
 import { planProcessStart } from './processStart';
 import { loadSetup } from './setup';
 import { planReconcile } from './reconcile';
-import { nextTaskNumber, planTaskCreate, usedTaskTexts } from './taskCreate';
+import { nextTaskNumber, planTaskCreate, renderTaskFile, slugOf, taskIdOf, taskListLine, usedTaskTexts } from './taskCreate';
+import { hasTaskTitleCandidate, taskIssueCandidates, taskIssueInventory, taskPullInventory } from './taskIssueInventory';
+import { observeExistingTaskPull, observeMergedTaskPull } from './taskExistingPull';
+import { verifyTaskFiles } from './taskExistingPull';
+import { operationReservationVisible, registrationMarker, reserveRecovery, taskReservationRefs } from './taskReservation';
 
 export { Deps, EXIT, SCHEMA } from './contract';
 
@@ -44,9 +49,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   const say = (key: MessageKey, args?: MessageArgs): string => t(key, locale, args);
 
   /** A failure is JSON on stdout for an agent, and a sentence on stderr for a person. */
-  const report = (code: string, message: string): void => {
+  const report = (code: string, message: string, details?: unknown): void => {
     if (wantsText) deps.err(`${message}\n`);
-    else deps.out(`${JSON.stringify({ schema: SCHEMA, error: { code, message } })}\n`);
+    else deps.out(`${JSON.stringify({ schema: SCHEMA, error: { code, message, ...(details !== undefined ? { details } : {}) } })}\n`);
   };
   const fail = (exit: number, key: MessageKey, args?: MessageArgs): number => {
     report(key, say(key, args));
@@ -106,8 +111,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   const repositories = effectiveRepositories(setup, read.read.cards.map((card) => card.repository)).map((r) => r.repository);
 
   /** Shows the plan, takes the confirmations, runs what was approved, and prints the result. */
-  const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean; context?: unknown; recheck?: () => Promise<unknown> } = {}): Promise<number> => {
-    if (options.context !== undefined && !options.dryRun) deps.err(`${t('cli.reconcile.context', locale)}\t${JSON.stringify(options.context)}\n`);
+  const confirmAndRun = async (actions: PlannedAction[], skipped: Skipped[] = [], options: { report?: ReportItem[]; dryRun?: boolean; context?: unknown; recheck?: () => Promise<unknown>; registration?: boolean; registrationRecheck?: boolean } = {}): Promise<number> => {
+    if (options.context !== undefined && !options.dryRun) deps.err(`${t(options.registration ? 'cli.task-create.context' : 'cli.reconcile.context', locale)}\t${JSON.stringify(options.context)}\n`);
     const results = await executeActions(actions, {
       locale,
       approved: parseApproved(args.options.approve),
@@ -127,7 +132,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
         recheck = { ...recheck, status: 'incomplete', resolved: [], reason: t('cli.reconcile.recheck-action-failed', locale) };
       }
     }
-    return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun, context: options.context, recheck });
+    return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun, context: options.context, recheck, registration: options.registration, registrationRecheck: options.registrationRecheck });
   };
 
   if (args.command === 'process' && args.positional[0] === 'start') {
@@ -204,10 +209,242 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       given[entry.slice(0, at).trim()] = entry.slice(at + 1).trim();
     }
     const [processReport] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+    if (!processReport || processReport.file === 'failed' || processReport.issues.some((issue) => issue.severity === 'error')) {
+      return fail(EXIT.failed, 'cli.task-create.process-unsafe', { repository });
+    }
+    const columns = processReport.process.columns;
+    const initial = columns.initial ?? 'Backlog';
+    const initialLabel = columns.source === 'labels' ? columns.labels[initial] : undefined;
+    const initialProjection = columns.source === 'labels' && columns.projection ? columns.projection[initial] : undefined;
+    const matchingBoardStatuses = Object.entries(columns.board).filter(([, column]) => column === initial).map(([status]) => status);
+    const initialBoardStatus = columns.source === 'board-status' && matchingBoardStatuses.length === 1 ? matchingBoardStatuses[0] : undefined;
+    if ((columns.source === 'labels' && (!initialLabel || Object.entries(columns.labels).some(([column, label]) => column !== initial && label.toLowerCase() === initialLabel.toLowerCase()) || (columns.projection !== undefined && (!initialProjection || read.read.statusOptions?.filter((option) => option === initialProjection).length !== 1)))) ||
+        (columns.source === 'board-status' && (!initialBoardStatus || read.read.statusOptions?.filter((option) => option === initialBoardStatus).length !== 1))) {
+      return fail(EXIT.failed, 'cli.task-create.state-unsupported', { repository });
+    }
     const contract = processReport?.file === 'read' && processReport.process.task ? planTaskFields(processReport.process.task, given) : undefined;
     if (!contract && Object.keys(given).length > 0) return fail(EXIT.usage, 'cli.task-create.contract-gaps', { repository, gaps: Object.keys(given).map((field) => formatNotice({ code: 'gap.task-field-undeclared', args: { field } }, locale)) });
     if (contract && contract.gaps.length > 0) return fail(EXIT.usage, 'cli.task-create.contract-gaps', { repository, gaps: contract.gaps.map((gap) => formatNotice(gap, locale)) });
+    if (contract && new Set(contract.projectFields.map((field) => field.field.toLowerCase())).size !== contract.projectFields.length) return fail(EXIT.failed, 'cli.task-create.state-unsupported', { repository });
+    if (initialBoardStatus && contract?.projectFields.some((field) => field.field.toLowerCase() === 'status')) return fail(EXIT.failed, 'cli.task-create.state-unsupported', { repository });
+    if (initialLabel && contract?.labels.some((label) => Object.entries(columns.labels).some(([column, status]) => column !== initial && status.toLowerCase() === label.toLowerCase()))) return fail(EXIT.failed, 'cli.task-create.state-unsupported', { repository });
+    if (!workspaceComplete || read.read.membershipComplete === false) return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository });
+    let issueTitles: string[];
+    try { issueTitles = await taskIssueInventory(token, repository, deps.fetch); }
+    catch { return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository }); }
+    let used: string[];
+    let pullTexts: string[];
+    try { pullTexts = await taskPullInventory(token, repository, deps.fetch); used = [...artifacts.map((artifact) => artifact.id), ...read.read.cards.map((card) => card.title), ...pullTexts]; }
+    catch { return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository }); }
     const firstTask = artifacts.find((a) => a.kind === 'task');
+    const taskDirectory = firstTask ? path.posix.dirname(firstTask.path) : 'docs/tasks';
+    let number = nextTaskNumber([...used, ...issueTitles]);
+    let resume: Parameters<typeof planTaskCreate>[0]['resume'];
+    let expectedProjection = initialProjection;
+    let registrationContext: unknown;
+    const resumeUrl = args.options['resume-issue'];
+    if (resumeUrl) {
+      const ref = parseIssueUrl(resumeUrl);
+      if (!ref || `${ref.owner}/${ref.repo}`.toLowerCase() !== repository.toLowerCase()) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const fetched = await fetchIssue(token, resumeUrl, deps.fetch as unknown as FetchFn | undefined);
+      if (!fetched.ok || fetched.issue.url.toLowerCase().replace(/\/$/, '') !== resumeUrl.toLowerCase().replace(/\/$/, '')) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const issue = fetched.issue;
+      const match = /^\[(TASK-(\d{3,}))\] (.+)$/.exec(issue.title);
+      if (!match || match[3] !== title || issue.state !== 'open' || issue.number !== ref.number) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      number = Number(match[2]);
+      const id = taskIdOf(number);
+      try { issueTitles = await taskIssueInventory(token, repository, deps.fetch, { url: issue.url, title: issue.title }); }
+      catch { return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository }); }
+      const sameIssue = (value: string | undefined) => value?.toLowerCase().replace(/\/$/, '') === issue.url.toLowerCase().replace(/\/$/, '');
+      const localTasks = artifacts.filter((artifact) => artifact.kind === 'task' && (artifact.id === id || sameIssue(artifact.issue)));
+      const localEntries = requirement.tasks.filter((task) => task.id === id || sameIssue(task.issueUrl));
+      const otherReferences = artifacts.some((artifact) => artifact.kind === 'requirement' && artifact !== requirement && artifact.tasks.some((task) => task.id === id || sameIssue(task.issueUrl)));
+      if (id !== match[1] || issueTitles.filter((value) => new RegExp(`^\\[${id}\\]`, 'i').test(value)).length !== 1 || otherReferences || localTasks.length > 1 || localTasks.some((task) => task.kind !== 'task' || task.id !== id || !sameIssue(task.issue) || task.requirement !== requirement.id) || localEntries.length > 1 || localEntries.some((task) => task.id !== id || !sameIssue(task.issueUrl))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const localRecorded = localTasks.length > 0 || localEntries.length > 0;
+      const body = await fetchIssueBody(token, repository, ref.number, deps.fetch as unknown as FetchFn | undefined).catch(() => undefined);
+      const expected = `A task of ${requirement.id} (${requirement.title}). The definition is ${taskDirectory}/${id}.md.`;
+      const markers = body?.match(/<!--\s*weaver-registration:[\s\S]*?-->/g) ?? [];
+      const expectedMarker = registrationMarker(taskReservationRefs(repository, requirement.id, requirement.repository, requirement.repositoryServer, title, id).operation, id);
+      const statusLabels = Object.values(columns.labels).filter((label) => issue.labels.some((actual) => actual.toLowerCase() === label.toLowerCase()));
+      if (body === undefined || !body.includes(expected) || (markers.length > 0 && (markers.length !== 1 || markers[0] !== expectedMarker)) || (columns.source === 'labels' && statusLabels.length !== 1) || (contract?.labels ?? []).some((label) => !issue.labels.includes(label))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const contractFields = contract?.projectFields ?? [];
+      const fieldNames = [...new Set(contractFields.map((field) => field.field))];
+      let observedProject = read.read;
+      if (fieldNames.length) {
+        const fieldsRead = await readProject(token, setup.project, [repository], deps.fetch, fieldNames);
+        if (!fieldsRead.ok || fieldsRead.read.membershipComplete === false || JSON.stringify(fieldsRead.read.statusOptions ?? null) !== JSON.stringify(read.read.statusOptions ?? null)) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+        observedProject = fieldsRead.read;
+      }
+      const cards = observedProject.cards.filter((card) => card.url.toLowerCase().replace(/\/$/, '') === issue.url.toLowerCase().replace(/\/$/, ''));
+      if (cards.length > 1 || (cards.length === 1 && (!cards[0].projectItemId || (columns.source === 'board-status' && (!cards[0].boardStatusRead || (cards[0].boardStatus !== undefined && !columns.board[cards[0].boardStatus])))))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      if (columns.source === 'labels' && columns.projection) {
+        const mappedColumn = Object.entries(columns.labels).find(([, label]) => label.toLowerCase() === statusLabels[0]?.toLowerCase())?.[0] as keyof typeof columns.labels | undefined;
+        expectedProjection = mappedColumn ? columns.projection[mappedColumn] : undefined;
+        if (!expectedProjection || read.read.statusOptions?.filter((option) => option === expectedProjection).length !== 1 || (cards.length === 1 && (!cards[0].boardStatusRead || cards[0].boardStatus !== expectedProjection))) return fail(EXIT.failed, 'cli.task-create.projection-unverified', { repository });
+      }
+      const needsInitialStatus = columns.source === 'board-status' && cards.length === 1 && cards[0].boardStatus === undefined;
+      if (cards.length === 1 && contractFields.some((field) => cards[0].fieldsRead?.[field.field] !== true || (cards[0].fields?.[field.field] !== undefined && cards[0].fields?.[field.field] !== field.value))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      const pendingProjectFields = cards.length === 1 ? contractFields.filter((field) => cards[0].fields?.[field.field] === undefined).map((field) => field.field) : [];
+      let statusRestored = false;
+      const restoredFields = new Set<string>();
+      const revalidate = async () => {
+        const current = await fetchIssue(token, issue.url, deps.fetch as unknown as FetchFn | undefined);
+        const currentBody = await fetchIssueBody(token, repository, ref.number, deps.fetch as unknown as FetchFn | undefined).catch(() => undefined);
+        if (!current.ok || current.issue.title !== issue.title || current.issue.state !== issue.state || JSON.stringify([...current.issue.labels].sort()) !== JSON.stringify([...issue.labels].sort()) || currentBody !== body) return false;
+        let currentTitles: string[];
+        try { currentTitles = await taskIssueInventory(token, repository, deps.fetch, { url: issue.url, title: issue.title }); } catch { return false; }
+        if (currentTitles.filter((value) => new RegExp(`^\\[${id}\\]`, 'i').test(value)).length !== 1) return false;
+        if (cards.length === 1) {
+          const currentProject = await readProject(token, setup.project, [repository], deps.fetch, fieldNames);
+          if (!currentProject.ok || currentProject.read.membershipComplete === false) return false;
+          const currentCards = currentProject.read.cards.filter((card) => card.url.toLowerCase().replace(/\/$/, '') === issue.url.toLowerCase().replace(/\/$/, ''));
+          const expectedStatus = statusRestored ? initialBoardStatus : cards[0].boardStatus;
+          if (currentCards.length !== 1 || currentCards[0].projectItemId !== cards[0].projectItemId || currentCards[0].boardStatus !== expectedStatus || currentCards[0].boardStatusRead !== cards[0].boardStatusRead) return false;
+          if (contractFields.some((field) => currentCards[0].fieldsRead?.[field.field] !== true || currentCards[0].fields?.[field.field] !== (restoredFields.has(field.field) ? field.value : cards[0].fields?.[field.field]))) return false;
+        }
+        return true;
+      };
+      resume = { number: ref.number, url: issue.url, item: cards[0]?.projectItemId, needsInitialStatus, pendingProjectFields, onStatusRestored: () => { statusRestored = true; }, onFieldRestored: (field) => { restoredFields.add(field); }, revalidate };
+      registrationContext = { observedAt: deps.now().toISOString(), task: id, issue: { url: issue.url, state: issue.state, labels: issue.labels, source: 'github' }, project: { ...setup.project, membership: cards.length ? 'observed' : 'absent', item: cards[0]?.projectItemId ?? null, status: cards[0]?.boardStatus ?? null }, columnSource: columns.source, files: 'unverified' };
+      const relatedPulls = Array.from({ length: pullTexts.length / 2 }, (_, index) => pullTexts.slice(index * 2, index * 2 + 2)).filter((pair) => pair.some((value) => value.toLowerCase().includes(id.toLowerCase())));
+      if (relatedPulls.length > 0) {
+        if (relatedPulls.length !== 1 || cards.length !== 1 || !(await revalidate())) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+        try {
+          const top = (await deps.system.run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).trim();
+          const taskPath = path.relative(top, path.resolve(root, taskDirectory, `${id}.md`)).split(path.sep).join('/');
+          const requirementPath = path.relative(top, path.resolve(root, requirement.path)).split(path.sep).join('/');
+          if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value))) throw new Error('Path outside repository');
+          const expectedTask = renderTaskFile({ id, title, requirement: requirement.id, ...(requirement.repository && (requirement.repository.toLowerCase() !== repository.toLowerCase() || requirement.repositoryServer) ? { requirementRepository: requirement.repository } : {}), ...(requirement.repository && requirement.repositoryServer ? { requirementServer: requirement.repositoryServer } : {}), issueUrl: issue.url, issueNumber: ref.number, repository, criteria, assigneeType, assignee: args.options.assignee, fileFields: contract?.fileFields, sections: contract?.sections });
+          const check = { token, repository, branch: `docs/${id.toLowerCase()}-${slugOf(title)}`, taskId: id, taskPath, requirementPath, expectedTask, expectedRequirementLine: taskListLine(id, title, ref.number, issue.url), fetch: deps.fetch };
+          const merged = await observeMergedTaskPull(check).catch(() => undefined);
+          const restoreFields = async (observedPull: object, rereadPull: () => Promise<object>, filesState: string): Promise<number> => {
+            const actions = planTaskCreate({ token, login: await deps.login(), locale, project: setup.project, requirement, repository, title, criteria, assigneeType, assignee: args.options.assignee, area: args.options.area, initialLabel, initialBoardStatus, initialBoardProjection: expectedProjection, contract, number, taskDirectory, resume, approvalProcess: processReport.process, root, system: deps.system, fetch: deps.fetch, revalidateProcess: async () => {
+              const [current] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+              return !!current && current.file === processReport.file && !current.issues.some((item) => item.severity === 'error') && JSON.stringify(current.process) === JSON.stringify(processReport.process);
+            } });
+            const fieldActions = actions.filter((item) => item.kind === 'project.field');
+            if (!fieldActions.length) throw new Error('Field action unavailable');
+            for (const action of fieldActions) {
+              action.fingerprint = `${action.fingerprint ?? ''}\n${JSON.stringify(observedPull)}`;
+              const apply = action.run;
+              action.run = async () => {
+                if (JSON.stringify(await rereadPull()) !== JSON.stringify(observedPull)) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                const result = await apply();
+                if (JSON.stringify(await rereadPull()) !== JSON.stringify(observedPull) || !(await revalidate())) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                return result;
+              };
+            }
+            const context = { ...(registrationContext as object), files: filesState, pullRequest: { ...observedPull, source: 'github' } };
+            return confirmAndRun(fieldActions, [], { registration: true, registrationRecheck: true, context });
+          };
+          if (merged) {
+            const [currentProcess] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+            if (!currentProcess || currentProcess.file !== processReport.file || currentProcess.issues.some((item) => item.severity === 'error') || JSON.stringify(currentProcess.process) !== JSON.stringify(processReport.process) || !(await revalidate())) throw new Error('Registration changed');
+            if (needsInitialStatus || pendingProjectFields.length) return await restoreFields(merged, () => observeMergedTaskPull(check), 'merged');
+            const context = { ...(registrationContext as object), files: 'merged', pullRequest: { ...merged, source: 'github' } };
+            return finishActions([], deps, locale, wantsText, { registration: true, verifiedRegistration: true, context });
+          }
+          if (localRecorded) throw new Error('Local task already exists');
+          const pull = await observeExistingTaskPull(check);
+          if (needsInitialStatus || pendingProjectFields.length) return await restoreFields(pull, () => observeExistingTaskPull(check), 'proposed');
+          const context = { ...(registrationContext as object), files: 'proposed', pullRequest: { ...pull, source: 'github' } };
+          return finishActions([], deps, locale, wantsText, { registration: true, existingPull: true, context });
+        } catch { return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository }); }
+      }
+      if (localRecorded) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
+      if (cards.length === 1) {
+        const branch = `docs/${id.toLowerCase()}-${slugOf(title)}`;
+        try {
+          const inspectBranch = async () => (await deps.system.run('git', ['ls-remote', '--heads', `https://github.com/${repository}.git`, `refs/heads/${branch}`])).trim();
+          const observedBranch = await inspectBranch();
+          if (observedBranch) {
+            const matchBranch = /^([a-f0-9]{40})\s+(.+)$/i.exec(observedBranch);
+            if (!matchBranch || matchBranch[2] !== `refs/heads/${branch}` || !(await revalidate())) throw new Error('Branch identity uncertain');
+            const head = matchBranch[1];
+            const top = (await deps.system.run('git', ['rev-parse', '--show-toplevel'], { cwd: root })).trim();
+            const taskPath = path.relative(top, path.resolve(root, taskDirectory, `${id}.md`)).split(path.sep).join('/');
+            const requirementPath = path.relative(top, path.resolve(root, requirement.path)).split(path.sep).join('/');
+            if ([taskPath, requirementPath].some((value) => value.startsWith('../') || value === '..' || path.posix.isAbsolute(value))) throw new Error('Path outside repository');
+            const expectedTask = renderTaskFile({ id, title, requirement: requirement.id, ...(requirement.repository && (requirement.repository.toLowerCase() !== repository.toLowerCase() || requirement.repositoryServer) ? { requirementRepository: requirement.repository } : {}), ...(requirement.repository && requirement.repositoryServer ? { requirementServer: requirement.repositoryServer } : {}), issueUrl: issue.url, issueNumber: ref.number, repository, criteria, assigneeType, assignee: args.options.assignee, fileFields: contract?.fileFields, sections: contract?.sections });
+            const check = { token, repository, branch, taskId: id, taskPath, requirementPath, expectedTask, expectedRequirementLine: taskListLine(id, title, ref.number, issue.url), fetch: deps.fetch };
+            await verifyTaskFiles(check, head);
+            if (await inspectBranch() !== observedBranch) throw new Error('Branch changed');
+            if (needsInitialStatus || pendingProjectFields.length) {
+              const actions = planTaskCreate({ token, login: await deps.login(), locale, project: setup.project, requirement, repository, title, criteria, assigneeType, assignee: args.options.assignee, area: args.options.area, initialLabel, initialBoardStatus, initialBoardProjection: expectedProjection, contract, number, taskDirectory, resume, approvalProcess: processReport.process, root, system: deps.system, fetch: deps.fetch, revalidateProcess: async () => {
+                const [current] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+                return !!current && current.file === processReport.file && !current.issues.some((item) => item.severity === 'error') && JSON.stringify(current.process) === JSON.stringify(processReport.process);
+              } });
+              const fieldActions = actions.filter((item) => item.kind === 'project.field');
+              if (!fieldActions.length) throw new Error('Field action unavailable');
+              const verifyBranch = async () => {
+                if (await inspectBranch() !== observedBranch) throw new Error('Branch changed');
+                const pulls = await taskPullInventory(token, repository, deps.fetch);
+                if (pulls.some((value) => value.toLowerCase().includes(id.toLowerCase()))) throw new Error('Pull request appeared');
+                await verifyTaskFiles(check, head);
+              };
+              for (const action of fieldActions) {
+                action.fingerprint = `${action.fingerprint ?? ''}\n${JSON.stringify({ branch, head, fields: cards[0].fields, status: cards[0].boardStatus ?? null })}`;
+                const apply = action.run;
+                action.run = async () => {
+                  await verifyBranch();
+                  const result = await apply();
+                  await verifyBranch();
+                  if (!(await revalidate())) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                  return result;
+                };
+              }
+              const context = { ...(registrationContext as object), files: 'branch-observed', branch: { name: branch, head } };
+              return await confirmAndRun(fieldActions, [], { registration: true, registrationRecheck: true, context });
+            }
+            const base = (await deps.system.run('gh', ['repo', 'view', repository, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'])).trim();
+            if (!base) throw new Error('Default branch unavailable');
+            const actor = await deps.login();
+            const reservation = `refs/heads/weaver/reservations/recover-pr-${id.toLowerCase()}`;
+            const action: PlannedAction = {
+              kind: 'files.pull-request', target: `${repository} ${branch} ${issue.url}`,
+              identifiers: { task: id, issue: issue.url, projectItem: cards[0].projectItemId as string, branch, head, recoveryReservation: reservation },
+              fingerprint: JSON.stringify({ repository, branch, head, base, issue: issue.url, item: cards[0].projectItemId, process: processReport.process, task: expectedTask, requirementLine: check.expectedRequirementLine, reservation }),
+              summary: { code: 'cli.task-create.recover-branch', args: { repository, branch, head, base, reservation } },
+              reason: { code: 'cli.task-create.resume-reason' },
+              run: async () => {
+                const [currentProcess] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+                if (!currentProcess || currentProcess.file !== processReport.file || currentProcess.issues.some((item) => item.severity === 'error') || JSON.stringify(currentProcess.process) !== JSON.stringify(processReport.process) || !(await revalidate())) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                try { await reserveRecovery(token, repository, reservation, head, deps.fetch); }
+                catch { throw new Error(say('cli.task-create.recovery-reservation-unsafe', { reservation })); }
+                const currentPulls = await taskPullInventory(token, repository, deps.fetch);
+                if (currentPulls.some((value) => value.toLowerCase().includes(id.toLowerCase())) || await inspectBranch() !== observedBranch) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                await verifyTaskFiles(check, head);
+                const currentBase = (await deps.system.run('gh', ['repo', 'view', repository, '--json', 'defaultBranchRef', '--jq', '.defaultBranchRef.name'])).trim();
+                const [lastProcess] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+                if (currentBase !== base || !lastProcess || lastProcess.file !== processReport.file || lastProcess.issues.some((item) => item.severity === 'error') || JSON.stringify(lastProcess.process) !== JSON.stringify(processReport.process) || !(await revalidate())) throw new Error(say('cli.task-create.resume-unsafe', { repository }));
+                const pull = (await deps.system.run('gh', ['pr', 'create', '--repo', repository, '--head', branch, '--base', base, '--title', `docs: add ${id} ${title}`, '--body', `${attribution(locale, actor)}\n\nAdds ${taskPath} and lists ${id} under ${requirement.id}. Issue: ${issue.url}`])).trim();
+                action.identifiers = { ...action.identifiers, pullRequest: pull };
+                const verified = await observeExistingTaskPull(check);
+                if (verified.url !== pull || verified.head !== head) throw new Error(say('cli.task-create.pr-unverified', { pull }));
+                return { identifiers: { pullRequest: pull } };
+              },
+            };
+            const context = { ...(registrationContext as object), files: 'branch-observed', branch: { name: branch, head } };
+            return confirmAndRun([action], [], { registration: true, context });
+          }
+        } catch { return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository }); }
+      }
+    } else if (hasTaskTitleCandidate(issueTitles, title)) {
+      const operation = taskReservationRefs(repository, requirement.id, requirement.repository, requirement.repositoryServer, title, taskIdOf(number)).operation;
+      let candidates;
+      try { candidates = await taskIssueCandidates(token, repository, title, operation, deps.fetch); }
+      catch { return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository }); }
+      if (candidates.length === 0) return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository });
+      const message = say('cli.task-create.candidates', { repository, candidates: candidates.map((candidate) => `${candidate.task}: ${candidate.url}`).join(', ') });
+      report('cli.task-create.identity-ambiguous', message, { candidates });
+      return EXIT.failed;
+    } else {
+      const operation = taskReservationRefs(repository, requirement.id, requirement.repository, requirement.repositoryServer, title, taskIdOf(number)).operation;
+      let visible: boolean;
+      try { visible = await operationReservationVisible(token, repository, operation, deps.fetch); }
+      catch { return fail(EXIT.failed, 'cli.task-create.inventory-unavailable', { repository }); }
+      if (visible) return fail(EXIT.failed, 'cli.task-create.operation-reserved', { repository, operation });
+    }
     const actions = planTaskCreate({
       token,
       login: await deps.login(),
@@ -220,14 +457,23 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       assigneeType,
       assignee: args.options.assignee,
       area: args.options.area,
+      initialLabel,
+      initialBoardStatus,
+      initialBoardProjection: expectedProjection,
       contract,
-      number: nextTaskNumber(await usedTaskTexts(artifacts, read.read.cards, repository, deps.system)),
-      taskDirectory: firstTask ? path.posix.dirname(firstTask.path) : 'docs/tasks',
+      number,
+      taskDirectory,
+      resume,
+      approvalProcess: processReport.process,
       root,
       system: deps.system,
       fetch: deps.fetch,
+      revalidateProcess: async () => {
+        const [current] = await readProcesses(token, [repository], locale, deps.fetch as unknown as FetchFn | undefined);
+        return !!current && current.file === processReport.file && !current.issues.some((issue) => issue.severity === 'error') && JSON.stringify(current.process) === JSON.stringify(processReport.process);
+      },
     });
-    return confirmAndRun(actions);
+    return confirmAndRun(actions, [], { registration: true, context: registrationContext });
   }
 
   // How each repository tracks its work (DEC-015). One without a file, or whose file cannot be read,

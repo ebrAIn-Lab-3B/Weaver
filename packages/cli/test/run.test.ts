@@ -900,7 +900,7 @@ describe('task creation initial state', () => {
 describe('task creation resume by explicit Issue', () => {
   const url = 'https://github.com/me/Weaver/issues/77';
   const args = ['task', 'create', '--title', 'New task', '--requirement', 'REQ-001', '--resume-issue', url];
-  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable'; losePriorityResponse?: boolean; losePullResponse?: boolean; hideCreatedPull?: boolean } = {}) {
+  function fixture(options: { onProject?: boolean; issueTitle?: string; body?: string; conflictingPull?: boolean; branchExists?: boolean; hideAddedItem?: boolean; recoverBranch?: boolean; changedBranch?: boolean; boardUnset?: boolean; existingPull?: boolean; priority?: 'missing' | 'P0' | 'P1' | 'unreadable'; losePriorityResponse?: boolean; loseStatusResponse?: boolean; losePullResponse?: boolean; hideCreatedPull?: boolean } = {}) {
     const s = setup();
     const original = s.deps.fetch as Fetch;
     let createCount = 0;
@@ -920,7 +920,7 @@ describe('task creation resume by explicit Issue', () => {
       if (options.priority && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'P1', name: 'P1' }] } } } } }) };
       if (options.priority && query.includes('updateProjectV2ItemFieldValue')) { priorityWrites += 1; priorityValue = 'P1'; if (options.losePriorityResponse) throw new Error('response lost'); return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
       if (options.boardUnset && query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P', field: { id: 'F', options: [{ id: 'Q', name: 'Queue' }, { id: 'D', name: 'Doing' }] } } } } }) };
-      if (options.boardUnset && query.includes('updateProjectV2ItemFieldValue')) { statusWrites += 1; boardStatus = 'Queue'; return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
+      if (options.boardUnset && query.includes('updateProjectV2ItemFieldValue')) { statusWrites += 1; boardStatus = 'Queue'; if (options.loseStatusResponse) throw new Error('response lost'); return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'ITEM77' } } } }) }; }
       if (request.endsWith('/issues/77')) return { ok: true, status: 200, json: async () => ({ number: 77, title: options.issueTitle ?? '[TASK-041] New task', html_url: url, state: 'open', labels: [{ name: 'status:ready' }], assignees: [], body: options.body ?? 'A task of REQ-001 (First). The definition is tasks/TASK-041.md.' }) };
       if (options.recoverBranch && request.includes('/contents/tasks/TASK-041.md?')) {
         const content = renderTaskFile({ id: 'TASK-041', title: 'New task', requirement: 'REQ-001', issueUrl: url, issueNumber: 77, repository: 'me/Weaver', criteria: [], assigneeType: 'agent' });
@@ -1038,6 +1038,22 @@ describe('task creation resume by explicit Issue', () => {
     expect(JSON.parse(s.out.join('')).status).toBe('pending');
     expect(s.statusWrites()).toBe(1);
     expect(s.createCount()).toBe(0);
+  });
+
+  it('rereads board Status after a lost response without repeating the write', async () => {
+    const s = fixture({ onProject: true, boardUnset: true, loseStatusResponse: true });
+    await run(args, s.deps);
+    const statusId = JSON.parse(s.out.join('')).actions[0].id;
+    s.out.length = 0;
+    expect(await run([...args, '--approve', statusId], s.deps)).toBe(EXIT.failed);
+    const failed = JSON.parse(s.out.join('')).actions[0];
+    expect(failed.identifiers).toMatchObject({ issue: url, projectItem: 'ITEM77', field: 'Status' });
+    expect(failed.message).toContain('Re-read the selected item');
+    expect(s.statusWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
+    expect(s.statusWrites()).toBe(1);
   });
 
   it('does not open a file PR while the unset status action awaits approval', async () => {

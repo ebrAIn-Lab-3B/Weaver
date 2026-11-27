@@ -1,19 +1,23 @@
 import type { Fetch } from '@ebrain-lab/weaver-github';
 import { parseIssueUrl } from '@ebrain-lab/weaver-markdown';
 import { registrationMarker } from './taskReservation';
+import { fallbackRestPage, nextRestPage, validatePaginationRepository } from './restPagination';
 
 /** Complete repository Issue inventory for allocation and duplicate-candidate detection.
  * GitHub pagination is not an atomic snapshot; callers must not treat this as a lock. */
 export async function taskIssueInventory(token: string, repository: string, fetchImpl: Fetch = fetch as unknown as Fetch, requiredIssue?: { url: string; title: string }): Promise<string[]> {
   const titles: string[] = [];
   let foundRequired = false;
+  const baseUrl = `https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=1`;
+  let url = baseUrl;
   for (let page = 1; page <= 50; page += 1) {
-    const response = await fetchImpl(`https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=${page}`, {
+    const response = await fetchImpl(url, {
       method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, body: undefined as unknown as string,
     });
     if (!response.ok) throw new Error('Issue inventory unavailable');
     const items: unknown = await response.json();
     if (!Array.isArray(items) || items.length > 100) throw new Error('Issue inventory incomplete');
+    const next = nextRestPage(response, baseUrl, page);
     for (const item of items) {
       if (!item || typeof item !== 'object' || typeof item.title !== 'string') throw new Error('Issue inventory incomplete');
       if (!('pull_request' in item)) {
@@ -22,10 +26,12 @@ export async function taskIssueInventory(token: string, repository: string, fetc
         titles.push(item.title);
       }
     }
-    if (items.length < 100) {
+    if (items.length < 100 && !next) {
       if (requiredIssue && !foundRequired) throw new Error('Issue identity not observed');
       return titles;
     }
+    if (next) { await validatePaginationRepository(next, repository, token, fetchImpl); url = next.href; }
+    else url = fallbackRestPage(url, baseUrl, page + 1);
   }
   throw new Error('Issue inventory incomplete');
 }
@@ -40,11 +46,14 @@ export interface TaskIssueCandidate { task: string; url: string; markerMatches: 
 /** Complete candidate read: title and marker are hints for human review, never automatic adoption. */
 export async function taskIssueCandidates(token: string, repository: string, title: string, operationRef: string, fetchImpl: Fetch = fetch as unknown as Fetch): Promise<TaskIssueCandidate[]> {
   const candidates: TaskIssueCandidate[] = [];
+  const baseUrl = `https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=1`;
+  let url = baseUrl;
   for (let page = 1; page <= 50; page += 1) {
-    const response = await fetchImpl(`https://api.github.com/repos/${repository}/issues?state=all&per_page=100&page=${page}`, { method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, body: undefined as unknown as string });
+    const response = await fetchImpl(url, { method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, body: undefined as unknown as string });
     if (!response.ok) throw new Error('Issue candidates unavailable');
     const items: unknown = await response.json();
     if (!Array.isArray(items) || items.length > 100) throw new Error('Issue candidates incomplete');
+    const next = nextRestPage(response, baseUrl, page);
     for (const item of items) {
       if (!item || typeof item !== 'object' || typeof item.title !== 'string') throw new Error('Issue candidates incomplete');
       if ('pull_request' in item) continue;
@@ -58,7 +67,9 @@ export async function taskIssueCandidates(token: string, repository: string, tit
       candidates.push({ task, url: item.html_url as string, markerMatches });
       if (candidates.length > 100) throw new Error('Too many Issue candidates');
     }
-    if (items.length < 100) return candidates;
+    if (items.length < 100 && !next) return candidates;
+    if (next) { await validatePaginationRepository(next, repository, token, fetchImpl); url = next.href; }
+    else url = fallbackRestPage(url, baseUrl, page + 1);
   }
   throw new Error('Issue candidates incomplete');
 }
@@ -66,18 +77,23 @@ export async function taskIssueCandidates(token: string, repository: string, tit
 /** Read PR titles and head branches across all states, rejecting any incomplete page. */
 export async function taskPullInventory(token: string, repository: string, fetchImpl: Fetch = fetch as unknown as Fetch): Promise<string[]> {
   const texts: string[] = [];
+  const baseUrl = `https://api.github.com/repos/${repository}/pulls?state=all&per_page=100&page=1`;
+  let url = baseUrl;
   for (let page = 1; page <= 50; page += 1) {
-    const response = await fetchImpl(`https://api.github.com/repos/${repository}/pulls?state=all&per_page=100&page=${page}`, {
+    const response = await fetchImpl(url, {
       method: 'GET', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, body: undefined as unknown as string,
     });
     if (!response.ok) throw new Error('PR inventory unavailable');
     const items: unknown = await response.json();
     if (!Array.isArray(items) || items.length > 100) throw new Error('PR inventory incomplete');
+    const next = nextRestPage(response, baseUrl, page);
     for (const item of items) {
       if (!item || typeof item !== 'object' || typeof item.title !== 'string' || !item.head || typeof item.head.ref !== 'string') throw new Error('PR inventory incomplete');
       texts.push(item.title, item.head.ref);
     }
-    if (items.length < 100) return texts;
+    if (items.length < 100 && !next) return texts;
+    if (next) { await validatePaginationRepository(next, repository, token, fetchImpl); url = next.href; }
+    else url = fallbackRestPage(url, baseUrl, page + 1);
   }
   throw new Error('PR inventory incomplete');
 }

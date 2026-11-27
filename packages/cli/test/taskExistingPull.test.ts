@@ -22,6 +22,15 @@ function mock(options: { task?: string; requirement?: string; secondSha?: string
 }
 
 describe('existing task PR inspection', () => {
+  it('does not treat one PR on a partial list page as a unique match', async () => {
+    const original = mock();
+    const fetchImpl: Fetch = async (url, init) => {
+      const response = await original(url, init);
+      if (!url.includes('/pulls?')) return response;
+      return { ...response, headers: { get: () => `<${url}&page=2>; rel="next"` } };
+    };
+    await expect(observeExistingTaskPull({ ...input, fetch: fetchImpl })).rejects.toThrow('list incomplete');
+  });
   it('observes the exact open PR and both files at the same immutable head', async () => {
     await expect(observeExistingTaskPull({ ...input, fetch: mock() })).resolves.toEqual({ url: pull.html_url, head: sha });
   });

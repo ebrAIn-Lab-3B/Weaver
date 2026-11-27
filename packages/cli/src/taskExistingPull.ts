@@ -1,4 +1,5 @@
 import type { Fetch } from '@ebrain-lab/weaver-github';
+import { nextRestPage } from './restPagination';
 
 export interface ExistingPullCheck {
   token: string;
@@ -35,15 +36,16 @@ export async function observeExistingTaskPull(input: ExistingPullCheck): Promise
   const fetchImpl = input.fetch ?? fetch as unknown as Fetch;
   const api = `https://api.github.com/repos/${input.repository}`;
   const headers = { Authorization: `Bearer ${input.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-  const get = async (url: string): Promise<unknown> => {
+  const get = async (url: string, singlePage = false): Promise<unknown> => {
     const response = await fetchImpl(url, { method: 'GET', headers, body: undefined as unknown as string });
     if (!response.ok) throw new Error('Pull request read unavailable');
+    if (singlePage && nextRestPage(response, url, 1)) throw new Error('Pull request list incomplete');
     return response.json();
   };
   const owner = input.repository.split('/')[0];
   const repo = await get(api) as { default_branch?: unknown };
   if (typeof repo?.default_branch !== 'string' || !repo.default_branch) throw new Error('Default branch unavailable');
-  const candidates = await get(`${api}/pulls?state=all&head=${encodeURIComponent(`${owner}:${input.branch}`)}&per_page=100`) as unknown;
+  const candidates = await get(`${api}/pulls?state=all&head=${encodeURIComponent(`${owner}:${input.branch}`)}&per_page=100`, true) as unknown;
   if (!Array.isArray(candidates) || candidates.length !== 1) throw new Error('Pull request identity ambiguous');
   type Pull = { number?: unknown; html_url?: unknown; state?: unknown; head?: { ref?: unknown; sha?: unknown; repo?: { full_name?: unknown } }; base?: { ref?: unknown; repo?: { full_name?: unknown } } };
   const pull = candidates[0] as Pull;
@@ -61,9 +63,10 @@ export async function observeMergedTaskPull(input: ExistingPullCheck): Promise<{
   const fetchImpl = input.fetch ?? fetch as unknown as Fetch;
   const api = `https://api.github.com/repos/${input.repository}`;
   const headers = { Authorization: `Bearer ${input.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-  const get = async (url: string): Promise<unknown> => {
+  const get = async (url: string, singlePage = false): Promise<unknown> => {
     const response = await fetchImpl(url, { method: 'GET', headers, body: undefined as unknown as string });
     if (!response.ok) throw new Error('Merged registration read unavailable');
+    if (singlePage && nextRestPage(response, url, 1)) throw new Error('Merged PR list incomplete');
     return response.json();
   };
   const repo = await get(api) as { default_branch?: unknown };
@@ -76,7 +79,7 @@ export async function observeMergedTaskPull(input: ExistingPullCheck): Promise<{
   };
   const revision = await getRevision();
   const owner = input.repository.split('/')[0];
-  const candidates = await get(`${api}/pulls?state=all&head=${encodeURIComponent(`${owner}:${input.branch}`)}&per_page=100`);
+  const candidates = await get(`${api}/pulls?state=all&head=${encodeURIComponent(`${owner}:${input.branch}`)}&per_page=100`, true);
   if (!Array.isArray(candidates) || candidates.length !== 1) throw new Error('Merged PR ambiguous');
   type Pull = { number?: unknown; html_url?: unknown; state?: unknown; merged_at?: unknown; merge_commit_sha?: unknown; head?: { ref?: unknown; sha?: unknown; repo?: { full_name?: unknown } }; base?: { ref?: unknown; repo?: { full_name?: unknown } } };
   const pull = candidates[0] as Pull;

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findMismatches, loadWorkspace, parseProcess, placeIssue, type MismatchCard } from '../src';
+import { findMismatches, formatNotice, loadWorkspace, parseProcess, placeIssue, type MismatchCard } from '../src';
 
 const fixture = join(__dirname, 'examples', 'task-133');
 const repository = 'fixture/example';
@@ -54,11 +54,15 @@ describe('TASK-133 fixture scenarios', () => {
   it('asks for a decision when the authoritative status is missing', () => {
     const noLabel = { ...issue(2, 'Backlog'), labels: [], placement: placeIssue({ state: 'open', labels: [] }, rules('labels.yaml')) };
     const labelFindings = findMismatches({ artifacts, cards: [noLabel], repositories: [repository], rulesFor: () => rules('labels.yaml') });
-    expect(labelFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'labels' }) }));
+    expect(labelFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'labels', labels: '—', board: 'Backlog' }) }));
     const { boardStatus: _unused, ...boardCard } = issue(2, 'Todo', 'board-status.yaml');
     const noBoard = { ...boardCard, placement: placeIssue({ state: 'open', labels: ['status:backlog'] }, rules('board-status.yaml')) };
     const boardFindings = findMismatches({ artifacts, cards: [noBoard], repositories: [repository], boardSourced: [repository], rulesFor: () => rules('board-status.yaml') });
-    expect(boardFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'board-status' }) }));
+    expect(boardFindings).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision', args: expect.objectContaining({ source: 'board-status', labels: 'status:backlog', board: '—' }) }));
+    const boardFinding = boardFindings.find((finding) => finding.kind === 'status-source-needs-decision')!;
+    for (const locale of ['en', 'ko'] as const) {
+      expect(formatNotice({ code: 'mismatch.status-source-needs-decision', args: boardFinding.args }, locale)).toContain('status:backlog');
+    }
   });
 
   it('keeps a closed issue in review and reports incomplete PR evidence', () => {

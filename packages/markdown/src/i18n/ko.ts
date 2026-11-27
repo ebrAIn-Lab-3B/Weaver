@@ -337,7 +337,7 @@ export const ko: Record<MessageKey, Message> = {
   'mismatch.board-status-missing': '{repository}#{number}에 Project Status가 없습니다. Issue 라벨 {label}의 대응 값은 {expected}입니다. 변경하기 전에 확인해 주세요.',
   'mismatch.projection-unmapped': '{repository}#{number}의 Issue 라벨 {label}이 가리키는 {column}에 대응하는 Project Status가 설정되지 않았습니다. 프로세스 매핑을 확인해 주세요.',
   'mismatch.pulls-incomplete': '{repository}#{number}의 풀 리퀘스트 참조 조회가 불완전합니다. 판단하기 전에 나머지 페이지를 확인해 주세요.',
-  'mismatch.status-source-needs-decision': '{repository}#{number}: 정본 {source} 상태가 없거나 충돌하거나 매핑되지 않았습니다(조회 값: {observed}). 의도한 상태를 검토한 뒤 Issue 또는 Project의 변경을 선택하거나 프로세스 매핑을 수정해 주세요.',
+  'mismatch.status-source-needs-decision': '{repository}#{number}: 정본 {source} 상태가 없거나 충돌하거나 매핑되지 않았습니다(조회 값: {observed}). Issue 라벨: {labels}; Project Status: {board}. 의도한 상태를 검토한 뒤 Issue 또는 Project의 변경을 선택하거나 프로세스 매핑을 수정해 주세요.',
   'mismatch.issue-project-unknown': '접근할 수 없는 Project 항목이 있어 {task}의 Issue {issue} 등록 여부를 확인할 수 없습니다. 추가하기 전에 접근 권한으로 다시 조회해 주세요.',
   'mismatch.shared-issue': '태스크 {tasks}가 같은 Issue {issue}를 참조합니다. 의도된 공유일 수 있으므로 연결을 확인해 주세요.',
   'mismatch.task-without-issue': '{task}에 Issue 링크가 없습니다.',

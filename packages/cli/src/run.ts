@@ -123,6 +123,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (options.recheck && results.some((result) => result.outcome === 'done' || result.outcome === 'failed')) {
       try { recheck = await options.recheck(); }
       catch { recheck = { status: 'unavailable', reason: t('cli.reconcile.recheck-unavailable', locale) }; }
+      if (results.some((result) => result.outcome === 'failed') && typeof recheck === 'object' && recheck !== null && 'status' in recheck && recheck.status === 'read') {
+        recheck = { ...recheck, status: 'incomplete', resolved: [], reason: t('cli.reconcile.recheck-action-failed', locale) };
+      }
     }
     return finishActions(results, deps, locale, wantsText, { skipped, report: options.report, dryRun: options.dryRun, context: options.context, recheck });
   };

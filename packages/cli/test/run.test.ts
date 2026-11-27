@@ -759,6 +759,35 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('marks a failed post-add verification incomplete when the item appears on a later read', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    let visible = false;
+    let additions = 0;
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/issues/10')) return { ok: true, status: 200, json: async () => ({ number: 10, title: 'Card', html_url: 'https://github.com/me/Weaver/issues/10', state: 'open', labels: ['status:in-progress'], assignees: [] }) };
+      if (!url.endsWith('/graphql')) return originalFetch(url, init);
+      const query = JSON.parse(init.body).query as string;
+      if (query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: visible ? [issue(10)] : [] } } } } }) };
+      if (query.includes('resource(url')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'PROJECT' } }, resource: { id: 'ISSUE' } } }) };
+      if (query.includes('addProjectV2ItemById')) { additions += 1; return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) }; }
+      return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [] } } } }) };
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const action = JSON.parse(out.join('')).actions.find((item: { kind: string }) => item.kind === 'project.add');
+    expect(action).toBeDefined(); out.length = 0;
+    expect(await run(['reconcile', '--approve', action.id], deps)).toBe(EXIT.failed);
+    const uncertain = JSON.parse(out.join('')); out.length = 0;
+    expect(uncertain.actions).toContainEqual(expect.objectContaining({ kind: 'project.add', outcome: 'failed' }));
+    expect(uncertain.recheck).toMatchObject({ status: 'incomplete', resolved: [] });
+    expect(uncertain.recheck.reason).toContain('not confirmation of the action result');
+    expect(additions).toBe(1);
+    visible = true;
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    expect(JSON.parse(out.join('')).actions.filter((item: { kind: string }) => item.kind === 'project.add')).toEqual([]);
+    expect(additions).toBe(1);
+  });
+
   it('distinguishes unreadable Status options from a known missing option in the CLI plan', async () => {
     for (const available of [false, true]) {
       const { deps, out } = setup();
@@ -902,6 +931,8 @@ describe('rule-based status reconciliation flow', () => {
     out.length = 0; changeLabelOnWrite = true;
     expect(await run(['reconcile', '--approve', fourthAction.id], deps)).toBe(EXIT.failed);
     const changedSource = JSON.parse(out.join(''));
+    expect(changedSource.recheck).toMatchObject({ status: 'incomplete', resolved: [] });
+    expect(changedSource.recheck.reason).toContain('not confirmation of the action result');
     expect(changedSource.recheck.remaining).toContainEqual(expect.objectContaining({ kind: 'status-source-needs-decision' }));
     expect(changedSource.recheck.resolved).not.toContainEqual(expect.objectContaining({ kind: 'board-status-differs' }));
 

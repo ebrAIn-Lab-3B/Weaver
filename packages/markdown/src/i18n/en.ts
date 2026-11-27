@@ -429,6 +429,7 @@ export const en = {
   'cli.bad-pull': '"{pull}" is not a pull request number or address.',
   'cli.pull-unreadable': 'The pull request "{pull}" could not be read: {detail}',
   'cli.pull-not-merged': 'Pull request #{pull} is not merged, so it is not evidence yet.',
+  'cli.reconcile.project-add-reason': 'The Issue is not on the selected Project. Project automations may also change the Issue; the result will be checked.',
   'cli.reconcile.project-add': 'Add {issue}, linked by {task} ({path}), to Project {owner}/{project}; membership changes from absent to present.',
   'cli.reconcile.board-review': '{ref} on Project {owner}/{project} shows {board}; the configured label projection is {expected}. Review the process and decide which state is intended before changing either source.',
   'cli.reconcile.link-review': '{task} has no Issue link. Search the repository for an existing Issue, then link it by a reviewed file change; create one only after its identity is established.',

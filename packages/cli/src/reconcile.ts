@@ -130,6 +130,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         for (const action of plan.actions) {
           const runAdd = action.run;
           action.summary = { code: 'cli.reconcile.project-add', args: { task: m.subject, path: taskPath ?? '—', issue: issueUrl, owner: input.project.owner, project: input.project.number } };
+          action.reason = { code: 'cli.reconcile.project-add-reason' };
           action.fingerprint = JSON.stringify([input.project.owner, input.project.number, repositoryScope, issueUrl, taskPath ?? null]);
           action.run = async () => {
             if (!await input.freshSetupMatches?.() || !taskPath || !issueRef || !input.freshTaskIssue || normalizeIssueUrl(await input.freshTaskIssue(taskPath) ?? '') !== normalizeIssueUrl(issueUrl)) throw new NoticeError({ code: 'cli.reconcile.stale' });
@@ -144,7 +145,8 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
             if (!issue.ok) throw new NoticeError(issue.error);
             await runAdd();
             const after = await readProject(input.token, input.project, [repository], input.fetch);
-            if (!after.ok || !after.read.cards.some((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl))) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
+            const afterIssue = await fetchIssue(input.token, issueUrl, input.fetchFn);
+            if (!after.ok || !after.read.cards.some((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl)) || !afterIssue.ok || afterIssue.issue.state !== issue.issue.state || JSON.stringify([...afterIssue.issue.labels].sort()) !== JSON.stringify([...issue.issue.labels].sort())) throw new NoticeError({ code: 'cli.reconcile.verify-failed' });
           };
           actions.push(action);
         }

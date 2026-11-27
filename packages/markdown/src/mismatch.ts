@@ -201,7 +201,7 @@ export function findMismatches(input: MismatchInput): Mismatch[] {
     const statusGaps = card.placement.gaps.filter((gap) => ['gap.no-status-label', 'gap.multiple-status-labels', 'gap.no-board-status', 'gap.unmapped-board-status'].includes(gap.code));
     if (statusGaps.length) {
       const source = input.rulesFor?.(card.repository)?.source ?? (boardSourced.has(repository) ? 'board-status' : 'labels');
-      found.push({ kind: 'status-source-needs-decision', subject: label, args: { repository: card.repository, number: card.number, source, observed: source === 'labels' ? (card.labels?.join(', ') || '—') : (card.boardStatus ?? '—'), labels: card.labels?.join(', ') || '—', board: card.boardStatus ?? '—' }, url: card.url });
+      found.push({ kind: 'status-source-needs-decision', subject: label, args: { repository: card.repository, number: card.number, source, observed: source === 'labels' ? (card.labels?.join(', ') || '—') : (card.boardStatus ?? '—'), labels: card.labels?.join(', ') || '—', board: card.boardStatus ?? '—', labelsRead: card.labels === undefined ? 0 : 1, labelsEmpty: card.labels?.length === 0 ? 1 : 0, boardRead: card.boardStatusRead === true || card.boardStatus !== undefined ? 1 : 0, boardEmpty: card.boardStatus === undefined ? 1 : 0 }, url: card.url });
     }
     // A repository whose process lets a card be an Issue with no file does not miss it (DEC-016 item 3).
     const filesNeeded = input.contractFor?.(repository)?.requireFile !== false;

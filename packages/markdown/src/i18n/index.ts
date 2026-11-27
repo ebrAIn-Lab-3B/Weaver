@@ -31,6 +31,11 @@ function interpolate(template: string, args: MessageArgs | undefined): string {
 export function t(key: MessageKey, locale: Locale = 'en', args?: MessageArgs): string {
   const message = CATALOGS[locale]?.[key] ?? en[key];
   if (message === undefined) return key;
+  if (key === 'mismatch.status-source-needs-decision' && args && args.labelsRead !== undefined && args.boardRead !== undefined) {
+    const labels = args.labelsRead === 0 ? t('observation.not-read', locale) : args.labelsEmpty === 1 ? t('observation.none', locale) : args.labels ?? '—';
+    const board = args.boardRead === 0 ? t('observation.not-read', locale) : args.boardEmpty === 1 ? t('observation.none', locale) : args.board ?? '—';
+    args = { ...args, labels, board, observed: args.source === 'labels' ? labels : board };
+  }
   if (typeof message === 'string') return interpolate(message, args);
   const count = typeof args?.count === 'number' ? args.count : 1;
   return interpolate(count === 1 ? message.one : message.other, args);

@@ -52,4 +52,20 @@ describe('completion evidence observations', () => {
     expect(result.comments.status === 'read' && result.comments.value).toHaveLength(100);
     expect(result.reviews?.[0]).toMatchObject({ revision: 'abc123', observation: { status: 'read', value: [{ author: 'reviewer', revision: 'old-sha', state: 'APPROVED' }] } });
   });
+
+  it('follows advertised short pages and refuses an unexpected or cursor-based next page', async () => {
+    for (const target of ['https://api.github.com/repos/example/repo/issues/5/comments?per_page=100&page=2', 'https://api.github.com/repos/example/other/issues/5/comments?per_page=100&page=2', 'https://api.github.com/repos/example/repo/issues/5/comments?per_page=100&after=cursor']) {
+      const base = fixture();
+      const fetchFn = (async (url: string, init?: RequestInit) => {
+        if (url.includes('/comments')) {
+          const first = url.endsWith('page=1');
+          return { ok: true, status: 200, headers: new Headers(first ? { link: `<${target}>; rel="next"` } : {}), json: async () => first ? [claim(1, 'first')] : [claim(2, 'second')] } as Response;
+        }
+        return base.fetchFn(url, init);
+      }) as FetchFn;
+      const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
+      if (target.endsWith('page=2') && target.includes('/example/repo/')) expect(result.comments).toMatchObject({ status: 'read', value: [{ body: 'first' }, { body: 'second' }] });
+      else expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+    }
+  });
 });

@@ -153,9 +153,32 @@ describe('fetchEvidence', () => {
     expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
   });
 
+  it('reads an advertised short timeline page and rejects unexpected next links', async () => {
+    for (const next of ['https://api.github.com/repos/me/Weaver/issues/5/timeline?per_page=100&page=2', 'https://api.github.com/repos/me/other/issues/5/timeline?per_page=100&page=2']) {
+      const base = routes(() => ({ json: { total_count: 0, check_runs: [] } })).fetchFn;
+      const fetchFn = (async (url: string, init?: RequestInit) => {
+        if (url.includes('/timeline')) {
+          const first = url.endsWith('page=1');
+          return { ok: true, status: 200, headers: new Headers(first ? { link: `<${next}>; rel="next"` } : {}), json: async () => [{ event: 'commented' }] } as Response;
+        }
+        return base(url, init);
+      }) as FetchFn;
+      const result = await fetchEvidence('t', ISSUE, fetchFn);
+      expect(result.ok).toBe(next.includes('/me/Weaver/'));
+      if (!result.ok) expect(result.error.code).toBe('github.err.evidence-incomplete');
+    }
+  });
+
   it('turns a failed call into a notice', async () => {
     const result = await fetchEvidence('t', ISSUE, routes(() => ({ status: 500 })).fetchFn);
     expect(result).toMatchObject({ ok: false, error: { code: 'github.err.http' } });
+  });
+
+  it('does not hide inaccessible or inconsistent cross-reference identity', async () => {
+    const missing = routes(() => ({ json: [{ event: 'cross-referenced', source: {} }] }));
+    expect(await fetchEvidence('t', ISSUE, missing.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+    const mismatch = routes(() => ({ json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/other/repo/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] }));
+    expect(await fetchEvidence('t', ISSUE, mismatch.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
   });
 });
 

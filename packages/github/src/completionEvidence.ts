@@ -1,6 +1,7 @@
 import { parseIssueUrl, type Notice, type PullEvidence } from '@ebrain-lab/weaver-markdown';
 import { fetchEvidence, fetchIssue, type FetchFn, type IssueResult } from './issue';
 import { errorNotice, NoticeError } from './errors';
+import { evidenceHasNext } from './evidencePagination';
 
 /** A failed or truncated collection must never be represented as an empty collection. */
 export type Observation<T> = { status: 'read'; value: T } | { status: 'unavailable'; error: Notice };
@@ -58,7 +59,7 @@ async function readPages<T>(token: string, url: string, fetchFn: FetchFn, parse:
       // GitHub may advertise a next page even when a page is short. The next URL is
       // constructed locally, so a response header cannot redirect the token elsewhere.
       const link = response.headers?.get('link') ?? '';
-      const next = /(?:^|,)\s*<[^>]+>\s*;\s*rel="next"(?:\s*;[^,]*)?(?:,|$)/i.test(link);
+      const next = evidenceHasNext(link, url, page);
       if (data.length < 100 && !next) return { status: 'read', value: values };
     }
     throw new NoticeError({ code: 'github.err.evidence-incomplete' });

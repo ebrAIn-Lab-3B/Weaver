@@ -1,4 +1,5 @@
 import { NoticeError, errorNotice } from './errors';
+import { evidenceHasNext } from './evidencePagination';
 import {
   BoardItem,
   CheckRunLike,
@@ -304,20 +305,27 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
   try {
     const events: TimelineEvent[] = [];
     for (let page = 1; page <= 3; page += 1) {
-      const batch = await getJson<TimelineEvent[]>(ctx,
-        `${API}/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/timeline?per_page=100&page=${page}`,
-      );
+      const timelineUrl = `${API}/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/timeline`;
+      const response = await fetchFn(`${timelineUrl}?per_page=100&page=${page}`, { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' } });
+      if (!response.ok) throw new NoticeError({ code: 'github.err.http', args: { status: response.status } });
+      const batch: unknown = await response.json();
+      if (!Array.isArray(batch) || batch.length > 100 || batch.some((event) => !event || typeof event !== 'object' || typeof event.event !== 'string')) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      const next = evidenceHasNext(response.headers?.get('link'), timelineUrl, page);
       events.push(...batch);
-      if (batch.length < 100) break;
+      if (batch.length < 100 && !next) break;
       if (page === 3) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
     }
 
     const sources = new Map<string, NonNullable<NonNullable<TimelineEvent['source']>['issue']>>();
     for (const event of events) {
       const source = event.source?.issue;
-      if (event.event === 'cross-referenced' && source?.pull_request && source.repository_url.startsWith(`${API}/repos/`)) {
-        sources.set(source.html_url, source);
-      }
+      if (event.event !== 'cross-referenced') continue;
+      if (!source || !Number.isSafeInteger(source.number) || source.number < 1 || typeof source.title !== 'string' || typeof source.html_url !== 'string' || typeof source.repository_url !== 'string') throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      if (!source.pull_request) continue;
+      const repository = /^https:\/\/api\.github\.com\/repos\/([\w.-]+)\/([\w.-]+)$/.exec(source.repository_url);
+      const pull = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)\/?$/i.exec(source.html_url);
+      if (!repository || !pull || repository[1].toLowerCase() !== pull[1].toLowerCase() || repository[2].toLowerCase() !== pull[2].toLowerCase() || Number(pull[3]) !== source.number) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      sources.set(source.html_url, source);
     }
 
     const pulls = await Promise.all(

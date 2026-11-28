@@ -283,6 +283,11 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const expectedMarker = registrationMarker(operation, id);
       const expectedIntentMarker = registrationMarker(operation, id, digest);
       const statusLabels = Object.values(columns.labels).filter((label) => issue.labels.some((actual) => actual.toLowerCase() === label.toLowerCase()));
+      const recordedDigest = markers.length === 1 ? / intent=([a-f0-9]{64}) -->$/.exec(markers[0])?.[1] : undefined;
+      if (body !== undefined && body.includes(expected) && recordedDigest && markers[0] === registrationMarker(operation, id, recordedDigest) && recordedDigest !== digest) {
+        report('cli.task-create.resume-unsafe', say('cli.task-create.intent-mismatch', { repository, issue: issue.url }), { reason: 'intent-mismatch' });
+        return EXIT.failed;
+      }
       if (body === undefined || !body.includes(expected) || (markers.length > 0 && (markers.length !== 1 || (markers[0] !== expectedMarker && markers[0] !== expectedIntentMarker))) || (columns.source === 'labels' && statusLabels.length !== 1) || (contract?.labels ?? []).some((label) => !issue.labels.includes(label))) return fail(EXIT.failed, 'cli.task-create.resume-unsafe', { repository });
       const intentMatched = markers.length === 1 && markers[0] === expectedIntentMarker;
       if (!intentMatched) deps.err(`${say('cli.task-create.legacy-intent', { issue: issue.url })}\n`);

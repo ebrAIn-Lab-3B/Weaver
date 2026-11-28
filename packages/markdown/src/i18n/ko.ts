@@ -411,6 +411,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.task-create.candidates': '{repository}의 기존 작업 Issue 후보: {candidates}. 식별자와 이전 생성 작업의 종료 여부를 확인한 뒤 확인된 URL을 --resume-issue에 사용하세요. 새 Issue는 만들지 않았습니다.',
   'cli.task-create.operation-reserved': '{repository}에 이전 등록 예약이 있습니다: {operation}. 이전 시도를 조사하고 이전 생성 작업이 종료된 뒤 다시 읽으세요. 작업이 실행 중일 수 있다면 예약을 삭제하지 마세요.',
   'cli.task-create.resume-unsafe': '{repository}의 등록을 안전하게 재개할 수 없습니다. 식별자, 기존 파일, 상태 또는 읽기 결과를 확인할 수 없습니다. Issue, Project와 풀 리퀘스트를 검토한 뒤 다시 시도하세요.',
+  'cli.task-create.intent-mismatch': '{repository}의 {issue} 등록을 안전하게 재개할 수 없습니다. 기록된 등록 요청이 현재 입력, 요구사항, 프로세스 또는 Project와 다릅니다. 원래 요청과 현재 설정을 검토하고 중복 Issue를 만들지 마세요.',
   'cli.task-create.legacy-intent': 'Issue {issue}에 등록 요청의 지문이 없습니다. 재개하기 전에 작업 세부 내용을 원래 요청과 비교하세요.',
   'cli.task-create.reservation-unsafe': '{repository}에서 단독 예약을 확인할 수 없습니다. 다시 시도하기 전에 {operation}, {task} 및 이전 시도를 확인하세요. 예약은 자동으로 삭제되지 않습니다.',
   'cli.task-create.issue-unverified': '쓰기 응답에 Issue {issue}이(가) 반환되었지만 예상한 내용을 확인할 수 없습니다. 재개하기 전에 해당 Issue를 확인하고 새 Issue를 만들지 마세요.',

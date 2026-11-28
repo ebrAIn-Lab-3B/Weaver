@@ -412,6 +412,7 @@ export const en = {
   'cli.task-create.candidates': 'Possible existing task Issues in {repository}: {candidates}. Verify their identity and make sure any earlier creator has stopped; then use --resume-issue with the confirmed URL. No new Issue was created.',
   'cli.task-create.operation-reserved': 'A prior registration reservation exists in {repository}: {operation}. Inspect the prior attempt and retry the reads after any earlier creator has stopped; do not remove the reservation while it may still be running.',
   'cli.task-create.resume-unsafe': 'Cannot safely resume registration in {repository}: identity, existing files, status or a required read is uncertain. Inspect the Issue, Project and pull requests before retrying.',
+  'cli.task-create.intent-mismatch': 'Cannot safely resume {issue} in {repository}: the recorded registration intent differs from the current arguments, requirement, process or Project. Review the original request and current configuration; do not create a duplicate.',
   'cli.task-create.legacy-intent': 'Issue {issue} has no registration intent digest. Compare its task details with the original request before resuming.',
   'cli.task-create.reservation-unsafe': 'Could not confirm exclusive reservations in {repository}. Inspect {operation} and {task}, and any prior attempt, before retrying. Reservations are not removed automatically.',
   'cli.task-create.issue-unverified': 'Issue {issue} was returned by the write but could not be verified with the expected contents. Inspect it before resuming; do not create another Issue.',

@@ -1269,9 +1269,15 @@ describe('task creation resume by explicit Issue', () => {
       const changed = fixture({ onProject: true, body });
       expect(await run([...args, ...changedArgs], changed.deps)).toBe(EXIT.failed);
       expect(JSON.parse(changed.out.join('')).error.code).toBe('cli.task-create.resume-unsafe');
+      expect(JSON.parse(changed.out.join('')).error.details.reason).toBe('intent-mismatch');
+      expect(JSON.parse(changed.out.join('')).error.message).toContain('recorded registration intent differs');
       expect(changed.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
       expect(changed.shell.some((entry) => entry.args[0] === 'push')).toBe(false);
     }
+    const korean = fixture({ onProject: true, body });
+    korean.deps.env.WEAVER_LANG = 'ko';
+    expect(await run([...args, '--assignee', 'other-agent'], korean.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(korean.out.join('')).error.message).toContain('기록된 등록 요청');
   });
 
   it('warns in Korean when the original intent cannot be checked', async () => {

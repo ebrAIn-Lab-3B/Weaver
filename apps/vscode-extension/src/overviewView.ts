@@ -15,6 +15,7 @@ import {
   isFinished,
   makeSnapshot,
   MergedPull,
+  MessageKey,
   moveLane,
   readSnapshot,
   snapshotAge,
@@ -529,7 +530,11 @@ export class OverviewView {
     for (const entry of evidence.reviews ?? []) {
       if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
       else if (!entry.observation.value.length) add(text('ui.overview.evidence.no-reviews'), entry.pullUrl, entry.pullUrl);
-      else for (const review of entry.observation.value) add(text('ui.overview.evidence.review', { author: review.author ?? '—', state: review.state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+      else for (const review of entry.observation.value) {
+        const reviewStates: Record<string, MessageKey> = { APPROVED: 'ui.overview.evidence.review-state.approved', CHANGES_REQUESTED: 'ui.overview.evidence.review-state.changes-requested', COMMENTED: 'ui.overview.evidence.review-state.commented', DISMISSED: 'ui.overview.evidence.review-state.dismissed', PENDING: 'ui.overview.evidence.review-state.pending' };
+        const state = Object.prototype.hasOwnProperty.call(reviewStates, review.state) ? text(reviewStates[review.state]) : review.state;
+        add(text('ui.overview.evidence.review', { author: review.author ?? '—', state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+      }
     }
     if (evidence.comments.status === 'unavailable') add(text('ui.overview.evidence.comments-unavailable'), formatNotice(evidence.comments.error, currentLocale()));
     else for (const comment of evidence.comments.value) add(text('ui.overview.evidence.comment', { author: comment.author ?? '—', time: comment.updatedAt }), comment.body.replace(/\s+/g, ' ').slice(0, 240), comment.url);

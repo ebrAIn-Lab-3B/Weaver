@@ -20,8 +20,12 @@ export interface PullEvidence {
   url: string;
   state: 'open' | 'closed' | 'merged';
   checks: ChecksState;
-  /** `closes` when the PR text says it closes the Issue; otherwise it only mentions it. */
-  link: 'closes' | 'mentions';
+  /** GitHub's closing association, not a conclusion drawn from pull request text. */
+  link: 'closes' | 'mentions' | 'unknown';
+  /** A textual closing claim is useful context but does not establish an association. */
+  textClaimsClosing?: boolean;
+  /** The head commit whose checks were inspected. */
+  revision?: string;
 }
 
 export interface TaskEvidence {
@@ -61,10 +65,11 @@ export function evidenceGaps(column: KanbanColumn, evidence: TaskEvidence | unde
   } else if (
     column === 'Verified' &&
     rules.closingPullRequest &&
-    !evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'closes')
+    !evidence.pulls.some((pull) => pull.state === 'merged' && (pull.link === 'closes' || pull.link === 'unknown'))
   ) {
     gaps.push({ code: 'gap.no-closing-pr' });
   }
+  if (column === 'Verified' && rules.closingPullRequest && !evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'closes') && evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'unknown')) gaps.push({ code: 'gap.closing-unknown' });
   // closed without merge is not evidence either way
   const live = evidence.pulls.filter((pull) => pull.state !== 'closed');
   gaps.push(...groupedPullGap(live, 'failing', 'gap.checks-failing'));

@@ -26,4 +26,4 @@ TASK-131; final guidance depends on TASK-132 and TASK-133.
 
 Documentation PR, reproducible guidance checks and evidence of discovery by an agent workflow; explicitly identify any untested environment.
 
-Status: planned. No implementation or completion evidence has been recorded.
+Status: in progress. The repository's [agent entry point](../../AGENTS.md) links to the product-neutral [registration, verification and recovery procedure](../onboarding/agent-contract.md#register-verify-and-recover-a-task). The CLI suite exercises task creation and partial recovery fixtures. A focused discovery and guidance check, controlled workflow observation and documentation PR remain outstanding.

@@ -68,6 +68,15 @@ describe('describePull', () => {
     expect(describePull(pull({ link: 'mentions' }))).toBe('PR #7 merged · checks passing · mentions Issue');
     expect(describePull(pull({ link: 'mentions' }), 'ko')).toBe('PR #7 병합됨 · 체크 통과 · Issue를 언급');
   });
+
+  it('keeps an unavailable closing association distinct from a missing one in both locales', () => {
+    const unknown = pull({ link: 'unknown' });
+    expect(describePull(unknown)).toContain('closing association unavailable');
+    expect(describePull(unknown, 'ko')).toContain('종료 연결을 확인할 수 없음');
+    const gaps = evidenceGaps('Verified', { pulls: [unknown] });
+    expect(gaps.map((gap) => gap.code)).toContain('gap.closing-unknown');
+    expect(gaps.map((gap) => gap.code)).not.toContain('gap.no-closing-pr');
+  });
 });
 
 describe('closesIssue', () => {

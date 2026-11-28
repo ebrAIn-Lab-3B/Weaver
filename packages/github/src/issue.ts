@@ -255,6 +255,34 @@ interface TimelineEvent {
   };
 }
 
+const CLOSING_REFERENCES = `query($o:String!,$r:String!,$n:Int!,$after:String){repository(owner:$o,name:$r){pullRequest(number:$n){closingIssuesReferences(first:100,after:$after){nodes{number repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}`;
+type ClosingReferences = { nodes?: { number: number; repository: { nameWithOwner: string } }[]; pageInfo?: { hasNextPage: boolean; endCursor: string | null } };
+type ClosingReply = { repository?: { pullRequest?: { closingIssuesReferences?: ClosingReferences } } };
+
+/** Read the repository-qualified relationship GitHub records, without inferring it from PR text. */
+async function closingAssociation(ctx: Ctx, repositoryUrl: string, pull: number, issue: { owner: string; repo: string; number: number }): Promise<PullEvidence['link']> {
+  const repo = /^https:\/\/api\.github\.com\/repos\/([\w.-]+)\/([\w.-]+)$/.exec(repositoryUrl);
+  if (!repo) return 'unknown';
+  try {
+    let after: string | null = null;
+    const seen = new Set<string>();
+    for (let page = 0; page < 50; page += 1) {
+      const data: ClosingReply = await graphql<ClosingReply>(ctx, CLOSING_REFERENCES, { o: repo[1], r: repo[2], n: pull, after });
+      const refs: ClosingReferences | undefined = data?.repository?.pullRequest?.closingIssuesReferences;
+      if (!refs || !Array.isArray(refs.nodes) || !refs.pageInfo || typeof refs.pageInfo.hasNextPage !== 'boolean' || refs.nodes.some((node) => !node || !Number.isSafeInteger(node.number) || typeof node.repository?.nameWithOwner !== 'string')) return 'unknown';
+      if (refs.nodes.some((node) => node.number === issue.number && node.repository.nameWithOwner.toLowerCase() === `${issue.owner}/${issue.repo}`.toLowerCase())) return 'closes';
+      if (!refs.pageInfo.hasNextPage) return 'mentions';
+      const cursor: string | null = refs.pageInfo.endCursor;
+      if (!cursor || seen.has(cursor)) return 'unknown';
+      seen.add(cursor);
+      after = cursor;
+    }
+  } catch {
+    // A failed or inaccessible relationship is unknown, not a missing relationship.
+  }
+  return 'unknown';
+}
+
 /**
  * Finds pull requests that reference the Issue (timeline cross-references),
  * then reads each one's merge state and check runs. A reference is a link,
@@ -293,14 +321,17 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
           `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`,
         );
         if (typeof runs.total_count === 'number' && runs.total_count > runs.check_runs.length) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+        const link = await closingAssociation(ctx, source.repository_url, source.number, ref);
         return {
           number: source.number,
           title: source.title,
           url: source.html_url,
           state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
           checks: summarizeChecks(runs.check_runs),
-          link: closesIssue(`${source.title}
-${pr.body ?? ''}`, ref.number) ? 'closes' : 'mentions',
+          link,
+          textClaimsClosing: closesIssue(`${source.title}
+${pr.body ?? ''}`, ref.number),
+          revision: pr.head.sha,
         };
       }),
     );

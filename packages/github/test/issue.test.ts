@@ -102,12 +102,44 @@ describe('fetchEvidence', () => {
         };
       }
       if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #5', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 5, repository: { nameWithOwner: 'me/Weaver' } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
       return { json: { check_runs: [{ status: 'completed', conclusion: 'success' }] } };
     });
     const result = await fetchEvidence('t', ISSUE, fetchFn);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.evidence.pulls).toMatchObject([{ number: 7, state: 'merged', link: 'closes' }]);
+    expect(result.evidence.pulls).toMatchObject([{ number: 7, state: 'merged', link: 'closes', textClaimsClosing: true, revision: 'abc' }]);
+  });
+
+  it('distinguishes a text claim from a complete, repository-qualified closing association and an unavailable read', async () => {
+    const base = (relationship: unknown) => routes((call) => {
+      if (call.url.includes('/timeline')) return { json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'feat', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] };
+      if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #5', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) return { json: relationship };
+      return { json: { total_count: 0, check_runs: [] } };
+    }).fetchFn;
+    const other = { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 5, repository: { nameWithOwner: 'other/repo' } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    const nonClosing = await fetchEvidence('t', ISSUE, base(other));
+    expect(nonClosing).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'mentions', textClaimsClosing: true, checks: 'none' }] } });
+    const unavailable = await fetchEvidence('t', ISSUE, base({ errors: [{ message: 'forbidden' }] }));
+    expect(unavailable).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'unknown', textClaimsClosing: true }] } });
+    const truncated = { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: true, endCursor: null } } } } } };
+    expect(await fetchEvidence('t', ISSUE, base(truncated))).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'unknown' }] } });
+  });
+
+  it('follows closing-reference pages before reporting a missing association', async () => {
+    const { fetchFn, calls } = routes((call) => {
+      if (call.url.includes('/timeline')) return { json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'feat', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] };
+      if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) {
+        const after = (call.body as { variables: { after: string | null } }).variables.after;
+        const refs = after === null ? { nodes: [], pageInfo: { hasNextPage: true, endCursor: 'next' } } : { nodes: [{ number: 5, repository: { nameWithOwner: 'me/Weaver' } }], pageInfo: { hasNextPage: false, endCursor: null } };
+        return { json: { data: { repository: { pullRequest: { closingIssuesReferences: refs } } } } };
+      }
+      return { json: { total_count: 0, check_runs: [] } };
+    });
+    expect(await fetchEvidence('t', ISSUE, fetchFn)).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'closes' }] } });
+    expect(calls.filter((call) => call.url.endsWith('/graphql'))).toHaveLength(2);
   });
 
   it('refuses to infer evidence from a truncated timeline or check-run list', async () => {

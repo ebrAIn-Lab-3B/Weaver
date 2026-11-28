@@ -31,6 +31,8 @@ Keep requirements, tasks, and implementation evidence connected across the repos
 
 Weaver is initially developed using its own workflow.
 
+- For task registration, verification, and interrupted writes, follow the product-neutral [agent contract](docs/onboarding/agent-contract.md#register-verify-and-recover-a-task). The same CLI workflow is available to people without an AI service.
+
 - Use OpenClaw Agent or VS Code with SlashMD to write and refine requirement documents.
 - Keep concepts, decisions, and acceptance criteria in the repository.
 - Convert document sections into tracked Weaver tasks.

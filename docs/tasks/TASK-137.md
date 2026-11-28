@@ -27,4 +27,4 @@ Follow TASK-131's investigation and coordinate with TASK-133's diagnostic and TA
 
 Link implementation PR, targeted automated tests and a controlled end-to-end evidence review including source and revision provenance, pagination/access limits and outstanding warnings. Do not claim an independent test or formal review solely from a reported outcome.
 
-Status: planned. No implementation or completion evidence has been recorded.
+Status: in progress. The existing detailed evidence reader now queries GitHub's repository-qualified closing relationship rather than treating a PR text keyword as proof; failed and incomplete relationship reads remain unknown. Targeted tests cover a cross-repository same-number reference, unavailable and truncated reads, and pagination. Completion still requires the broader task/Issue diagnosis, review and independent-test provenance, policy and exception cases, controlled end-to-end evidence review, and a linked implementation PR.

@@ -347,7 +347,7 @@ export const en = {
   'ui.overview.evidence.review-detail': 'Review revision {revision}; current observed head {head}; submitted {time}. Check applicability when revisions differ.',
   'ui.overview.evidence.comments-unavailable': 'Issue comments unavailable or incomplete',
   'ui.overview.evidence.comment': 'Comment by {author}, updated {time}',
-  'ui.overview.evidence.claims-warning': 'Comments are attributed claims; independent tests and verification are not inferred.',
+  'ui.overview.evidence.claims-warning': 'Comments are attributed claims, not proof of independent tests or verification. Compare sources and potentially conflicting claims manually.',
   'ui.overview.menu.repository-folder': 'Repository folder {repository}',
   'ui.overview.menu.unavailable': 'not available',
   'ui.overview.na.no-requirement': 'No requirement file for this card is in the workspace. Open or clone the repository that has it.',

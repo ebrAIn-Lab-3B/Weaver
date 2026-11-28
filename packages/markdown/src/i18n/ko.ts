@@ -346,7 +346,7 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.evidence.review-detail': '리뷰 리비전 {revision}; 조회한 현재 헤드 {head}; 제출 {time}. 리비전이 다르면 적용 여부를 확인하세요.',
   'ui.overview.evidence.comments-unavailable': 'Issue 댓글을 읽을 수 없거나 불완전합니다',
   'ui.overview.evidence.comment': '{author}의 댓글, 수정 시각 {time}',
-  'ui.overview.evidence.claims-warning': '댓글은 작성자가 표시된 주장입니다. 독립 테스트나 검증 여부를 추론하지 않습니다.',
+  'ui.overview.evidence.claims-warning': '댓글은 작성자가 표시된 주장으로 독립 테스트나 검증의 증거가 아닙니다. 출처와 서로 다를 수 있는 주장을 직접 비교하세요.',
   'ui.overview.menu.repository-folder': '저장소 폴더 {repository}',
   'ui.overview.menu.unavailable': '열 수 없음',
   'ui.overview.na.no-requirement': '이 카드의 요구사항 파일이 작업공간에 없습니다. 그 파일이 있는 저장소를 열거나 클론해 주세요.',

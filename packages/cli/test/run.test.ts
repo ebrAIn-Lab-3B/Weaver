@@ -1278,6 +1278,16 @@ describe('task creation resume by explicit Issue', () => {
     korean.deps.env.WEAVER_LANG = 'ko';
     expect(await run([...args, '--assignee', 'other-agent'], korean.deps)).toBe(EXIT.failed);
     expect(JSON.parse(korean.out.join('')).error.message).toContain('기록된 등록 요청');
+    const marker = body.match(/<!-- weaver-registration:v2 [\s\S]*? -->/)?.[0];
+    if (!marker) throw new Error('missing registration marker');
+    for (const altered of [body + marker, body.replace('operation=refs/heads/weaver/reservations/op-', 'operation=refs/heads/weaver/reservations/other-')]) {
+      const unsafe = fixture({ onProject: true, body: altered });
+      expect(await run(args, unsafe.deps)).toBe(EXIT.failed);
+      const error = JSON.parse(unsafe.out.join('')).error;
+      expect(error.code).toBe('cli.task-create.resume-unsafe');
+      expect(error.details?.reason).toBeUndefined();
+      expect(unsafe.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
+    }
   });
 
   it('warns in Korean when the original intent cannot be checked', async () => {

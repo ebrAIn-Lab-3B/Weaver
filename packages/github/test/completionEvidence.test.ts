@@ -40,6 +40,16 @@ describe('completion evidence observations', () => {
     expect(result.reviews?.[0].observation).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
   });
 
+  it('rejects comments and reviews whose source URLs do not identify the queried Issue or PR', async () => {
+    const review = { html_url: 'https://github.com/example/repo/pull/8#pullrequestreview-1', user: { login: 'reviewer' }, state: 'APPROVED', submitted_at: null, commit_id: null, body: '' };
+    for (const url of ['https://github.com/example/repo/issues/6#issuecomment-1', 'https://github.com/example/other/issues/5#issuecomment-1', 'https://example.com/example/repo/issues/5#issuecomment-1', `${issueUrl}#other`]) {
+      const f = fixture({ comments: [{ ...claim(1, 'claim'), html_url: url }], reviews: [review] });
+      const result = await fetchCompletionEvidence('token', issueUrl, now, f.fetchFn);
+      expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+      expect(result.reviews?.[0].observation).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+    }
+  });
+
   it('retains merge, association and review observations when check runs are inaccessible', async () => {
     const denied = fixture({ checksStatus: 403 });
     const result = await fetchCompletionEvidence('token', issueUrl, now, denied.fetchFn);

@@ -39,6 +39,8 @@ Check-run read failures now retain separately observed PR state, closing associa
 
 The CLI findings also flag failing, pending, missing or inconclusive check runs on both timeline references and repository-inventory candidates. Controlled CLI tests exercise failing and pending results in English and Korean for each source; candidates remain unconfirmed associations.
 
+Issue-comment and formal-review links are checked against the queried Issue or PR before attribution. A malformed or mismatched link makes that collection unavailable rather than attributing another record to the task. Controlled tests cover wrong Issue, repository, host, fragment and PR; `npm run check`, the full 1,274-test suite and the mocked English/Korean VS Code evidence-menu host test passed on 2026-11-28 KST. These tests do not establish authorship beyond the returned account or prove independent execution.
+
 Project cards now merge PR observations by repository-qualified URL, not PR number alone. Otherwise a cross-repository mention with the same number could overwrite a closing PR or inherit its closing flag. Markdown and GitHub Project-reader tests cover distinct same-number PRs, duplicate URL variants and inconsistent URL/number identities.
 
 The merged-PR reader now requests the repository of each closing Issue and only compares numbers within the correct repository. A missing repository identity makes the closing list incomplete instead of proving either a link or its absence. `weaver show` retains its existing boolean as an observed-positive flag, adds `closingIncomplete` when relevant and warns about incomplete inventories; controlled tests cover same-number cross-repository references and missing identity.

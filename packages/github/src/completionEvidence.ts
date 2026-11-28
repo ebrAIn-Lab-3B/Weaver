@@ -108,11 +108,27 @@ function review(value: unknown): ReviewRecord | undefined {
   return { url: v.html_url, author: login, state: v.state, submittedAt: v.submitted_at as string | null, revision: v.commit_id as string | null, body: (v.body as string | null) ?? '' };
 }
 
+/** Do not attribute a returned record to a different Issue or PR. */
+function belongsToRecord(recordUrl: string, parentUrl: string, fragment: RegExp): boolean {
+  try {
+    const record = new URL(recordUrl);
+    const parent = new URL(parentUrl);
+    return record.protocol === 'https:' && record.hostname.toLowerCase() === 'github.com' &&
+      record.pathname.replace(/\/$/, '').toLowerCase() === parent.pathname.replace(/\/$/, '').toLowerCase() &&
+      record.search === '' && fragment.test(record.hash);
+  } catch {
+    return false;
+  }
+}
+
 /** Reviews are read independently of check and closing-reference availability. */
 export async function fetchPullReviews(token: string, pullUrl: string, fetchFn: FetchFn = fetch): Promise<Observation<ReviewRecord[]>> {
   const match = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/i.exec(pullUrl);
   if (!match || !Number.isSafeInteger(Number(match[3]))) return { status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } };
-  return readPages(token, `https://api.github.com/repos/${match[1]}/${match[2]}/pulls/${match[3]}/reviews`, fetchFn, review);
+  return readPages(token, `https://api.github.com/repos/${match[1]}/${match[2]}/pulls/${match[3]}/reviews`, fetchFn, (value) => {
+    const record = review(value);
+    return record && belongsToRecord(record.url, pullUrl, /^#pullrequestreview-[1-9]\d*$/) ? record : undefined;
+  });
 }
 
 /** Read independent sources separately; comments are attributed claims, not verified test results. */
@@ -123,7 +139,10 @@ export async function fetchCompletionEvidence(token: string, issueUrl: string, r
   const [issue, evidence, comments] = await Promise.all([
     fetchIssue(token, issueUrl, fetchFn),
     fetchEvidence(token, issueUrl, fetchFn),
-    readPages(token, `https://api.github.com/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/comments`, fetchFn, comment),
+    readPages(token, `https://api.github.com/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/comments`, fetchFn, (value) => {
+      const record = comment(value);
+      return record && belongsToRecord(record.url, issueUrl, /^#issuecomment-[1-9]\d*$/) ? record : undefined;
+    }),
   ]);
   const pulls: PullObservation = evidence.ok ? evidence.evidence.unavailablePulls?.length ? { status: 'partial', value: evidence.evidence.pulls, unavailable: evidence.evidence.unavailablePulls } : { status: 'read', value: evidence.evidence.pulls } : { status: 'unavailable', error: evidence.error };
   const reviews = evidence.ok ? await mapLimit(evidence.evidence.pulls, EVIDENCE_READ_LIMIT, async (pull) => {

@@ -47,7 +47,8 @@ function rest(comments: unknown = [], status = 200) {
   const fetchFn = (async (url: string, init?: { method?: string; body?: string }) => {
     calls.push({ method: init?.method ?? 'GET', url, ...(init?.body ? { body: JSON.parse(init.body) } : {}) });
     const ok = status < 400;
-    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : { number: 20, title: 'Issue', html_url: url, state: 'open', labels: [], assignees: [] }) };
+    const issue = /\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/.exec(url);
+    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : { number: issue ? Number(issue[3]) : 20, title: 'Issue', html_url: issue ? `https://github.com/${issue[1]}/${issue[2]}/issues/${issue[3]}` : url, state: 'open', labels: [], assignees: [] }) };
   }) as unknown as FetchFn;
   return { fetchFn, calls };
 }
@@ -202,6 +203,13 @@ describe('planReconcile', () => {
     const plan = await planReconcile(input({ artifacts, cards: [], pulls: [], fetchFn: unreadable.fetchFn }));
     expect(plan.actions.filter((a) => a.kind === 'project.add')).toEqual([]);
     expect(plan.reports.map((r) => r.kind)).toContain('issue-unavailable');
+  });
+
+  it('does not offer a Project addition when the response names a different Issue', async () => {
+    const fetchFn = (async () => ({ ok: true, status: 200, json: async () => ({ number: 10, title: 'Issue', html_url: 'https://github.com/other/repo/issues/10', state: 'open', labels: [], assignees: [] }) })) as unknown as FetchFn;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [], pulls: [], fetchFn }));
+    expect(plan.actions.filter((action) => action.kind === 'project.add')).toEqual([]);
+    expect(plan.reports.map((report) => report.kind)).toContain('issue-unavailable');
   });
 
   it('proposes setting a confirmed missing board Status and refuses an unreadable process', async () => {

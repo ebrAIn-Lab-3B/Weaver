@@ -56,6 +56,8 @@ export async function fetchIssue(token: string, issueUrl: string, fetchFn: Fetch
     if (!data || !Number.isSafeInteger(data.number) || data.number < 1 || typeof data.title !== 'string' || typeof data.html_url !== 'string' || (data.state !== 'open' && data.state !== 'closed') || !Array.isArray(data.labels) || data.labels.some((label) => typeof label === 'string' ? !label : !label || typeof label.name !== 'string' || !label.name) || (data.assignees !== undefined && (!Array.isArray(data.assignees) || data.assignees.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)))) {
       return { ok: false, error: { code: 'github.err.issue-incomplete' } };
     }
+    const returned = parseIssueUrl(data.html_url);
+    if (!returned || returned.owner.toLowerCase() !== ref.owner.toLowerCase() || returned.repo.toLowerCase() !== ref.repo.toLowerCase() || returned.number !== ref.number || data.number !== ref.number) return { ok: false, error: { code: 'github.err.issue-incomplete' } };
     return {
       ok: true,
       issue: {

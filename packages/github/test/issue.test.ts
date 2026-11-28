@@ -35,6 +35,14 @@ describe('fetchIssue', () => {
     expect(result).toEqual({ ok: true, issue: { number: 5, title: 'T', url: ISSUE, state: 'open', labels: ['task', 'status:review'], assignees: ['me'] } });
   });
 
+  it('rejects an Issue response with a different repository, number, or URL identity', async () => {
+    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [], assignees: [] };
+    for (const change of [{ number: 6 }, { html_url: 'https://github.com/other/Weaver/issues/5' }, { html_url: 'https://github.com/me/Weaver/issues/6' }, { html_url: 'https://github.com/me/Weaver/pull/5' }]) {
+      expect(await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, ...change } })).fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.issue-incomplete' } });
+    }
+    expect(await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, html_url: 'https://github.com/ME/weaver/issues/5/' } })).fetchFn)).toMatchObject({ ok: true });
+  });
+
   it('turns a missing Issue, a bad address, and a network failure into notices', async () => {
     expect(await fetchIssue('t', ISSUE, routes(() => ({ status: 404 })).fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.not-found' } });
     expect(await fetchIssue('t', 'nope', routes(() => ({})).fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.not-issue-url' } });

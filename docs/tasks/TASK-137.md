@@ -43,6 +43,8 @@ Issue-comment and formal-review links are checked against the queried Issue or P
 
 After that change, a read-only current-CLI inspection of HealthBridge Issue #20 using the same temporary checkout read seven Issue comments and both referenced PR review collections successfully. The diagnostic retained `independentTests.status: unverified`. This checks the new URL validation against those live records; it does not prove independent execution or cover every GitHub URL variant. No remote writes were made.
 
+The same source validation was separately checked against the public [VS Code PR #350813](https://github.com/microsoft/vscode/pull/350813), which had eight formal review records: the current `fetchPullReviews` returned `read` with all eight. This read-only compatibility probe covers a nonempty actual review collection, not a review of Weaver or verification of TASK-137.
+
 Project cards now merge PR observations by repository-qualified URL, not PR number alone. Otherwise a cross-repository mention with the same number could overwrite a closing PR or inherit its closing flag. Markdown and GitHub Project-reader tests cover distinct same-number PRs, duplicate URL variants and inconsistent URL/number identities.
 
 The merged-PR reader now requests the repository of each closing Issue and only compares numbers within the correct repository. A missing repository identity makes the closing list incomplete instead of proving either a link or its absence. `weaver show` retains its existing boolean as an observed-positive flag, adds `closingIncomplete` when relevant and warns about incomplete inventories; controlled tests cover same-number cross-repository references and missing identity.

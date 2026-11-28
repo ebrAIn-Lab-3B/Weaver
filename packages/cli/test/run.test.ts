@@ -796,18 +796,20 @@ describe('weaver task create', () => {
     const issueAction = JSON.parse(first.out.join('')).actions[0].id;
     const s = setup();
     const original = s.deps.fetch as Fetch;
-    let posted: { title: string; body: string } | undefined;
+    let posted: { title: string; body: string; labels: string[] } | undefined;
     let createCalls = 0;
     s.deps.fetch = async (url, init) => {
       if (url.endsWith('/issues') && init.method === 'POST') {
         createCalls += 1;
-        posted = JSON.parse(init.body) as { title: string; body: string };
+        posted = JSON.parse(init.body) as { title: string; body: string; labels: string[] };
         throw new Error('response lost');
       }
       if (url.includes('/issues?state=all&') && posted) return { ok: true, status: 200, json: async () => [{ title: posted!.title, body: posted!.body, html_url: 'https://github.com/me/Weaver/issues/77' }] };
       return original(url, init);
     };
     expect(await run([...ARGS, '--approve', issueAction], s.deps)).toBe(EXIT.failed);
+    expect(posted?.labels).toEqual(['task', 'status:backlog']);
+    expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(false);
     expect(JSON.parse(s.out.join('')).actions[0].identifiers.issue).toBeUndefined();
     expect(JSON.parse(s.out.join('')).actions[0].message).toContain('Do not create another Issue');
     expect(JSON.parse(s.out.join('')).actions[0].message).toContain('prior executor has stopped');

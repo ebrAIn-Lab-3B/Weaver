@@ -1776,6 +1776,26 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('declines a status repair interactively without an AI service or mutation', async () => {
+    const { deps, out, writes } = setup();
+    const original = deps.fetch!;
+    deps.interactive = true;
+    let prompts = 0;
+    deps.ask = async () => { prompts += 1; return false; };
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        const node = issue(10);
+        node.fieldValueByName = { name: 'Todo' };
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [node] } } } } }) };
+      }
+      return original(url, init);
+    };
+    expect(await run(['reconcile', '--apply'], deps)).toBe(EXIT.declined);
+    const result = JSON.parse(out.join(''));
+    expect(result.actions).toContainEqual(expect.objectContaining({ kind: 'board.status', outcome: 'declined' }));
+    expect(prompts).toBeGreaterThan(0);
+    expect(writes.some((entry) => /mutation|^RESERVE|^REST .*\/issues$/.test(entry))).toBe(false);
+  });
   it('marks a failed post-add verification incomplete when the item appears on a later read', async () => {
     const { deps, out } = setup();
     const originalFetch = deps.fetch!;

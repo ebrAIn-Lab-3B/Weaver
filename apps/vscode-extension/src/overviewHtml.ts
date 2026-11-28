@@ -234,7 +234,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
         <ul class="plain">${state.mismatches
           .map(
             (m) =>
-              `<li><button data-reconcile="${e(JSON.stringify(m))}">${e(tt('ui.overview.fix-mismatches'))}</button> ${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
+              `<li><button data-reconcile="${e(JSON.stringify(m))}">${e(tt(m.kind === 'pulls-incomplete' ? 'ui.overview.inspect-pulls' : 'ui.overview.review-fix'))}</button> ${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
           )
           .join('')}</ul></details>${button('reviewMismatches', 'ui.overview.fix-mismatches')}</div>`
         : `<p class="muted small">${e(tt(state.skippedChecks.length || state.reading.length ? 'ui.overview.mismatches-incomplete' : 'ui.overview.mismatches-none'))}</p>`;

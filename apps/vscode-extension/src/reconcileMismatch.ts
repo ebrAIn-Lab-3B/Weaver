@@ -19,7 +19,7 @@ function sameFinding(a: Finding, b: Finding): boolean {
 }
 
 /** Runs the same planner and executors as the CLI, without invoking a shell or storing a token. */
-export async function reconcileMismatch(finding: Mismatch, project: { owner: string; number: number }): Promise<void> {
+export async function reconcileMismatch(finding: Mismatch, project: { owner: string; number: number }, onNoAction: (detail: string) => Promise<void>): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length !== 1 || folders[0].uri.scheme !== 'file') {
     void vscode.window.showWarningMessage(message('ui.reconcile.unavailable')); return;
@@ -53,7 +53,7 @@ export async function reconcileMismatch(finding: Mismatch, project: { owner: str
   const actions = (plan.actions ?? []).filter((action) => action.finding && sameFinding(action.finding, finding));
   if (!actions.length) {
     const reports = (plan.report ?? []).filter((report) => sameFinding(report, finding));
-    void vscode.window.showInformationMessage(message('ui.reconcile.no-action', { detail: reports.map((r) => r.message).join(' ') || message('ui.reconcile.changed') }));
+    await onNoAction(reports.map((r) => r.message).join(' ') || message('ui.reconcile.changed'));
     return;
   }
   const choice = actions.length === 1 ? actions[0] : (await vscode.window.showQuickPick(actions.map((action) => ({ label: action.summary, detail: action.reason, action }))))?.action;

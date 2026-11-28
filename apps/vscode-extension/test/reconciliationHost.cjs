@@ -29,7 +29,7 @@ async function run() {
     assert.match(html, /Backlog: status:backlog → Backlog/);
     assert.match(html, /Issue 라벨 status:backlog/);
     assert.match(html, /data-reconcile=/);
-    assert.match(html, /<button data-cmd="reviewMismatches">수정 검토<\/button>/);
+    assert.match(html, /<button data-cmd="reviewMismatches">관련 위치 찾기<\/button>/);
 
     rules.source = 'board-status';
     const labels = ['status:backlog'];
@@ -51,6 +51,19 @@ async function run() {
     view.choose = async (items) => items[0];
     await view.onMessage({ type: 'reviewMismatches' });
     assert.equal(requested, 'https://github.com/o/r/issues/1');
+    const incomplete = { kind: 'pulls-incomplete', subject: '#1', args: { repository: 'o/r', number: 1 }, url: 'https://github.com/o/r/issues/1' };
+    view.state = () => ({ kind: 'ready', mismatches: [incomplete] });
+    view.find = () => ({ card: { number: 1, url: incomplete.url } });
+    view.inspectCardEvidence = async (card) => { requested = card.url; };
+    view.refreshAll = async () => {};
+    requested = undefined;
+    await view.onMessage({ type: 'reconcileMismatch', finding: JSON.stringify(incomplete) });
+    assert.equal(requested, incomplete.url);
+    let options;
+    view.choose = async (items) => { options = items; return undefined; };
+    await view.guideMismatch({ ...incomplete, kind: 'board-status-differs' }, 'Review completion evidence');
+    assert.equal(options.length, 3);
+    assert(options[0].detail.includes('Review completion evidence'));
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, case: 'overview rules and unavailable process (mock GitHub)' }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));

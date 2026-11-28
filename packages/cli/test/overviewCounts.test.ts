@@ -55,8 +55,12 @@ describe('Overview unfinished repository counts', () => {
     const state: OverviewState = { kind: 'ready', projectTitle: 'Board', lanes: [], skipped: 0, hidden: [], collapsed: [], mismatches: [], skippedChecks: [], reading: [], focusActive: false, showFinished: false, finished: {} };
     expect(renderOverviewHtml(state, 'nonce', 'csp', 'en')).not.toContain('data-cmd="reviewMismatches"');
     state.mismatches = [{ kind: 'task-without-issue', subject: 'TASK-001', args: { task: 'TASK-001' }, path: 'task.md' }];
-    expect(renderOverviewHtml(state, 'nonce', 'csp', 'en')).toContain('<button data-cmd="reviewMismatches">Review fixes</button>');
-    expect(renderOverviewHtml(state, 'nonce', 'csp', 'ko')).toContain('<button data-cmd="reviewMismatches">수정 검토</button>');
+    expect(renderOverviewHtml(state, 'nonce', 'csp', 'en')).toContain('<button data-cmd="reviewMismatches">Find related sources</button>');
+    expect(renderOverviewHtml(state, 'nonce', 'csp', 'ko')).toContain('<button data-cmd="reviewMismatches">관련 위치 찾기</button>');
+    state.mismatches.push({ kind: 'pulls-incomplete', subject: '#1', args: { repository: 'o/r', number: 1 }, url: 'https://github.com/o/r/issues/1' });
+    const html = renderOverviewHtml(state, 'nonce', 'csp', 'ko');
+    expect(html).toContain('>PR 근거 확인</button>');
+    expect(html).toContain('>수정안 확인</button>');
   });
 
   it('recomputes counts when the board changes and renders offline lanes', () => {

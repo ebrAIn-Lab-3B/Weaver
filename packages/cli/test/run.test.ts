@@ -1776,6 +1776,16 @@ describe('where the configuration comes from', () => {
 
 
 describe('rule-based status reconciliation flow', () => {
+  it('gives identical findings and action identifiers for identical observed facts and process', async () => {
+    const runs = [setup(), setup()];
+    for (const attempt of runs) expect(await run(['reconcile'], attempt.deps)).toBe(EXIT.ok);
+    const results = runs.map((attempt) => JSON.parse(attempt.out.join('')));
+    expect(results[0].context).toEqual(results[1].context);
+    expect(results[0].actions.map((action: { id: string }) => action.id)).toEqual(results[1].actions.map((action: { id: string }) => action.id));
+    expect(results[0].report).toEqual(results[1].report);
+    for (const attempt of runs) expect(attempt.writes.some((entry) => /mutation|^RESERVE|^REST .*\/issues$/.test(entry))).toBe(false);
+  });
+
   it('declines a status repair interactively without an AI service or mutation', async () => {
     const { deps, out, writes } = setup();
     const original = deps.fetch!;

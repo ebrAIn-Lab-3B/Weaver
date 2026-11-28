@@ -407,6 +407,10 @@ export class OverviewView {
     return { card, link: requirementsByIssue(this.loaded?.artifacts ?? []).get(wanted) };
   }
 
+  private choose<T extends vscode.QuickPickItem>(items: T[], options: vscode.QuickPickOptions): Thenable<T | undefined> {
+    return vscode.window.showQuickPick(items, options);
+  }
+
   /** The main action of a card: its requirement scrolled to the task, or the Issue when no file is visible. */
   private async openCard(url: string): Promise<void> {
     // A card built from the files has no Issue address; it is named by its requirement and task.
@@ -496,7 +500,7 @@ export class OverviewView {
           : unavailable(text('ui.overview.menu.repository-folder', { repository: card.repository }), text('ui.overview.na.no-folder', { repository: card.repository })),
     ];
 
-    const picked = await vscode.window.showQuickPick(items, { placeHolder: text('ui.overview.menu.placeholder') });
+    const picked = await this.choose(items, { placeHolder: text('ui.overview.menu.placeholder') });
     if (!picked) return;
     if (picked.reason) void vscode.window.showInformationMessage(picked.reason);
     else await picked.run?.();
@@ -523,7 +527,7 @@ export class OverviewView {
     if (evidence.comments.status === 'unavailable') add(text('ui.overview.evidence.comments-unavailable'), formatNotice(evidence.comments.error, currentLocale()));
     else for (const comment of evidence.comments.value) add(text('ui.overview.evidence.comment', { author: comment.author ?? '—', time: comment.updatedAt }), comment.body.replace(/\s+/g, ' ').slice(0, 240), comment.url);
     add(text('ui.overview.evidence.claims-warning'));
-    const picked = await vscode.window.showQuickPick(items, { placeHolder: text('ui.overview.evidence.placeholder'), matchOnDetail: true });
+    const picked = await this.choose(items, { placeHolder: text('ui.overview.evidence.placeholder'), matchOnDetail: true });
     if (picked?.url) await openPage(picked.url);
   }
 

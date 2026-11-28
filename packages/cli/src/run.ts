@@ -648,17 +648,26 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       const urls = [...new Map([...(artifact.issue ? [artifact.issue] : []), ...listed].map((url) => [normalizeIssueUrl(url), url])).values()];
       return [{ task: artifact, urls }];
     });
+    const listedOnly = artifacts.flatMap((requirement) => {
+      if (requirement.kind !== 'requirement') return [];
+      return requirement.tasks.flatMap((task) => {
+        if (!task.issueUrl || taskLinks.some((item) => item.task.id === task.id && requirementForTask(item.task, artifacts)?.path === requirement.path)) return [];
+        return [{ id: task.id, issueUrl: task.issueUrl, requirementPath: requirement.path }];
+      });
+    });
     const matchingTasks = taskLinks.filter(({ task, urls }) => task.id.toLowerCase() === requested.toLowerCase() || urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(requested)));
-    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.map((item) => item.task.path) });
+    const matchingListed = listedOnly.filter((item) => item.id.toLowerCase() === requested.toLowerCase() || normalizeIssueUrl(item.issueUrl) === normalizeIssueUrl(requested));
+    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length + matchingListed.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: [...matchingTasks.map((item) => item.task.path), ...matchingListed.map((item) => item.requirementPath)] });
     const requestedCard = findCards(all, requested);
     if (requestedCard.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: requestedCard.map((card) => `${card.repository}#${card.number}`) });
     const direct = parseIssueUrl(requested) ? requested : undefined;
     if (matchingTasks.some((item) => item.urls.length > 1)) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.flatMap((item) => item.urls) });
-    const issueUrl = matchingTasks[0]?.urls[0] ?? requestedCard[0]?.url ?? direct;
+    const issueUrl = matchingTasks[0]?.urls[0] ?? matchingListed[0]?.issueUrl ?? requestedCard[0]?.url ?? direct;
     if (!issueUrl) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
     const issueRef = parseIssueUrl(issueUrl);
     if (!issueRef || !repositories.some((repository) => repository.toLowerCase() === `${issueRef.owner}/${issueRef.repo}`.toLowerCase())) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
     const linked = taskLinks.filter((item) => item.urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(issueUrl))).map((item) => item.task);
+    const linkedListed = listedOnly.filter((item) => normalizeIssueUrl(item.issueUrl) === normalizeIssueUrl(issueUrl));
     const projectCard = cards.find((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl));
     const repository = `${issueRef.owner}/${issueRef.repo}`;
     const process = processes.get(repository.toLowerCase());
@@ -690,10 +699,10 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       else if (entry.revision && entry.observation.value.some((review) => review.revision && review.revision !== entry.revision)) finding('review-different-revision', 'cli.evidence-inspect.review-revision', entry.pullUrl);
     }
     if (!usableProcess) finding('process-unavailable', 'cli.evidence-inspect.process-unavailable', issueUrl);
-    if (linked.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
+    if (linked.length + linkedListed.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
     if (pullInventory.status === 'unavailable') finding('pull-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
     const issueNumberPattern = new RegExp(`#${issueRef.number}(?!\\d)`);
-    const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || linked.some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
+    const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || [...linked, ...linkedListed].some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
     const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
     const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
     const candidateEvidence = await Promise.all(candidates.map(async (candidate) => {
@@ -729,8 +738,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       membership: projectCard ? 'present' : boardRead.membershipComplete === true ? 'absent' : 'unknown',
       placement: projectCard && usableProcess ? { column: projectCard.placement.column, gaps: projectCard.placement.gaps, labels: projectCard.labels, boardStatus: projectCard.boardStatus ?? null, boardStatusRead: projectCard.boardStatusRead === true } : null,
       process: usableProcess ? { file: process.file, sources: process.sources, columns: process.process.columns, evidence: process.process.evidence } : null,
-      tasks: linked.map((task) => task.kind === 'task' ? { id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null } : null),
-      sharedIssue: linked.length > 1,
+      tasks: [...linked.map((task) => ({ id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null })), ...linkedListed.map((item) => ({ id: item.id, path: null, requirementPath: item.requirementPath, file: workspaceComplete ? 'absent' : 'unknown', testClaim: null, evidenceException: null, exceptionHonored: null }))],
+      sharedIssue: linked.length + linkedListed.length > 1,
       independentTests,
       observation: observed,
       pullInventory: pullInventory.status === 'read' ? { status: 'read', candidates: discovered } : pullInventory,

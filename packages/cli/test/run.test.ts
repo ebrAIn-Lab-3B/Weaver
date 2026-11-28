@@ -194,6 +194,32 @@ describe('weaver evidence inspect', () => {
     expect(await run(['evidence', 'inspect', 'TASK-010'], conflicting.deps)).toBe(EXIT.usage);
     expect(JSON.parse(conflicting.out.join('')).error.code).toBe('cli.ambiguous');
   });
+
+  it('finds a requirement-only task even when neither its file nor Project card exists', async () => {
+    const s = setup();
+    s.deps.files = async () => [FILES[0]];
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('projectV2')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } } } }) };
+      if (url.endsWith('/issues/10')) return { ok: true, status: 200, json: async () => ({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: [], assignees: [] }) };
+      if (url.includes('/issues/10/timeline') || url.includes('/issues/10/comments')) return { ok: true, status: 200, json: async () => [] };
+      return original(url, init);
+    };
+    expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+    const result = JSON.parse(s.out.join(''));
+    expect(result).toMatchObject({ membership: 'absent', observation: { issue: { ok: true, issue: { state: 'closed' } } }, tasks: [{ id: 'TASK-010', path: null, requirementPath: 'requirements/REQ-001.md', file: 'absent' }] });
+    s.out.length = 0;
+    s.deps.files = async () => [FILES[0], { path: 'tasks/broken.md', text: '---\ntype: task\nid: [\n---\n' }];
+    expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+    expect(JSON.parse(s.out.join('')).tasks[0]).toMatchObject({ id: 'TASK-010', file: 'unknown' });
+    s.out.length = 0;
+    s.deps.files = async () => [{ ...FILES[0], text: `${FILES[0].text}- \`TASK-011\` Also linked — [Issue #10](https://github.com/me/Weaver/issues/10)\n` }];
+    expect(await run(['evidence', 'inspect', 'https://github.com/me/Weaver/issues/10'], s.deps)).toBe(EXIT.ok);
+    const shared = JSON.parse(s.out.join(''));
+    expect(shared.sharedIssue).toBe(true);
+    expect(shared.tasks.map((task: { id: string }) => task.id).sort()).toEqual(['TASK-010', 'TASK-011']);
+    expect(shared.findings.map((finding: { kind: string }) => finding.kind)).toContain('shared-issue');
+  });
 });
 
 describe('failures', () => {

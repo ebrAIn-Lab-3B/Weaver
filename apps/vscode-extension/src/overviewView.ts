@@ -47,6 +47,7 @@ import { makeTaskFile } from './makeTaskFile';
 import { markVerified } from './markVerified';
 import { applyCardProposal } from './applyCardProposal';
 import { updateFolder } from './updateFolder';
+import { reconcileMismatch } from './reconcileMismatch';
 import { startProcessFile } from './startProcessFile';
 import { log } from './log';
 import { currentLocale, message as text } from './locale';
@@ -275,7 +276,7 @@ export class OverviewView {
         this.panel = undefined;
         this.lastHtml = undefined;
       });
-      this.panel.webview.onDidReceiveMessage((message: { type: string; url?: string; id?: string; path?: string; delta?: number }) => {
+      this.panel.webview.onDidReceiveMessage((message: { type: string; url?: string; id?: string; path?: string; delta?: number; finding?: string }) => {
         // An action that fails must say so: a rejected promise inside a message handler would be silent.
         this.onMessage(message).catch((error: unknown) => void vscode.window.showErrorMessage(text('ui.overview.action-failed', { detail: error instanceof Error ? error.message : String(error) })));
       });
@@ -332,11 +333,21 @@ export class OverviewView {
     if (this.panel) this.render();
   }
 
-  private async onMessage(message: { type: string; url?: string; id?: string; path?: string; delta?: number }): Promise<void> {
+  private async onMessage(message: { type: string; url?: string; id?: string; path?: string; delta?: number; finding?: string }): Promise<void> {
     log(`message ${message.type}${message.id ? ` ${message.id}` : ''}`);
     if (message.type === 'signIn') await this.load(true);
     else if (message.type === 'refresh') await this.refreshAll();
     else if (message.type === 'reviewMismatches') await this.reviewMismatches();
+    else if (message.type === 'reconcileMismatch' && message.finding) {
+      const state = this.state();
+      const finding = state.kind === 'ready' ? state.mismatches.find((m) => JSON.stringify(m) === message.finding) : undefined;
+      if (!finding || this.registry.kind !== 'ok') void vscode.window.showWarningMessage(text('ui.reconcile.changed'));
+      else if (!this.reconciling) {
+        this.reconciling = true;
+        try { await reconcileMismatch(finding, this.registry.registry.project); await this.refreshAll(); }
+        finally { this.reconciling = false; }
+      }
+    }
     else if (message.type === 'setUp') await vscode.commands.executeCommand('weaver.setUp');
     else if (message.type === 'toggleLane' && message.id) {
       this.flip(this.hidden, HIDDEN_KEY, message.id);
@@ -403,6 +414,8 @@ export class OverviewView {
   }
 
   /** Review one current mismatch; writes still use their existing confirmation flow. */
+  private reconciling = false;
+
   private async reviewMismatches(): Promise<void> {
     const state = this.state();
     if (state.kind !== 'ready' || !state.mismatches.length) return;

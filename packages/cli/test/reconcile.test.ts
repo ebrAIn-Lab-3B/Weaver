@@ -83,6 +83,15 @@ describe('planReconcile', () => {
     expect(plan.reports.every((r) => !r.automated)).toBe(true);
   });
 
+  it('associates each repair with the specific finding that produced it', async () => {
+    const plan = await planReconcile(input());
+    const status = plan.actions.find((action) => action.kind === 'board.status');
+    const comment = plan.actions.find((action) => action.kind === 'issue.comment');
+    expect(status?.finding).toMatchObject({ kind: 'board-status-differs', url: url(10) });
+    expect(comment?.finding).toMatchObject({ kind: 'merged-pr-not-linked', url: pull().url });
+    expect(status?.finding).not.toEqual(comment?.finding);
+  });
+
   it('never plans to close an Issue, commit, or move a card to Verified that is still open', async () => {
     const plan = await planReconcile(input());
     for (const action of plan.actions) {

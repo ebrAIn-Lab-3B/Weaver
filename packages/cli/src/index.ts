@@ -12,3 +12,5 @@ export * from './init';
 export * from './processCommand';
 export * from './reconcileFiles';
 export * from './filesPullRequest';
+
+export * from './files';

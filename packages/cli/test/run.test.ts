@@ -18,6 +18,18 @@ describe('parseArgs', () => {
   });
 });
 
+describe('caller Project constraint', () => {
+  it('rejects a changed Project before reading GitHub or approving an action', async () => {
+    const { deps, out } = setup();
+    deps.expectedProject = { owner: 'other', number: 1 };
+    let tokenRead = false;
+    deps.token = async () => { tokenRead = true; return 'token'; };
+    expect(await run(['reconcile', '--approve', 'anything'], deps)).toBe(EXIT.failed);
+    expect(tokenRead).toBe(false);
+    expect(JSON.parse(out.join('')).error.code).toBe('cli.reconcile.stale');
+  });
+});
+
 describe('weaver list', () => {
   it('prints every card as JSON with its task, requirement, and stale marks', async () => {
     const { deps, out } = setup();

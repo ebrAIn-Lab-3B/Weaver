@@ -100,6 +100,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       : fail(EXIT.failed, 'cli.config-invalid', { path: loaded.path, detail: loaded.detail });
   }
   const { setup } = loaded;
+  if (deps.expectedProject && (deps.expectedProject.owner.toLowerCase() !== setup.project.owner.toLowerCase() || deps.expectedProject.number !== setup.project.number)) return fail(EXIT.failed, 'cli.reconcile.stale');
   for (const warning of loaded.warnings) deps.err(`${warning}\n`);
   const token = await deps.token();
   if (!token) return fail(EXIT.failed, 'cli.no-token');

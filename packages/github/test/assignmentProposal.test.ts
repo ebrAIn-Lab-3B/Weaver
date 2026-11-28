@@ -26,7 +26,7 @@ function mockedFetch(options: { projectType?: string; projectLabels?: string[]; 
     if (target.endsWith('/graphql')) {
       const query = JSON.parse(String(init?.body)).query as string;
       expect(query).toContain('fieldValueByName(name:"Type")');
-      return Response.json({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ fieldValueByName: { name: 'Ready' }, f0: options.projectType ? { name: options.projectType } : null, content: { __typename: 'Issue', number: 7, title: 'Work', url, state: 'OPEN', repository: { nameWithOwner: 'example/repo' }, labels: { pageInfo: { hasNextPage: false }, nodes: (options.projectLabels ?? ['status:ready']).map((name) => ({ name })) }, assignees: { nodes: [] } } }] } } } } });
+      return Response.json({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ fieldValueByName: { name: 'Ready' }, f0: options.projectType ? { name: options.projectType } : null, content: { __typename: 'Issue', number: 7, title: 'Work', url, state: 'OPEN', repository: { nameWithOwner: 'example/repo' }, labels: { pageInfo: { hasNextPage: false }, nodes: (options.projectLabels ?? ['status:ready']).map((name) => ({ name })) }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } });
     }
     throw Error('unexpected request');
   }) as typeof fetch;

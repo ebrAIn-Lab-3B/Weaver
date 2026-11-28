@@ -59,7 +59,7 @@ const MAX_PAGES = 50;
 const buildQuery = (fields: readonly string[]): string =>
   `query($o:String!,$n:Int!,$c:String){repositoryOwner(login:$o){... on ProjectV2Owner{projectV2(number:$n){title field(name:"Status"){... on ProjectV2SingleSelectField{options{name}}} items(first:${PAGE},after:$c){pageInfo{hasNextPage endCursor} nodes{id fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}} ${fields
     .map((name, i) => `f${i}:fieldValueByName(name:${JSON.stringify(name)}){... on ProjectV2ItemFieldSingleSelectValue{name} ... on ProjectV2ItemFieldTextValue{text}}`)
-    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(last:3,includeClosedPrs:true){totalCount nodes{number url title state}} timelineItems(last:3,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount nodes{... on CrossReferencedEvent{source{... on PullRequest{number url title state}}}}} repository{nameWithOwner} labels(first:100){pageInfo{hasNextPage} nodes{name}} assignees(first:10){nodes{login}}}}}}}}}}`;
+    .join(' ')} content{__typename ... on Issue{number title url state updatedAt closedByPullRequestsReferences(last:3,includeClosedPrs:true){totalCount nodes{number url title state}} timelineItems(last:3,itemTypes:[CROSS_REFERENCED_EVENT]){totalCount nodes{... on CrossReferencedEvent{source{... on PullRequest{number url title state}}}}} repository{nameWithOwner} labels(first:100){pageInfo{hasNextPage} nodes{name}} assignees(first:10){pageInfo{hasNextPage} nodes{login}}}}}}}}}}`;
 
 interface ItemNode {
   id?: string;
@@ -77,7 +77,7 @@ interface ItemNode {
     timelineItems?: { totalCount: number; nodes?: ({ source?: RawPull | null } | null)[] };
     repository?: { nameWithOwner: string };
     labels?: { nodes: { name: string }[]; pageInfo?: { hasNextPage: boolean } };
-    assignees?: { nodes: { login: string }[] };
+    assignees?: { nodes: { login: string }[]; pageInfo?: { hasNextPage: boolean } };
   };
 }
 
@@ -175,7 +175,7 @@ export async function readProject(
         continue;
       }
       if (!issue.labels || !Array.isArray(issue.labels.nodes) || issue.labels.pageInfo?.hasNextPage !== false || issue.labels.nodes.some((label) => !label || typeof label.name !== 'string' || !label.name)) return { ok: false, error: { code: 'project.labels-incomplete', args: { repository, number: issue.number ?? 0 } } };
-      if (issue.assignees && (!Array.isArray(issue.assignees.nodes) || issue.assignees.nodes.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login))) return { ok: false, error: { code: 'project.pagination-incomplete' } };
+      if (!issue.assignees || issue.assignees.pageInfo?.hasNextPage !== false || !Array.isArray(issue.assignees.nodes) || issue.assignees.nodes.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)) return { ok: false, error: { code: 'project.pagination-incomplete' } };
       const state = issue.state === 'CLOSED' ? 'closed' : 'open';
       const labels = (issue.labels?.nodes ?? []).map((label) => label.name);
       const taskId = TASK_TITLE.exec(issue.title ?? '')?.[1];
@@ -199,7 +199,7 @@ export async function readProject(
         url: issue.url ?? '',
         state,
         labels,
-        assignees: (issue.assignees?.nodes ?? []).map((a) => a.login),
+        assignees: issue.assignees.nodes.map((a) => a.login),
         boardStatusRead: statusOptions !== undefined && (node.fieldValueByName === null || (typeof node.fieldValueByName?.name === 'string' && node.fieldValueByName.name.length > 0)),
         ...(node.fieldValueByName?.name ? { boardStatus: node.fieldValueByName.name } : {}),
         ...(extraFields.length > 0 ? { fields, fieldsRead } : {}),

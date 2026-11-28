@@ -14,7 +14,7 @@ const issue = (repository: string, number: number, assignees: string[] = []) => 
     state: 'OPEN',
     repository: { nameWithOwner: repository },
     labels: { pageInfo: { hasNextPage: false }, nodes: [] },
-    assignees: { nodes: assignees.map((login) => ({ login })) },
+    assignees: { pageInfo: { hasNextPage: false }, nodes: assignees.map((login) => ({ login })) },
   },
 });
 

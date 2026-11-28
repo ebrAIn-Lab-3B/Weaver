@@ -45,6 +45,8 @@ On 2026-11-28 KST, a separate temporary clone of `blcktgr73/poc-sandbox` at `230
 
 ## Current acceptance audit
 
+The Issue and Project readers now reject a missing or malformed assignee list; the Project query also checks whether GitHub returned further assignee pages. Controlled tests cover missing and truncated connections. On 2026-11-28 KST, a read-only `evidence inspect TASK-131` using the updated query read the Weaver Project and reported the Issue as present with consistent state and labels. `npm run check`, `npm test` (709 Markdown, 183 GitHub and 380 CLI tests), and the mocked VS Code 1.148.0 evidence-menu host test passed. The live observation did not change GitHub or exercise a truncated connection.
+
 This audit maps evidence to scope; it does not mark the requirement verified.
 
 | Criteria | Available evidence | Remaining evidence or boundary |

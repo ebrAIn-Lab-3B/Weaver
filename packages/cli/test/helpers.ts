@@ -16,7 +16,7 @@ export const issue = (number: number, extra: Record<string, unknown> = {}) => ({
     timelineItems: { totalCount: 0, nodes: [] },
     repository: { nameWithOwner: 'me/Weaver' },
     labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] },
-    assignees: { nodes: [] },
+    assignees: { pageInfo: { hasNextPage: false }, nodes: [] },
     ...extra,
   },
 });

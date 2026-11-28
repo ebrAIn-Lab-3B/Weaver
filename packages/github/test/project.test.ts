@@ -12,7 +12,7 @@ const issue = (repository: string, number: number, extra: Record<string, unknown
     state: 'OPEN',
     repository: { nameWithOwner: repository },
     labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:backlog' }] },
-    assignees: { nodes: [] },
+    assignees: { pageInfo: { hasNextPage: false }, nodes: [] },
     ...extra,
   },
 });
@@ -39,8 +39,15 @@ function fake(...replies: { status?: number; body: unknown }[]) {
 const project = { owner: 'me', number: 1 };
 
 describe('readProject', () => {
+  it('rejects missing, incomplete, or paginated assignees instead of reporting an empty list', async () => {
+    for (const assignees of [undefined, { nodes: [] }, { pageInfo: { hasNextPage: true }, nodes: [{ login: 'me' }] }]) {
+      const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { assignees })], null) });
+      expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+    }
+  });
+
   it('reports malformed Project pages and labels without throwing or treating them as complete', async () => {
-    for (const body of [null, { errors: [null] }, page([null], null), page([issue('me/Weaver', 1, { assignees: { nodes: [null] } })], null)]) {
+    for (const body of [null, { errors: [null] }, page([null], null), page([issue('me/Weaver', 1, { assignees: { pageInfo: { hasNextPage: false }, nodes: [null] } })], null)]) {
       const { fetchImpl } = fake({ body });
       const result = await readProject('t', project, undefined, fetchImpl);
       expect(result.ok).toBe(false);
@@ -84,7 +91,7 @@ describe('readProject', () => {
             title: '[TASK-029] Verify access',
             state: 'CLOSED',
             labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'task' }, { name: 'status:verified' }] },
-            assignees: { nodes: [{ login: 'me' }] },
+            assignees: { pageInfo: { hasNextPage: false }, nodes: [{ login: 'me' }] },
           }),
         ],
         null,

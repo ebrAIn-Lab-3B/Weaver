@@ -43,6 +43,11 @@ jobs:
           options=()
           if [[ "$version" == *-* ]]; then options+=(--prerelease); else options+=(--latest); fi
           if [ -f "$notes" ]; then options+=(--notes-file "$notes"); else options+=(--generate-notes); fi
-          gh release create "$GITHUB_REF_NAME" dist/weaver-*.vsix dist/weaver.js \
-            --title "ebrAIn.lab Weaver ${version}" \
-            "${options[@]}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/weaver-*.vsix dist/weaver.js --clobber
+            if [ -f "$notes" ]; then gh release edit "$GITHUB_REF_NAME" --notes-file "$notes"; fi
+          else
+            gh release create "$GITHUB_REF_NAME" dist/weaver-*.vsix dist/weaver.js \
+              --title "ebrAIn.lab Weaver ${version}" \
+              "${options[@]}"
+          fi

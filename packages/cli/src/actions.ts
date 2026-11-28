@@ -26,6 +26,8 @@ export interface PlannedAction {
   fingerprint?: string;
   /** Known identity, also reported if the write fails or waits for approval. */
   identifiers?: Record<string, string>;
+  /** The reconciliation finding that produced this action. */
+  finding?: { kind: string; subject: string; path?: string; url?: string };
   /** Actions that must have succeeded first; this one is skipped otherwise. */
   dependsOn?: PlannedAction[];
   run(): Promise<void | { identifiers: Record<string, string> }>;
@@ -43,6 +45,7 @@ export interface ActionResult {
   /** The error of a failed action. */
   message?: string;
   identifiers?: Record<string, string>;
+  finding?: { kind: string; subject: string; path?: string; url?: string };
 }
 
 /** One line of the local action log: who or what did it, to what, and why. */
@@ -126,6 +129,7 @@ export async function executeActions(actions: readonly PlannedAction[], ctx: Exe
       reason: formatNotice(action.reason, ctx.locale),
       outcome: 'skipped',
       ...(action.identifiers ? { identifiers: { ...action.identifiers } } : {}),
+      ...(action.finding ? { finding: action.finding } : {}),
     };
     results.set(action, result);
 

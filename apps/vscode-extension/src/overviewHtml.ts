@@ -234,7 +234,7 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
         <ul class="plain">${state.mismatches
           .map(
             (m) =>
-              `<li>${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
+              `<li><button data-reconcile="${e(JSON.stringify(m))}">${e(tt('ui.overview.fix-mismatches'))}</button> ${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
           )
           .join('')}</ul></details>${button('reviewMismatches', 'ui.overview.fix-mismatches')}</div>`
         : `<p class="muted small">${e(tt(state.skippedChecks.length || state.reading.length ? 'ui.overview.mismatches-incomplete' : 'ui.overview.mismatches-none'))}</p>`;
@@ -357,9 +357,10 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
     });
   }
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified],[data-apply-proposal],[data-update-folder],[data-make-task-file]');
+    const target = event.target.closest('[data-cmd],[data-url],[data-open],[data-req],[data-toggle],[data-fold],[data-file],[data-move-lane],[data-start-process],[data-mark-verified],[data-apply-proposal],[data-update-folder],[data-make-task-file],[data-reconcile]');
     if (!target) return;
     event.preventDefault();
+    if (target.dataset.reconcile !== undefined) vscode.postMessage({ type: 'reconcileMismatch', finding: target.dataset.reconcile });
     if (target.dataset.cmd) vscode.postMessage({ type: target.dataset.cmd });
     if (target.dataset.url) vscode.postMessage({ type: 'openUrl', url: target.dataset.url });
     if (target.dataset.open) vscode.postMessage({ type: 'openCard', url: target.dataset.open });

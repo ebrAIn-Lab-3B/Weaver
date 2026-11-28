@@ -28,6 +28,7 @@ async function run() {
     assert.match(html, /Backlog, Todo/);
     assert.match(html, /Backlog: status:backlog → Backlog/);
     assert.match(html, /Issue 라벨 status:backlog/);
+    assert.match(html, /data-reconcile=/);
     assert.match(html, /<button data-cmd="reviewMismatches">수정 검토<\/button>/);
 
     rules.source = 'board-status';

@@ -243,6 +243,7 @@
   },
   "dependencies": {
     "@ebrain-lab/weaver-github": "0.0.1",
+    "@ebrain-lab/weaver-cli": "0.0.1",
     "@ebrain-lab/weaver-markdown": "0.0.1",
     "markdown-it": "^15.0.3",
     "markdown-it-task-lists": "^2.1.1",

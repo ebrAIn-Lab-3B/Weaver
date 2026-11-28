@@ -24,6 +24,8 @@ export interface System {
 
 /** Everything the commands touch outside the process, so a test can replace it. */
 export interface Deps {
+  /** Optional caller constraint, checked before planning or writing. */
+  expectedProject?: { owner: string; number: number };
   cwd: string;
   env: Record<string, string | undefined>;
   out(text: string): void;

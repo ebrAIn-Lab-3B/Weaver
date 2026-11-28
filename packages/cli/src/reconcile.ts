@@ -116,6 +116,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
       ...(m.url ? { url: m.url } : {}),
     });
 
+    const actionStart = actions.length;
     switch (m.kind) {
       case 'issue-not-on-project': {
         const key = normalizeIssueUrl(m.url ?? '');
@@ -272,6 +273,7 @@ export async function planReconcile(input: ReconcileInput): Promise<ReconcilePla
         reports.push(item('report', false));
         break;
     }
+    for (const action of actions.slice(actionStart)) action.finding = { kind: m.kind, subject: m.subject, ...(m.path ? { path: m.path } : {}), ...(m.url ? { url: m.url } : {}) };
   }
 
   // A closed task Issue keeps its old status label when a pull request closes it (DEC-003: closed means Verified).

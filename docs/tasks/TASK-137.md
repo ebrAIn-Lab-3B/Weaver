@@ -47,6 +47,8 @@ The CLI can now inspect a task listed only in a requirement even if neither its 
 
 PR detail, review and extra-candidate observations are now limited to four concurrent PR operations per stage. A controlled nine-PR fixture checks that all observations are returned in order while PR and review concurrency remain bounded. This limits bursts; GitHub rate limits, access failures and non-atomic reads remain possible and are still reported as unavailable rather than treated as absent.
 
+An inaccessible individual referenced PR now yields a partial observation naming the affected source while preserving other readable PR and review facts. The requirement view and Overview warn about partial evidence, and the CLI retains its Verified-move refusal. Controlled GitHub, Markdown, CLI and VS Code 1.148.0 extension-host tests cover this path; the host test uses mocked GitHub and menu selection, not physical interaction.
+
 Evidence inspection also compares the Project snapshot's Issue state and labels with the separate direct Issue read, includes their observation times, and reports disagreements with uncertain placement. Matching reads do not establish atomicity; incomplete board status or other placement gaps also remain uncertain. Controlled CLI tests cover matching, conflicting and unavailable Issue reads.
 
 A read-only repeat of the HealthBridge Issue #20 diagnostic on 2026-11-28 KST observed matching closed Issue state and labels in the Project and direct Issue reads, with placement marked `observed`. This confirms the comparison path on that one live read, not an atomic snapshot or independent verification of the work.

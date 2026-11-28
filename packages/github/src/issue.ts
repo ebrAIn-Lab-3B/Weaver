@@ -373,8 +373,13 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
       sources.set(source.html_url, source);
     }
 
-    const pulls = await mapLimit([...sources.values()], EVIDENCE_READ_LIMIT, (source) => readPullEvidence(ctx, source, ref));
-    return { ok: true, evidence: { pulls: pulls.sort((a, b) => a.number - b.number) } };
+    const results = await mapLimit([...sources.values()], EVIDENCE_READ_LIMIT, async (source) => {
+      try { return { ok: true as const, pull: await readPullEvidence(ctx, source, ref) }; }
+      catch (error) { return { ok: false as const, url: source.html_url, error: errorNotice(error) }; }
+    });
+    const pulls = results.flatMap((result) => result.ok ? [result.pull] : []).sort((a, b) => a.number - b.number);
+    const unavailablePulls = results.flatMap((result) => result.ok ? [] : [{ url: result.url, error: result.error }]);
+    return { ok: true, evidence: { pulls, ...(unavailablePulls.length ? { unavailablePulls } : {}) } };
   } catch (error) {
     return { ok: false, error: errorNotice(error) };
   }

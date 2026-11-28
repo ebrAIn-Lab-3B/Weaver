@@ -517,11 +517,14 @@ export class OverviewView {
     if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: evidence.issue.issue.state }), card.url, card.url);
     else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
     if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
-    else if (!evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
-    else for (const pull of evidence.pulls.value) {
-      add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
-      if (pull.checksError) add(text('ui.overview.evidence.checks-unavailable'), formatNotice(pull.checksError, currentLocale()));
-      if (pull.statusContexts) add(text('ui.overview.evidence.status-contexts', { state: text(`ui.overview.evidence.status.${pull.statusContexts.state}`) }), pull.statusContexts.apiUrl);
+    else {
+      if (evidence.pulls.status === 'partial') for (const missing of evidence.pulls.unavailable) add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(missing.error, currentLocale()), missing.url);
+      if (evidence.pulls.status === 'read' && !evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
+      for (const pull of evidence.pulls.value) {
+        add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+        if (pull.checksError) add(text('ui.overview.evidence.checks-unavailable'), formatNotice(pull.checksError, currentLocale()));
+        if (pull.statusContexts) add(text('ui.overview.evidence.status-contexts', { state: text(`ui.overview.evidence.status.${pull.statusContexts.state}`) }), pull.statusContexts.apiUrl);
+      }
     }
     for (const entry of evidence.reviews ?? []) {
       if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
@@ -547,8 +550,9 @@ export class OverviewView {
       return;
     }
     const pulls = result.evidence.pulls.filter((pull) => isOpenableUrl(pull.url));
+    if (result.evidence.unavailablePulls?.length) void vscode.window.showWarningMessage(text('ui.overview.evidence.pulls-unavailable'));
     if (pulls.length === 0) {
-      void vscode.window.showInformationMessage(text('ui.overview.na.no-pull-request'));
+      if (!result.evidence.unavailablePulls?.length) void vscode.window.showInformationMessage(text('ui.overview.na.no-pull-request'));
       return;
     }
     const pull =

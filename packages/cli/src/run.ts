@@ -692,7 +692,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (!observed.issue.ok) finding('issue-unavailable', 'cli.evidence-inspect.issue-unavailable', issueUrl);
     if (observed.pulls.status === 'unavailable') finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', issueUrl);
     else {
-      if (observed.pulls.value.length === 0) finding('no-referenced-pr', 'cli.evidence-inspect.no-pr', issueUrl);
+      if (observed.pulls.status === 'partial') for (const missing of observed.pulls.unavailable) finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', missing.url);
+      if (observed.pulls.status === 'read' && observed.pulls.value.length === 0) finding('no-referenced-pr', 'cli.evidence-inspect.no-pr', issueUrl);
       for (const pull of observed.pulls.value) {
         if (pull.state === 'merged' && pull.link === 'mentions') finding('merged-not-closing', 'cli.evidence-inspect.non-closing', pull.url);
         if (pull.link === 'unknown') finding('closing-unavailable', 'cli.evidence-inspect.closing-unavailable', pull.url);
@@ -714,7 +715,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (pullInventory.status === 'unavailable') finding('pull-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
     const issueNumberPattern = new RegExp(`#${issueRef.number}(?!\\d)`);
     const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || [...linked, ...linkedListed].some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
-    const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
+    const referencedUrls = new Set(observed.pulls.status !== 'unavailable' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
     const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
     const candidateEvidence = await mapLimit(candidates, EVIDENCE_READ_LIMIT, async (candidate) => {
       const fetchFn = deps.fetch as unknown as FetchFn | undefined;

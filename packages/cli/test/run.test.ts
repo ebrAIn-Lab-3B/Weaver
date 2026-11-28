@@ -1644,6 +1644,19 @@ describe('weaver card move', () => {
     expect(JSON.parse(out.join('')).error.code).toBe('cli.move-refused');
   });
 
+  it('keeps the Verified move blocked when one of multiple referenced PRs is unavailable', async () => {
+    const { deps, out } = setup();
+    withGitHub(deps, { linkedPull: true });
+    const original = deps.fetch as Fetch;
+    deps.fetch = async (url, init) => {
+      if (url.includes('/timeline')) return { ok: true, status: 200, json: async () => [7, 8].map((number) => ({ event: 'cross-referenced', source: { issue: { number, title: `PR ${number}`, html_url: `https://github.com/me/Weaver/pull/${number}`, repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } })) };
+      if (url.endsWith('/pulls/8')) return { ok: false, status: 403, json: async () => ({}) };
+      return original(url, init);
+    };
+    expect(await run(['card', 'move', 'TASK-010', '--to', 'Verified'], deps)).toBe(EXIT.usage);
+    expect(JSON.parse(out.join('')).error.code).toBe('cli.move-refused');
+  });
+
   it('allows a move to Verified for a task with an evidence exception, without asking GitHub for evidence', async () => {
     const { deps, out } = setup();
     deps.files = async () => [FILES[0], { path: FILES[1].path, text: FILES[1].text.replace('assignee: claude-code\n', 'assignee: claude-code\nevidence_exception: before the rule\n') }];

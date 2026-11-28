@@ -47,6 +47,19 @@ describe('completion evidence observations', () => {
     expect(result.reviews).toMatchObject([{ observation: { status: 'read', value: [] } }]);
   });
 
+  it('retains readable PR and review observations when a different PR is inaccessible', async () => {
+    const base = fixture();
+    const second = { event: 'cross-referenced', source: { issue: { number: 8, title: 'other', html_url: 'https://github.com/example/repo/pull/8', repository_url: 'https://api.github.com/repos/example/repo', pull_request: {} } } };
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (url.includes('/timeline')) return { ok: true, status: 200, json: async () => [crossReference, second] } as Response;
+      if (url.endsWith('/pulls/8')) return { ok: false, status: 403, json: async () => ({}) } as Response;
+      return base.fetchFn(url, init);
+    }) as FetchFn;
+    const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
+    expect(result.pulls).toMatchObject({ status: 'partial', value: [{ number: 7, state: 'merged' }], unavailable: [{ url: 'https://github.com/example/repo/pull/8', error: { code: 'github.err.http' } }] });
+    expect(result.reviews).toMatchObject([{ pullUrl: 'https://github.com/example/repo/pull/7', observation: { status: 'read', value: [] } }]);
+  });
+
   it('reads an additional page after a full page and preserves review provenance', async () => {
     const first = Array.from({ length: 100 }, (_, i) => claim(i + 1, `claim ${i}`));
     const base = fixture();

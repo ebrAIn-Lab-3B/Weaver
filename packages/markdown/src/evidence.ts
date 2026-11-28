@@ -35,6 +35,8 @@ export interface PullEvidence {
 export interface TaskEvidence {
   /** Pull requests that reference the task's Issue. A reference is a link, not proof. */
   pulls: PullEvidence[];
+  /** Referenced PRs whose details could not be read; known observations remain usable. */
+  unavailablePulls?: { url: string; error: Notice }[];
 }
 
 export interface CheckRunLike {
@@ -62,19 +64,20 @@ export function evidenceGaps(column: KanbanColumn, evidence: TaskEvidence | unde
   if (column !== 'Review' && column !== 'Verified') return [];
   if (!evidence) return [{ code: 'gap.evidence-not-loaded' }];
   // A repository that does not expect pull requests has no gap for the lack of one.
-  if (evidence.pulls.length === 0) return rules.pullRequest === 'optional' ? [] : [{ code: 'gap.no-linked-pr' }];
+  const partial = (evidence.unavailablePulls?.length ?? 0) > 0;
+  if (evidence.pulls.length === 0) return partial ? [{ code: 'gap.evidence-not-loaded' }] : rules.pullRequest === 'optional' ? [] : [{ code: 'gap.no-linked-pr' }];
 
-  const gaps: Notice[] = [];
-  if (column === 'Verified' && !evidence.pulls.some((pull) => pull.state === 'merged')) {
+  const gaps: Notice[] = partial ? [{ code: 'gap.evidence-not-loaded' }] : [];
+  if (!partial && column === 'Verified' && !evidence.pulls.some((pull) => pull.state === 'merged')) {
     gaps.push({ code: 'gap.no-merged-pr' });
   } else if (
-    column === 'Verified' &&
+    !partial && column === 'Verified' &&
     rules.closingPullRequest &&
     !evidence.pulls.some((pull) => pull.state === 'merged' && (pull.link === 'closes' || pull.link === 'unknown'))
   ) {
     gaps.push({ code: 'gap.no-closing-pr' });
   }
-  if (column === 'Verified' && rules.closingPullRequest && !evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'closes') && evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'unknown')) gaps.push({ code: 'gap.closing-unknown' });
+  if (!partial && column === 'Verified' && rules.closingPullRequest && !evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'closes') && evidence.pulls.some((pull) => pull.state === 'merged' && pull.link === 'unknown')) gaps.push({ code: 'gap.closing-unknown' });
   // closed without merge is not evidence either way
   const live = evidence.pulls.filter((pull) => pull.state !== 'closed');
   gaps.push(...groupedPullGap(live, 'failing', 'gap.checks-failing'));

@@ -59,6 +59,14 @@ describe('evidenceGaps', () => {
   it('says so when evidence was not loaded', () => {
     expect(evidenceGaps('Verified', undefined)).toEqual([{ code: 'gap.evidence-not-loaded' }]);
   });
+
+  it('does not infer absence of a linked or closing PR from a partial read', () => {
+    const unavailablePulls = [{ url: 'https://github.com/o/r/pull/9', error: { code: 'github.err.http' as const, args: { status: 403 } } }];
+    expect(evidenceGaps('Verified', { pulls: [], unavailablePulls }).map((gap) => gap.code)).toEqual(['gap.evidence-not-loaded']);
+    const gaps = evidenceGaps('Verified', { pulls: [pull({ link: 'mentions' })], unavailablePulls }).map((gap) => gap.code);
+    expect(gaps).toContain('gap.evidence-not-loaded');
+    expect(gaps).not.toContain('gap.no-closing-pr');
+  });
 });
 
 describe('describePull', () => {

@@ -6,6 +6,7 @@ import { mapLimit } from './processes';
 
 /** A failed or truncated collection must never be represented as an empty collection. */
 export type Observation<T> = { status: 'read'; value: T } | { status: 'unavailable'; error: Notice };
+export type PullObservation = Observation<PullEvidence[]> | { status: 'partial'; value: PullEvidence[]; unavailable: { url: string; error: Notice }[] };
 
 export interface AttributedClaim {
   url: string;
@@ -28,7 +29,7 @@ export interface CompletionEvidence {
   issueUrl: string;
   readAt: string;
   issue: IssueResult;
-  pulls: Observation<PullEvidence[]>;
+  pulls: PullObservation;
   comments: Observation<AttributedClaim[]>;
   /** Null when the pull inventory was unavailable, so an empty list cannot imply no reviews. */
   reviews: { pullUrl: string; revision?: string; observation: Observation<ReviewRecord[]> }[] | null;
@@ -124,7 +125,7 @@ export async function fetchCompletionEvidence(token: string, issueUrl: string, r
     fetchEvidence(token, issueUrl, fetchFn),
     readPages(token, `https://api.github.com/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/comments`, fetchFn, comment),
   ]);
-  const pulls: Observation<PullEvidence[]> = evidence.ok ? { status: 'read', value: evidence.evidence.pulls } : { status: 'unavailable', error: evidence.error };
+  const pulls: PullObservation = evidence.ok ? evidence.evidence.unavailablePulls?.length ? { status: 'partial', value: evidence.evidence.pulls, unavailable: evidence.evidence.unavailablePulls } : { status: 'read', value: evidence.evidence.pulls } : { status: 'unavailable', error: evidence.error };
   const reviews = evidence.ok ? await mapLimit(evidence.evidence.pulls, EVIDENCE_READ_LIMIT, async (pull) => {
     const observation = await fetchPullReviews(token, pull.url, fetchFn);
     return { pullUrl: pull.url, ...(pull.revision ? { revision: pull.revision } : {}), observation };

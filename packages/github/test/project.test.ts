@@ -249,6 +249,20 @@ describe('readProject', () => {
     expect(query).toContain('CrossReferencedEvent');
   });
 
+  it('keeps same-number PRs from different repositories distinct in Project cards', async () => {
+    const close = { number: 5, url: 'https://github.com/me/Weaver/pull/5', title: 'Closes', state: 'MERGED' };
+    const mention = { number: 5, url: 'https://github.com/other/repo/pull/5', title: 'Mentions', state: 'MERGED' };
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { closedByPullRequestsReferences: { totalCount: 1, nodes: [close] }, timelineItems: { totalCount: 1, nodes: [{ source: mention }] } })], null) });
+    const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.read.cards[0].pulls).toEqual([
+      expect.objectContaining({ url: close.url, closes: true }),
+      expect.not.objectContaining({ url: close.url }),
+    ]);
+    expect(result.read.cards[0].pulls?.find((pull) => pull.url === mention.url)?.closes).toBeUndefined();
+  });
+
   it('omits board status and task id when absent', async () => {
     const { fetchImpl } = fake({ body: page([{ ...issue('me/Weaver', 1), fieldValueByName: null }], null) });
     const result = await readProject('t', project, ['me/Weaver'], fetchImpl);

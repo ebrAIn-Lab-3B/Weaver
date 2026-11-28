@@ -44,15 +44,18 @@ function stateOf(raw: string | undefined): CardPullState | undefined {
  * out, so a page that refers to the Issue from an Issue or a discussion never shows up.
  */
 export function mergeCardPulls(...lists: readonly (readonly RawPull[] | undefined)[]): CardPull[] {
-  const byNumber = new Map<number, CardPull>();
+  const byUrl = new Map<string, CardPull>();
   lists.forEach((list, index) => {
     for (const raw of list ?? []) {
       const state = stateOf(raw.state);
-      if (typeof raw.number !== 'number' || typeof raw.url !== 'string' || !raw.url.includes('/pull/') || !state) continue;
-      const closes = index === 0 || byNumber.get(raw.number)?.closes === true;
-      byNumber.set(raw.number, { number: raw.number, url: raw.url, title: raw.title ?? '', state, ...(closes ? { closes: true } : {}) });
+      if (!Number.isSafeInteger(raw.number) || !raw.number || raw.number < 1 || typeof raw.url !== 'string' || !state) continue;
+      const match = /^https:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/([1-9]\d*)\/?$/i.exec(raw.url);
+      if (!match || Number(match[4]) !== raw.number) continue;
+      const identity = raw.url.toLowerCase().replace(/\/+$/, '');
+      const closes = index === 0 || byUrl.get(identity)?.closes === true;
+      byUrl.set(identity, { number: raw.number, url: raw.url, title: raw.title ?? '', state, ...(closes ? { closes: true } : {}) });
     }
   });
   const rank = (pull: CardPull): number => (pull.state === 'open' ? 0 : pull.closes ? 1 : 2);
-  return [...byNumber.values()].sort((a, b) => rank(a) - rank(b) || b.number - a.number).slice(0, MAX_CARD_PULLS);
+  return [...byUrl.values()].sort((a, b) => rank(a) - rank(b) || b.number - a.number || a.url.localeCompare(b.url)).slice(0, MAX_CARD_PULLS);
 }

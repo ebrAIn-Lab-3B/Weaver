@@ -26,6 +26,8 @@ export interface PullEvidence {
   textClaimsClosing?: boolean;
   /** The head commit whose checks were inspected. */
   revision?: string;
+  /** GitHub commit status contexts are separate from check runs. */
+  statusContexts?: { state: 'success' | 'failure' | 'error' | 'pending' | 'none' | 'unknown'; apiUrl: string; count?: number };
 }
 
 export interface TaskEvidence {

@@ -518,7 +518,10 @@ export class OverviewView {
     else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
     if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
     else if (!evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
-    else for (const pull of evidence.pulls.value) add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+    else for (const pull of evidence.pulls.value) {
+      add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+      if (pull.statusContexts) add(text('ui.overview.evidence.status-contexts', { state: text(`ui.overview.evidence.status.${pull.statusContexts.state}`) }), pull.statusContexts.apiUrl);
+    }
     for (const entry of evidence.reviews ?? []) {
       if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
       else if (!entry.observation.value.length) add(text('ui.overview.evidence.no-reviews'), entry.pullUrl, entry.pullUrl);

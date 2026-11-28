@@ -45,13 +45,13 @@ describe('evidenceGaps', () => {
   it('flags failing, pending, and missing checks', () => {
     expect(text(evidenceGaps('Review', { pulls: [pull({ checks: 'failing' })] }))).toEqual(['PR #7 has failing checks']);
     expect(text(evidenceGaps('Review', { pulls: [pull({ checks: 'pending' })] }))).toEqual(['PR #7 checks are still running']);
-    expect(text(evidenceGaps('Review', { pulls: [pull({ checks: 'none' })] }))).toEqual(['PR #7 has no check results']);
+    expect(text(evidenceGaps('Review', { pulls: [pull({ checks: 'none' })] }))).toEqual(['PR #7 has no check runs']);
   });
   it('groups pull requests that share a check state into one line', () => {
     const pulls = [pull({ number: 6, checks: 'none' }), pull({ number: 7, checks: 'none' }), pull({ number: 9, checks: 'failing' })];
     const gaps = evidenceGaps('Verified', { pulls });
-    expect(text(gaps)).toEqual(['PR #9 has failing checks', 'PRs #6, #7 have no check results']);
-    expect(text(gaps, 'ko')).toEqual(['체크가 실패한 PR이 있습니다: #9', '체크 결과가 없는 PR이 있습니다: #6, #7']);
+    expect(text(gaps)).toEqual(['PR #9 has failing checks', 'PRs #6, #7 have no check runs']);
+    expect(text(gaps, 'ko')).toEqual(['체크가 실패한 PR이 있습니다: #9', '체크 실행이 없는 PR이 있습니다: #6, #7']);
   });
   it('ignores pull requests closed without merging', () => {
     expect(evidenceGaps('Review', { pulls: [pull({ state: 'closed', checks: 'none' }), pull({ number: 9 })] })).toEqual([]);
@@ -64,7 +64,7 @@ describe('evidenceGaps', () => {
 describe('describePull', () => {
   it('summarizes state and checks', () => {
     expect(describePull(pull())).toBe('PR #7 merged · checks passing · closes Issue');
-    expect(describePull(pull({ checks: 'none', state: 'open' }))).toBe('PR #7 open · no checks · closes Issue');
+    expect(describePull(pull({ checks: 'none', state: 'open' }))).toBe('PR #7 open · no check runs · closes Issue');
     expect(describePull(pull({ link: 'mentions' }))).toBe('PR #7 merged · checks passing · mentions Issue');
     expect(describePull(pull({ link: 'mentions' }), 'ko')).toBe('PR #7 병합됨 · 체크 통과 · Issue를 언급');
   });

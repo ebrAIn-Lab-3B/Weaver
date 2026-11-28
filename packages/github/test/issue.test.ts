@@ -191,6 +191,23 @@ describe('candidate pull evidence', () => {
     });
     expect(await fetchCandidatePullEvidence('t', ISSUE, { title: 'work (TASK-005)', url: 'https://github.com/me/Weaver/pull/9' }, fetchFn)).toMatchObject({ ok: true, pull: { state: 'open', checks: 'none', link: 'mentions', revision: 'abc' } });
   });
+
+  it('reads commit status contexts independently from check runs and refuses incomplete status pages', async () => {
+    for (const [response, expected] of [
+      [{ state: 'success', total_count: 1, statuses: [{ state: 'success' }] }, 'success'],
+      [{ state: 'pending', total_count: 0, statuses: [] }, 'none'],
+      [{ state: 'success', total_count: 2, statuses: [{ state: 'success' }] }, 'unknown'],
+      [{}, 'unknown'],
+    ] as const) {
+      const { fetchFn } = routes((call) => {
+        if (call.url.endsWith('/pulls/9')) return { json: { state: 'open', merged_at: null, body: '', head: { sha: 'abc' } } };
+        if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
+        if (call.url.includes('/status?')) return { json: response };
+        return { json: { total_count: 0, check_runs: [] } };
+      });
+      expect(await fetchCandidatePullEvidence('t', ISSUE, { title: 'work', url: 'https://github.com/me/Weaver/pull/9' }, fetchFn)).toMatchObject({ ok: true, pull: { checks: 'none', statusContexts: { state: expected } } });
+    }
+  });
 });
 
 describe('fetchPull and addIssueComment', () => {

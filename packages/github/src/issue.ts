@@ -297,6 +297,14 @@ async function readPullEvidence(ctx: Ctx, source: { number: number; title: strin
   if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
   const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx, `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`);
   if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+  const statusUrl = `${source.repository_url}/commits/${pr.head.sha}/status?per_page=100`;
+  let statusContexts: NonNullable<PullEvidence['statusContexts']> = { state: 'unknown', apiUrl: statusUrl };
+  try {
+    const status = await getJson<{ state?: unknown; total_count?: unknown; statuses?: unknown }>(ctx, statusUrl);
+    if (Number.isSafeInteger(status?.total_count) && Number(status.total_count) >= 0 && Array.isArray(status.statuses) && status.statuses.length === status.total_count && ['success', 'failure', 'error', 'pending'].includes(String(status.state))) {
+      statusContexts = { state: status.total_count === 0 ? 'none' : status.state as 'success' | 'failure' | 'error' | 'pending', count: status.total_count as number, apiUrl: statusUrl };
+    }
+  } catch { /* An unavailable status API is not an absent or successful status. */ }
   return {
     number: source.number, title: source.title, url: source.html_url,
     state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
@@ -304,6 +312,7 @@ async function readPullEvidence(ctx: Ctx, source: { number: number; title: strin
     link: await closingAssociation(ctx, source.repository_url, source.number, ref),
     textClaimsClosing: claimsClosing(`${source.title}\n${pr.body ?? ''}`, source.repository_url, ref),
     revision: pr.head.sha,
+    statusContexts,
   };
 }
 

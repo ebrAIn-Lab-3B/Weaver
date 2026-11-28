@@ -84,6 +84,13 @@ function review(value: unknown): ReviewRecord | undefined {
   return { url: v.html_url, author: login, state: v.state, submittedAt: v.submitted_at as string | null, revision: v.commit_id as string | null, body: (v.body as string | null) ?? '' };
 }
 
+/** Reviews are read independently of check and closing-reference availability. */
+export async function fetchPullReviews(token: string, pullUrl: string, fetchFn: FetchFn = fetch): Promise<Observation<ReviewRecord[]>> {
+  const match = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/i.exec(pullUrl);
+  if (!match || !Number.isSafeInteger(Number(match[3]))) return { status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } };
+  return readPages(token, `https://api.github.com/repos/${match[1]}/${match[2]}/pulls/${match[3]}/reviews`, fetchFn, review);
+}
+
 /** Read independent sources separately; comments are attributed claims, not verified test results. */
 export async function fetchCompletionEvidence(token: string, issueUrl: string, readAt: Date, fetchFn: FetchFn = fetch): Promise<CompletionEvidence> {
   const ref = parseIssueUrl(issueUrl);
@@ -96,10 +103,7 @@ export async function fetchCompletionEvidence(token: string, issueUrl: string, r
   ]);
   const pulls: Observation<PullEvidence[]> = evidence.ok ? { status: 'read', value: evidence.evidence.pulls } : { status: 'unavailable', error: evidence.error };
   const reviews = evidence.ok ? await Promise.all(evidence.evidence.pulls.map(async (pull) => {
-    const match = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)$/i.exec(pull.url);
-    const observation: Observation<ReviewRecord[]> = match
-      ? await readPages(token, `https://api.github.com/repos/${match[1]}/${match[2]}/pulls/${match[3]}/reviews`, fetchFn, review)
-      : { status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } };
+    const observation = await fetchPullReviews(token, pull.url, fetchFn);
     return { pullUrl: pull.url, ...(pull.revision ? { revision: pull.revision } : {}), observation };
   })) : null;
   return { issueUrl, readAt: readAt.toISOString(), issue, pulls, comments, reviews };

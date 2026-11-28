@@ -18,11 +18,12 @@ import {
   planTaskFields,
   parseIssueUrl,
   repositoryFromRemote,
+  requirementForTask,
   Setup,
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchCompletionEvidence, fetchIssue, fetchIssueBody, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullReviews, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -640,16 +641,24 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
 
   if (args.command === 'evidence' && args.positional[0] === 'inspect') {
     const requested = args.positional[1];
-    const matchingTasks = artifacts.filter((artifact) => artifact.kind === 'task' && (artifact.id.toLowerCase() === requested.toLowerCase() || (artifact.issue && normalizeIssueUrl(artifact.issue) === normalizeIssueUrl(requested))));
-    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.map((task) => task.path) });
+    const taskLinks = artifacts.flatMap((artifact) => {
+      if (artifact.kind !== 'task') return [];
+      const requirement = requirementForTask(artifact, artifacts);
+      const listed = requirement?.tasks.filter((task) => task.id === artifact.id).flatMap((task) => task.issueUrl ? [task.issueUrl] : []) ?? [];
+      const urls = [...new Map([...(artifact.issue ? [artifact.issue] : []), ...listed].map((url) => [normalizeIssueUrl(url), url])).values()];
+      return [{ task: artifact, urls }];
+    });
+    const matchingTasks = taskLinks.filter(({ task, urls }) => task.id.toLowerCase() === requested.toLowerCase() || urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(requested)));
+    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.map((item) => item.task.path) });
     const requestedCard = findCards(all, requested);
     if (requestedCard.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: requestedCard.map((card) => `${card.repository}#${card.number}`) });
     const direct = parseIssueUrl(requested) ? requested : undefined;
-    const issueUrl = matchingTasks[0]?.kind === 'task' ? matchingTasks[0].issue : requestedCard[0]?.url ?? direct;
+    if (matchingTasks.some((item) => item.urls.length > 1)) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.flatMap((item) => item.urls) });
+    const issueUrl = matchingTasks[0]?.urls[0] ?? requestedCard[0]?.url ?? direct;
     if (!issueUrl) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
     const issueRef = parseIssueUrl(issueUrl);
     if (!issueRef || !repositories.some((repository) => repository.toLowerCase() === `${issueRef.owner}/${issueRef.repo}`.toLowerCase())) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
-    const linked = artifacts.filter((artifact) => artifact.kind === 'task' && artifact.issue && normalizeIssueUrl(artifact.issue) === normalizeIssueUrl(issueUrl));
+    const linked = taskLinks.filter((item) => item.urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(issueUrl))).map((item) => item.task);
     const projectCard = cards.find((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl));
     const repository = `${issueRef.owner}/${issueRef.repo}`;
     const process = processes.get(repository.toLowerCase());
@@ -681,7 +690,20 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     if (!mergedInventory.ok || mergedInventory.incomplete) finding('merged-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
     const discovered = mergedInventory.ok ? mergedInventory.pulls.filter((pull) => pull.closes.includes(issueRef.number) || linked.some((task) => task.kind === 'task' && taskIdsOfPull(pull).includes(task.id))) : [];
     const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
-    for (const pull of discovered) if (!referencedUrls.has(pull.url.toLowerCase())) finding('other-merged-pr', 'cli.evidence-inspect.other-pr', pull.url);
+    const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
+    const candidateEvidence = await Promise.all(candidates.map(async (candidate) => {
+      const fetchFn = deps.fetch as unknown as FetchFn | undefined;
+      const [pull, reviews] = await Promise.all([fetchCandidatePullEvidence(token, issueUrl, candidate, fetchFn), fetchPullReviews(token, candidate.url, fetchFn)]);
+      if (!pull.ok) return { url: candidate.url, pull, reviews };
+      // Candidate discovery alone does not establish that a PR references the Issue.
+      const { link, ...facts } = pull.pull;
+      return { url: candidate.url, pull: { ok: true as const, facts, closingAssociation: link === 'mentions' ? 'not-closing' : link }, reviews };
+    }));
+    for (const candidate of candidateEvidence) {
+      finding('other-merged-pr', 'cli.evidence-inspect.other-pr', candidate.url);
+      if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
+      if (candidate.reviews.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', candidate.url);
+    }
     const detail = {
       schema: SCHEMA,
       project: setup.project,
@@ -693,6 +715,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       independentTests: 'unverified',
       observation: observed,
       mergedInventory: mergedInventory.ok ? { status: mergedInventory.incomplete ? 'incomplete' : 'read', pulls: discovered } : { status: 'unavailable', error: mergedInventory.error },
+      candidateEvidence,
       findings,
       guidance: say('cli.evidence-inspect.guidance'),
     };

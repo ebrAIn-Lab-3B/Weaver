@@ -292,6 +292,31 @@ async function closingAssociation(ctx: Ctx, repositoryUrl: string, pull: number,
   return 'unknown';
 }
 
+async function readPullEvidence(ctx: Ctx, source: { number: number; title: string; html_url: string; repository_url: string }, ref: { owner: string; repo: string; number: number }): Promise<PullEvidence> {
+  const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx, `${source.repository_url}/pulls/${source.number}`);
+  if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+  const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx, `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`);
+  if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+  return {
+    number: source.number, title: source.title, url: source.html_url,
+    state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
+    checks: summarizeChecks(runs.check_runs),
+    link: await closingAssociation(ctx, source.repository_url, source.number, ref),
+    textClaimsClosing: claimsClosing(`${source.title}\n${pr.body ?? ''}`, source.repository_url, ref),
+    revision: pr.head.sha,
+  };
+}
+
+/** Inspect a candidate PR without claiming the Issue timeline references it. */
+export async function fetchCandidatePullEvidence(token: string, issueUrl: string, candidate: { url: string; title: string }, fetchFn: FetchFn = fetch): Promise<{ ok: true; pull: PullEvidence } | { ok: false; error: Notice }> {
+  const issue = parseIssueUrl(issueUrl);
+  const pull = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/i.exec(candidate.url);
+  if (!issue || !pull || !Number.isSafeInteger(Number(pull[3]))) return { ok: false, error: { code: 'github.err.evidence-incomplete' } };
+  try {
+    return { ok: true, pull: await readPullEvidence({ token, fetchFn }, { number: Number(pull[3]), title: candidate.title, html_url: candidate.url, repository_url: `${API}/repos/${pull[1]}/${pull[2]}` }, issue) };
+  } catch (error) { return { ok: false, error: errorNotice(error) }; }
+}
+
 /**
  * Finds pull requests that reference the Issue (timeline cross-references),
  * then reads each one's merge state and check runs. A reference is a link,
@@ -329,28 +354,7 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
     }
 
     const pulls = await Promise.all(
-      [...sources.values()].map(async (source): Promise<PullEvidence> => {
-        const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx,
-          `${source.repository_url}/pulls/${source.number}`,
-        );
-        if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
-        const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx,
-          `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`,
-        );
-        if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
-        const link = await closingAssociation(ctx, source.repository_url, source.number, ref);
-        return {
-          number: source.number,
-          title: source.title,
-          url: source.html_url,
-          state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
-          checks: summarizeChecks(runs.check_runs),
-          link,
-          textClaimsClosing: claimsClosing(`${source.title}
-${pr.body ?? ''}`, source.repository_url, ref),
-          revision: pr.head.sha,
-        };
-      }),
+      [...sources.values()].map((source) => readPullEvidence(ctx, source, ref)),
     );
     return { ok: true, evidence: { pulls: pulls.sort((a, b) => a.number - b.number) } };
   } catch (error) {

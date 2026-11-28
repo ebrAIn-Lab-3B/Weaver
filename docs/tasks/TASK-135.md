@@ -29,4 +29,6 @@ TASK-132, TASK-133, TASK-134, TASK-136 and TASK-137.
 
 Linked test results and real or isolated Project observations, including limitations and requirement review. A fixture alone must not be described as live verification.
 
-Status: planned. No implementation or completion evidence has been recorded.
+Status: in progress. On 2026-11-28 KST, `npm run check` and `npm test` passed on the work branch: 705 Markdown, 169 GitHub and 370 CLI tests. The suites include configured creation and recovery, deterministic reconciliation and stale reads, shared-Issue diagnosis, evidence observations and guidance discovery. These are controlled fixtures, not an independent test or a live end-to-end run of the combined implementation.
+
+Earlier isolated GitHub registration observations for both column sources, including merged files, are recorded in [TASK-132](TASK-132.md); status-resolution observations and their cleanup and limits are recorded in [TASK-136](TASK-136.md) and the [reconciliation design](../architecture/task-reconciliation-design.md). They are evidence for their exercised versions, not a substitute for checking the current combined flow. The new read-only TASK-137 probe against Weaver is recorded in [TASK-137](TASK-137.md). A current integrated run, complete failure and cancellation matrix, evidence review and requirement-by-requirement audit remain outstanding.

@@ -794,9 +794,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
             pull.repository.toLowerCase() === card.repository.toLowerCase() &&
             (pull.closes.includes(card.number) || (card.task !== undefined && taskIdsOfPull(pull).includes(card.task.id))),
         )
-        .map((pull) => ({ number: pull.number, title: pull.title, url: pull.url, closes: pull.closes.includes(card.number) }))
+        .map((pull) => ({ number: pull.number, title: pull.title, url: pull.url, closes: pull.closes.includes(card.number), ...(pull.closingIncomplete ? { closingIncomplete: true } : {}) }))
     : null;
-  const warnings = merged.ok ? [] : [formatNotice(merged.error, locale)];
+  const warnings = merged.ok ? (merged.incomplete ? [say('cli.show.pulls-incomplete')] : []) : [formatNotice(merged.error, locale)];
 
   const detail = {
     schema: SCHEMA,

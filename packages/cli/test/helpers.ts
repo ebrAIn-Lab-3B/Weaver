@@ -81,7 +81,7 @@ export function setup(options: { token?: string | undefined; registry?: string; 
       return { ok: true, status: 200, json: async () => body };
     }
     if (options.pullsFail) return { ok: false, status: 500, json: async () => ({}) };
-    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10 }] } }];
+    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10, repository: { nameWithOwner: 'me/Weaver' } }] } }];
     return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes } } } }) };
   };
   const deps: Deps = {

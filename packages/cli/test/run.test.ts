@@ -69,6 +69,19 @@ describe('weaver show', () => {
     expect(result.warnings).toHaveLength(1);
   });
 
+  it('marks an unqualified closing reference incomplete instead of asserting absence', async () => {
+    const { deps, out } = setup();
+    const original = deps.fetch as Fetch;
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('pullRequests(states:MERGED')) return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10 }] } }] } } } }) };
+      return original(url, init);
+    };
+    expect(await run(['show', 'TASK-010'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.pulls).toMatchObject([{ number: 7, closes: false, closingIncomplete: true }]);
+    expect(result.warnings[0]).toContain('not confirmed absent');
+  });
+
   it('exits with not-found for an unknown card', async () => {
     const { deps, out } = setup();
     expect(await run(['show', 'TASK-999'], deps)).toBe(EXIT.notFound);

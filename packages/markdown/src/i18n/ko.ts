@@ -702,6 +702,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.evidence-inspect.status-unavailable': '커밋 상태 컨텍스트를 읽을 수 없거나 불완전합니다.',
   'cli.evidence-inspect.status-failed': '커밋 상태 컨텍스트가 실패 또는 오류를 보고합니다.',
   'cli.evidence-inspect.status-pending': '커밋 상태 컨텍스트가 대기 중입니다.',
+  'cli.show.pulls-incomplete': 'PR 목록이나 종료 참조가 불완전합니다. 관찰되지 않은 종료 연결이 없다고 확정할 수 없습니다.',
   'cli.evidence-inspect.comments-unavailable': 'Issue 댓글을 완전히 읽을 수 없습니다.',
   'cli.evidence-inspect.reviews-unavailable': '공식 리뷰를 완전히 읽을 수 없습니다.',
   'cli.evidence-inspect.no-review': '이 PR에 공식 리뷰가 없습니다.',

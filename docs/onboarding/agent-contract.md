@@ -98,6 +98,8 @@ This page is the contract. Every JSON example below is checked by a test against
 
 `weaver show <card>` prints one card with its task file, requirement, and the merged pull requests that close it or name its task. `<card>` is `owner/name#number`, an Issue address, or `TASK-###`.
 
+`closes: true` means GitHub's closing reference identifies an Issue in the same repository. `closes: false` means no such reference was observed; when `closingIncomplete` is true it does not establish absence. The `warnings` list also reports an incomplete merged-PR inventory or closing-reference page.
+
 <!-- example: show -->
 ```json
 {

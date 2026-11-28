@@ -707,6 +707,7 @@ export const en = {
   'cli.evidence-inspect.status-unavailable': 'Commit status contexts are unavailable or incomplete.',
   'cli.evidence-inspect.status-failed': 'Commit status contexts report a failure or error.',
   'cli.evidence-inspect.status-pending': 'Commit status contexts are pending.',
+  'cli.show.pulls-incomplete': 'The PR inventory or closing references are incomplete; an unobserved closing association is not confirmed absent.',
   'cli.evidence-inspect.comments-unavailable': 'Issue comments could not be read completely.',
   'cli.evidence-inspect.reviews-unavailable': 'Formal reviews could not be read completely.',
   'cli.evidence-inspect.no-review': 'No formal reviews were found for this PR.',

@@ -58,6 +58,7 @@ export function taskListLine(id: string, title: string, issueNumber: number, iss
 
 /** The sentence that a requirement keeps under `## Tasks` until its first task exists. */
 const PLACEHOLDER = /^Tasks are not created yet/i;
+const EMPTY_TASKS_PLACEHOLDER = /^\s*No tasks yet\.?\s*$/i;
 
 /** Appends a line to the list under `## Tasks`; undefined when the requirement has no such section. */
 export function addTaskToRequirement(text: string, line: string): string | undefined {
@@ -73,10 +74,10 @@ export function addTaskToRequirement(text: string, line: string): string | undef
     lines.splice(last + 1, 0, line);
   } else {
     // A section that only says no task exists yet is replaced by the list, not left next to it.
-    const placeholder = lines.findIndex((l, i) => i > heading && i < end && PLACEHOLDER.test(l));
+    const placeholder = lines.findIndex((l, i) => i > heading && i < end && (PLACEHOLDER.test(l) || EMPTY_TASKS_PLACEHOLDER.test(l)));
     if (placeholder >= 0) {
       let stop = placeholder;
-      while (stop + 1 < end && lines[stop + 1].trim() !== '' && !/^-\s/.test(lines[stop + 1])) stop += 1;
+      while (PLACEHOLDER.test(lines[placeholder]) && stop + 1 < end && lines[stop + 1].trim() !== '' && !/^-\s/.test(lines[stop + 1])) stop += 1;
       lines.splice(placeholder, stop - placeholder + 1, line);
     } else {
       lines.splice(heading + 1, 0, '', line);

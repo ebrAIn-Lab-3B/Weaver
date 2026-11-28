@@ -99,6 +99,14 @@ describe('draftTaskFile (DEC-024 item 4)', () => {
     expect(draft.ok && draft.requirementText).toContain('## Tasks\n\n- `TASK-098`');
     expect(draft.ok && draft.requirementText).not.toContain('not created yet');
   });
+
+  it('replaces a standalone No tasks yet placeholder without deleting adjacent text', () => {
+    const first = { ...requirement, text: REQUIREMENT.replace(/- `TASK-090`.*\n\nOrigin:/, 'No tasks yet.\nOrigin:') };
+    const draft = draftTaskFile({ card, requirement: first, taskDirectory: 'docs/tasks' });
+    if (!draft.ok) throw new Error('not drafted');
+    expect(draft.requirementText).toContain(`${draft.line}\nOrigin: the maintainer.`);
+    expect(draft.requirementText).not.toContain('No tasks yet.');
+  });
 });
 
 describe('checkFolderUpdate (DEC-024 item 3)', () => {

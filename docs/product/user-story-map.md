@@ -246,3 +246,5 @@ In the first release, the story map is connected to GitHub Issues rather than a 
 - Real-time bidirectional synchronization with every external tool
 - Automatically making final product acceptance decisions without a human policy
 - A private task database that duplicates GitHub Issues
+
+The mismatch-review entry is a partial step toward US-038 / REQ-009: it does not yet show the CLI reconciliation plan or apply its Project Status actions. Completing that story requires sharing the plan and same-scope recheck between the CLI and editor, presenting the exact target and before/after values for individual confirmation, rejecting stale or inaccessible reads, and reporting partial results without a clean-success claim. Board-ahead and ambiguous cases remain decisions under DEC-012. The existing CLI flow and its approvals are unchanged.

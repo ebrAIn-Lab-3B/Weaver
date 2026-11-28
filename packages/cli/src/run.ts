@@ -105,6 +105,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   if (!token) return fail(EXIT.failed, 'cli.no-token');
 
   const read = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch);
+  const projectReadAt = deps.now().toISOString();
   if (!read.ok) {
     report(read.error.code, formatNotice(read.error, locale));
     return EXIT.failed;
@@ -678,6 +679,16 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     ]);
     const findings: { kind: string; message: string; url: string }[] = [];
     const finding = (kind: string, key: MessageKey, url: string) => findings.push({ kind, message: say(key), url });
+    const issueComparison = projectCard && observed.issue.ok ? {
+      status: projectCard.state === observed.issue.issue.state && JSON.stringify([...projectCard.labels].sort()) === JSON.stringify([...observed.issue.issue.labels].sort()) ? 'consistent' : 'conflicting',
+      projectState: projectCard.state,
+      issueState: observed.issue.issue.state,
+      projectLabels: [...projectCard.labels].sort(),
+      issueLabels: [...observed.issue.issue.labels].sort(),
+      projectReadAt,
+      issueReadAt: observed.readAt,
+    } : { status: 'unavailable', projectReadAt, issueReadAt: observed.readAt };
+    if (issueComparison.status === 'conflicting') finding('issue-observations-conflict', 'cli.evidence-inspect.observations-conflict', issueUrl);
     if (!observed.issue.ok) finding('issue-unavailable', 'cli.evidence-inspect.issue-unavailable', issueUrl);
     if (observed.pulls.status === 'unavailable') finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', issueUrl);
     else {
@@ -735,8 +746,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     const detail = {
       schema: SCHEMA,
       project: setup.project,
+      issueComparison,
       membership: projectCard ? 'present' : boardRead.membershipComplete === true ? 'absent' : 'unknown',
-      placement: projectCard && usableProcess ? { column: projectCard.placement.column, gaps: projectCard.placement.gaps, labels: projectCard.labels, boardStatus: projectCard.boardStatus ?? null, boardStatusRead: projectCard.boardStatusRead === true } : null,
+      placement: projectCard && usableProcess ? { column: projectCard.placement.column, reliability: issueComparison.status === 'consistent' && projectCard.placement.gaps.length === 0 && (process.process.columns.source !== 'board-status' || projectCard.boardStatusRead === true) ? 'observed' : 'uncertain', gaps: projectCard.placement.gaps, labels: projectCard.labels, boardStatus: projectCard.boardStatus ?? null, boardStatusRead: projectCard.boardStatusRead === true } : null,
       process: usableProcess ? { file: process.file, sources: process.sources, columns: process.process.columns, evidence: process.process.evidence } : null,
       tasks: [...linked.map((task) => ({ id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null })), ...linkedListed.map((item) => ({ id: item.id, path: null, requirementPath: item.requirementPath, file: workspaceComplete ? 'absent' : 'unknown', testClaim: null, evidenceException: null, exceptionHonored: null }))],
       sharedIssue: linked.length + linkedListed.length > 1,

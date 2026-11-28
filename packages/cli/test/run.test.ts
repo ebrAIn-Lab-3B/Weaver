@@ -110,7 +110,9 @@ describe('weaver evidence inspect', () => {
     expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: { status: 'unverified', commentSource: 'read', taskClaims: [{ path: 'tasks/TASK-011.md', text: 'self-reported passing' }] }, observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
     expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', testClaim: 'self-reported passing', evidenceException: 'approved exception', exceptionHonored: true })]));
     expect(result.observation.comments.value[0]).toMatchObject({ author: 'reviewer', body: 'Could not repeat the claimed test' });
-    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toEqual(expect.arrayContaining(['merged-not-closing', 'no-checks', 'no-formal-review', 'shared-issue']));
+    expect(result.issueComparison).toMatchObject({ status: 'conflicting', projectState: 'open', issueState: 'closed', projectReadAt: '2026-11-01T00:00:00.000Z', issueReadAt: '2026-11-01T00:00:00.000Z' });
+    expect(result.placement.reliability).toBe('uncertain');
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toEqual(expect.arrayContaining(['merged-not-closing', 'no-checks', 'no-formal-review', 'shared-issue', 'issue-observations-conflict']));
     expect(s.writes.some((write) => write.includes('mutation'))).toBe(false);
   });
 
@@ -122,7 +124,24 @@ describe('weaver evidence inspect', () => {
     expect(result.independentTests).toMatchObject({ status: 'unavailable', commentSource: 'unavailable' });
     expect(result.observation.pulls).toMatchObject({ status: 'unavailable' });
     expect(result.observation.reviews).toBeNull();
+    expect(result.issueComparison.status).toBe('unavailable');
+    expect(result.placement.reliability).toBe('uncertain');
     expect(result.findings.find((finding: { kind: string }) => finding.kind === 'pulls-unavailable').message).toContain('불완전');
+  });
+
+  it('marks a placement observed only when Project and direct Issue facts agree', async () => {
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/issues/10')) return { ok: true, status: 200, json: async () => ({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'open', labels: ['status:in-progress'], assignees: [] }) };
+      if (url.includes('/issues/10/timeline') || url.includes('/issues/10/comments')) return { ok: true, status: 200, json: async () => [] };
+      return original(url, init);
+    };
+    expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.issueComparison.status).toBe('consistent');
+    expect(result.placement.reliability).toBe('observed');
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).not.toContain('issue-observations-conflict');
   });
 
   it('reports each configured source and does not honor a disabled exception', async () => {

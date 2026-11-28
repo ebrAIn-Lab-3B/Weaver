@@ -304,6 +304,8 @@ The VS Code authoring flow can draft files and open their PR, but does not atomi
 
 When the requirement lists a task and Issue but no task file or Project card is found, inspection can still follow the requirement's Issue link. It reports the requirement path and marks the task file `absent` only for a complete local artifact scan; an invalid or incomplete scan leaves it `unknown`. Duplicate task IDs across requirements remain ambiguous.
 
+The `issueComparison` section compares the Project snapshot's Issue state and labels with the separate Issue read and includes the Project read completion time and Issue observation start time. A disagreement produces a finding and makes placement uncertain. Missing board status, invalid mappings or other placement gaps also leave placement uncertain; even matching reads are not an atomic snapshot.
+
 In VS Code, the Overview card menu also offers **Inspect completion evidence**. It reads the Issue timeline, referenced PRs, check runs, reviews and Issue comments and lets a person open the original source. It is a narrower view than the CLI inspection: it does not inventory every repository PR or independently establish test results. Review revisions and the observed PR head are shown separately.
 
 Check runs and commit status contexts are distinct GitHub sources. `checks: none` means that no check runs were observed; it does not establish the absence of commit status contexts. `statusContexts` reports their combined state and source at the observed PR head. An unavailable or truncated status response is `unknown`, not success or confirmed absence.

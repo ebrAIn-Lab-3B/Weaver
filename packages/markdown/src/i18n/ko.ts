@@ -693,6 +693,7 @@ export const ko: Record<MessageKey, Message> = {
   'cli.evidence-inspect.heading': '완료 증거 관찰 결과',
   'cli.evidence-inspect.guidance': '연결된 출처와 작성자가 표시된 주장을 검토하세요. 독립 테스트, 리뷰, 종료 또는 Verified 상태를 추론하지 않습니다. 확인할 수 없거나 불완전한 자료는 판단 전에 조사하세요.',
   'cli.evidence-inspect.issue-unavailable': 'Issue를 읽을 수 없어 상태를 알 수 없습니다.',
+  'cli.evidence-inspect.observations-conflict': 'Project 스냅샷과 Issue 직접 조회의 상태 또는 라벨이 다릅니다. 위치나 검증을 판단하기 전에 둘 다 다시 읽으세요.',
   'cli.evidence-inspect.pulls-unavailable': 'PR 참조 목록을 읽을 수 없거나 불완전합니다.',
   'cli.evidence-inspect.no-pr': '읽은 Issue 타임라인에 참조된 PR이 없습니다.',
   'cli.evidence-inspect.non-closing': '참조된 병합 PR이 이 Issue의 GitHub 종료 연결에 없습니다.',

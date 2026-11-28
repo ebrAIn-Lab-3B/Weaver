@@ -698,6 +698,7 @@ export const en = {
   'cli.evidence-inspect.heading': 'Completion evidence observations',
   'cli.evidence-inspect.guidance': 'Review linked sources and attributed claims; no independent test, review, closure, or Verified status is inferred. Investigate unavailable or incomplete reads before deciding.',
   'cli.evidence-inspect.issue-unavailable': 'The Issue could not be read; its state is unknown.',
+  'cli.evidence-inspect.observations-conflict': 'The Project snapshot and direct Issue read disagree on state or labels. Refresh both before deciding placement or verification.',
   'cli.evidence-inspect.pulls-unavailable': 'The PR reference inventory is unavailable or incomplete.',
   'cli.evidence-inspect.no-pr': 'The readable Issue timeline has no referenced pull request.',
   'cli.evidence-inspect.non-closing': 'A merged referenced PR is not in GitHub’s closing association for this Issue.',

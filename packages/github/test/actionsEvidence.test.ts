@@ -16,6 +16,26 @@ describe('configured Actions evidence', () => {
     expect(await read(fixture({ runs: { total_count: 0, workflow_runs: [] } }))).toMatchObject({ status: 'read', runs: [] });
     expect(await read(fixture({ status: 403 }))).toMatchObject({ status: 'unavailable', error: { code: 'github.err.http' } });
   });
+  it('reads complete advertised pages and refuses a failed, changed or foreign next page', async () => {
+    const base = `https://api.github.com/repos/example/repo/actions/workflows/7/runs?head_sha=${sha}&per_page=100&page=2`;
+    const second = { ...run, id: 13, html_url: 'https://github.com/example/repo/actions/runs/13' };
+    for (const scenario of ['complete', 'failed', 'changed', 'foreign'] as const) {
+      const requested: string[] = [];
+      const fetchFn = (async (url: string) => {
+        requested.push(url);
+        if (!url.includes('/runs?')) return { ok: true, status: 200, json: async () => ({ id: 7, path: '.github/workflows/test.yml' }) };
+        const first = url.endsWith('page=1');
+        const target = scenario === 'foreign' ? base.replace('api.github.com', 'attacker.example') : base;
+        if (first) return { ok: true, status: 200, headers: new Headers({ link: `<${target}>; rel="next"` }), json: async () => ({ total_count: 2, workflow_runs: [run] }) };
+        return { ok: scenario !== 'failed', status: scenario === 'failed' ? 403 : 200, headers: new Headers(), json: async () => ({ total_count: scenario === 'changed' ? 3 : 2, workflow_runs: [second] }) };
+      }) as unknown as FetchFn;
+      const result = await read(fetchFn);
+      if (scenario === 'complete') expect(result).toMatchObject({ status: 'read', runs: [{ id: 12 }, { id: 13 }] });
+      else expect(result).toMatchObject({ status: 'unavailable', error: { code: scenario === 'failed' ? 'github.err.http' : 'github.err.evidence-incomplete' } });
+      expect(requested.some((url) => url.includes('attacker.example'))).toBe(false);
+      if (scenario === 'foreign') expect(requested).toHaveLength(2);
+    }
+  });
   it('fails closed for wrong identity, stale revision and incomplete records or pagination', async () => {
     for (const options of [
       { workflow: { id: 8, path: '.github/workflows/test.yml' } },

@@ -1,7 +1,7 @@
 import { parseIssueUrl, type Notice, type PullEvidence } from '@ebrain-lab/weaver-markdown';
 import { fetchEvidence, fetchIssue, type FetchFn, type IssueResult } from './issue';
 import { errorNotice, NoticeError } from './errors';
-import { evidenceHasNext } from './evidencePagination';
+import { evidenceNext } from './evidencePagination';
 
 /** A failed or truncated collection must never be represented as an empty collection. */
 export type Observation<T> = { status: 'read'; value: T } | { status: 'unavailable'; error: Notice };
@@ -45,7 +45,7 @@ async function readPages<T>(token: string, url: string, fetchFn: FetchFn, parse:
   try {
     const values: T[] = [];
     for (let page = 1; page <= 50; page += 1) {
-      const response = await fetchFn(`${url}?per_page=100&page=${page}`, {
+      const response = await fetchFn(`${url}${url.includes('?') ? '&' : '?'}per_page=100&page=${page}`, {
         headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' },
       });
       if (!response.ok) throw new NoticeError({ code: 'github.err.http', args: { status: response.status } });
@@ -59,13 +59,35 @@ async function readPages<T>(token: string, url: string, fetchFn: FetchFn, parse:
       // GitHub may advertise a next page even when a page is short. The next URL is
       // constructed locally, so a response header cannot redirect the token elsewhere.
       const link = response.headers?.get('link') ?? '';
-      const next = evidenceHasNext(link, url, page);
+      const next = await evidenceNext(link, url, page, token, fetchFn);
       if (data.length < 100 && !next) return { status: 'read', value: values };
     }
     throw new NoticeError({ code: 'github.err.evidence-incomplete' });
   } catch (error) {
     return { status: 'unavailable', error: errorNotice(error) };
   }
+}
+
+export interface PullInventoryItem {
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  body: string | null;
+}
+
+/** Complete all-state repository inventory, or an unavailable result without partial claims. */
+export async function fetchPullInventory(token: string, repository: string, fetchFn: FetchFn = fetch): Promise<Observation<PullInventoryItem[]>> {
+  const match = /^([\w.-]+)\/([\w.-]+)$/.exec(repository);
+  if (!match) return { status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } };
+  return readPages(token, `https://api.github.com/repos/${match[1]}/${match[2]}/pulls?state=all`, fetchFn, (value) => {
+    if (!value || typeof value !== 'object') return undefined;
+    const pull = value as { number?: unknown; title?: unknown; html_url?: unknown; body?: unknown; head?: { ref?: unknown } };
+    if (!Number.isSafeInteger(pull.number) || Number(pull.number) < 1 || typeof pull.title !== 'string' || typeof pull.html_url !== 'string' || (pull.body !== null && typeof pull.body !== 'string') || typeof pull.head?.ref !== 'string') return undefined;
+    const url = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/i.exec(pull.html_url);
+    if (!url || `${url[1]}/${url[2]}`.toLowerCase() !== repository.toLowerCase() || Number(url[3]) !== pull.number) return undefined;
+    return { number: pull.number as number, title: pull.title, url: pull.html_url, branch: pull.head.ref, body: pull.body as string | null };
+  });
 }
 
 function comment(value: unknown): AttributedClaim | undefined {

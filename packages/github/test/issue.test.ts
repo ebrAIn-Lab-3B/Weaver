@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { planMove } from '@ebrain-lab/weaver-markdown';
-import { addIssueComment, applyMove, fetchEvidence, fetchIssue, fetchPull, hasIssueComment, setBoardStatus, setIssueAssignees, type FetchFn } from '../src';
+import { addIssueComment, applyMove, fetchCandidatePullEvidence, fetchEvidence, fetchIssue, fetchPull, hasIssueComment, setBoardStatus, setIssueAssignees, type FetchFn } from '../src';
 
 const ISSUE = 'https://github.com/me/Weaver/issues/5';
 
@@ -179,6 +179,17 @@ describe('fetchEvidence', () => {
     expect(await fetchEvidence('t', ISSUE, missing.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
     const mismatch = routes(() => ({ json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/other/repo/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] }));
     expect(await fetchEvidence('t', ISSUE, mismatch.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+  });
+});
+
+describe('candidate pull evidence', () => {
+  it('retains an unmerged PR state without treating candidate discovery as a timeline reference', async () => {
+    const { fetchFn } = routes((call) => {
+      if (call.url.endsWith('/pulls/9')) return { json: { state: 'open', merged_at: null, body: 'work', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
+      return { json: { total_count: 0, check_runs: [] } };
+    });
+    expect(await fetchCandidatePullEvidence('t', ISSUE, { title: 'work (TASK-005)', url: 'https://github.com/me/Weaver/pull/9' }, fetchFn)).toMatchObject({ ok: true, pull: { state: 'open', checks: 'none', link: 'mentions', revision: 'abc' } });
   });
 });
 

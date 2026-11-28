@@ -23,7 +23,7 @@ import {
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullReviews, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -663,9 +663,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     const repository = `${issueRef.owner}/${issueRef.repo}`;
     const process = processes.get(repository.toLowerCase());
     const usableProcess = process && process.file !== 'failed' && !process.issues.some((item) => item.severity === 'error');
-    const [observed, mergedInventory] = await Promise.all([
+    const [observed, pullInventory] = await Promise.all([
       fetchCompletionEvidence(token, issueUrl, deps.now(), deps.fetch as unknown as FetchFn | undefined),
-      readMergedPulls(token, repository, 50, deps.fetch),
+      fetchPullInventory(token, repository, deps.fetch as unknown as FetchFn | undefined),
     ]);
     const findings: { kind: string; message: string; url: string }[] = [];
     const finding = (kind: string, key: MessageKey, url: string) => findings.push({ kind, message: say(key), url });
@@ -687,8 +687,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     }
     if (!usableProcess) finding('process-unavailable', 'cli.evidence-inspect.process-unavailable', issueUrl);
     if (linked.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
-    if (!mergedInventory.ok || mergedInventory.incomplete) finding('merged-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
-    const discovered = mergedInventory.ok ? mergedInventory.pulls.filter((pull) => pull.closes.includes(issueRef.number) || linked.some((task) => task.kind === 'task' && taskIdsOfPull(pull).includes(task.id))) : [];
+    if (pullInventory.status === 'unavailable') finding('pull-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
+    const issueNumberPattern = new RegExp(`#${issueRef.number}(?!\\d)`);
+    const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || linked.some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
     const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
     const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
     const candidateEvidence = await Promise.all(candidates.map(async (candidate) => {
@@ -700,7 +701,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       return { url: candidate.url, pull: { ok: true as const, facts, closingAssociation: link === 'mentions' ? 'not-closing' : link }, reviews };
     }));
     for (const candidate of candidateEvidence) {
-      finding('other-merged-pr', 'cli.evidence-inspect.other-pr', candidate.url);
+      finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
       if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
       if (candidate.reviews.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', candidate.url);
     }
@@ -714,7 +715,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       sharedIssue: linked.length > 1,
       independentTests: 'unverified',
       observation: observed,
-      mergedInventory: mergedInventory.ok ? { status: mergedInventory.incomplete ? 'incomplete' : 'read', pulls: discovered } : { status: 'unavailable', error: mergedInventory.error },
+      pullInventory: pullInventory.status === 'read' ? { status: 'read', candidates: discovered } : pullInventory,
       candidateEvidence,
       findings,
       guidance: say('cli.evidence-inspect.guidance'),

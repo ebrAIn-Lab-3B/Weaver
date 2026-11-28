@@ -1,5 +1,5 @@
 import { NoticeError, errorNotice } from './errors';
-import { evidenceHasNext } from './evidencePagination';
+import { evidenceNext } from './evidencePagination';
 import {
   BoardItem,
   CheckRunLike,
@@ -335,7 +335,7 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
       if (!response.ok) throw new NoticeError({ code: 'github.err.http', args: { status: response.status } });
       const batch: unknown = await response.json();
       if (!Array.isArray(batch) || batch.length > 100 || batch.some((event) => !event || typeof event !== 'object' || typeof event.event !== 'string')) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
-      const next = evidenceHasNext(response.headers?.get('link'), timelineUrl, page);
+      const next = await evidenceNext(response.headers?.get('link'), timelineUrl, page, token, fetchFn);
       events.push(...batch);
       if (batch.length < 100 && !next) break;
       if (page === 3) throw new NoticeError({ code: 'github.err.evidence-incomplete' });

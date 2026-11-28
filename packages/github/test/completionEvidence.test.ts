@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fetchCompletionEvidence, type FetchFn } from '../src';
+import { fetchCompletionEvidence, fetchPullInventory, type FetchFn } from '../src';
 
 const issueUrl = 'https://github.com/example/repo/issues/5';
 const now = new Date('2026-11-28T00:00:00Z');
@@ -66,6 +66,34 @@ describe('completion evidence observations', () => {
       const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
       if (target.endsWith('page=2') && target.includes('/example/repo/')) expect(result.comments).toMatchObject({ status: 'read', value: [{ body: 'first' }, { body: 'second' }] });
       else expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+    }
+  });
+});
+
+describe('all-state pull inventory', () => {
+  it('follows an advertised short page and keeps open and closed candidates', async () => {
+    const pulls = [1, 2].map((number) => ({ number, title: `PR ${number}`, html_url: `https://github.com/example/repo/pull/${number}`, body: null, head: { ref: `task-00${number}` } }));
+    const fetchFn = (async (url: string) => {
+      const first = url.endsWith('page=1');
+      return { ok: true, status: 200, headers: new Headers(first ? { link: '<https://api.github.com/repos/example/repo/pulls?state=all&per_page=100&page=2>; rel="next"' } : {}), json: async () => first ? [pulls[0]] : [pulls[1]] } as Response;
+    }) as FetchFn;
+    expect(await fetchPullInventory('t', 'example/repo', fetchFn)).toMatchObject({ status: 'read', value: [{ number: 1 }, { number: 2 }] });
+  });
+
+  it('fails closed when a next page changes the state filter', async () => {
+    const fetchFn = (async () => ({ ok: true, status: 200, headers: new Headers({ link: '<https://api.github.com/repos/example/repo/pulls?state=closed&per_page=100&page=2>; rel="next"' }), json: async () => [] })) as unknown as FetchFn;
+    expect(await fetchPullInventory('t', 'example/repo', fetchFn)).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+  });
+
+  it('verifies a numeric repository link before reading the next page', async () => {
+    for (const fullName of ['example/repo', 'example/other']) {
+      const fetchFn = (async (url: string) => {
+        if (url === 'https://api.github.com/repos/example/repo') return { ok: true, status: 200, json: async () => ({ id: 123, full_name: fullName }) } as Response;
+        const first = url.endsWith('page=1');
+        return { ok: true, status: 200, headers: new Headers(first ? { link: '<https://api.github.com/repositories/123/pulls?state=all&per_page=100&page=2>; rel="next"' } : {}), json: async () => [] } as Response;
+      }) as FetchFn;
+      const result = await fetchPullInventory('t', 'example/repo', fetchFn);
+      expect(result.status).toBe(fullName === 'example/repo' ? 'read' : 'unavailable');
     }
   });
 });

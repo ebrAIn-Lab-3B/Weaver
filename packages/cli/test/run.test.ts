@@ -152,6 +152,7 @@ describe('weaver evidence inspect', () => {
       const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
       if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: [], assignees: [] });
       if (url.includes('/issues/10/timeline') || url.includes('/issues/10/comments')) return reply([]);
+      if (url.includes('/pulls?state=all')) return reply([{ number: 7, title: 'feat: ten (TASK-010)', html_url: 'https://github.com/me/Weaver/pull/7', body: '', head: { ref: 'feat/task-010' } }]);
       if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'head7' } });
       if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
       if (url.includes('/pulls/7/reviews')) return reply([]);
@@ -163,7 +164,7 @@ describe('weaver evidence inspect', () => {
     expect(result.observation.pulls).toEqual({ status: 'read', value: [] });
     expect(result.candidateEvidence).toMatchObject([{ url: 'https://github.com/me/Weaver/pull/7', pull: { ok: true, closingAssociation: 'not-closing', facts: { checks: 'none', revision: 'head7', state: 'merged' } }, reviews: { status: 'read', value: [] } }]);
     expect(result.candidateEvidence[0].pull.facts).not.toHaveProperty('link');
-    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('other-merged-pr');
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('other-pr');
   });
 
   it('resolves a requirement entry when the task file has no Issue and rejects conflicting links', async () => {

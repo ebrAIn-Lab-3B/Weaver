@@ -718,7 +718,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     }
     const taskTestClaims = linked.flatMap((task) => task.tests ? [{ path: task.path, text: task.tests }] : []);
     const independentTests = {
-      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-record-in-observed-sources' : 'unverified',
+      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-structured-task-claim-or-issue-comments' : 'unverified',
       taskClaims: taskTestClaims,
       commentSource: observed.comments.status,
       guidance: say('cli.evidence-inspect.test-claims'),

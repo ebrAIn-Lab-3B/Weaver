@@ -144,7 +144,7 @@ describe('weaver evidence inspect', () => {
     expect(result.placement).toBeNull();
     expect(result.observation.issue).toMatchObject({ ok: true, issue: { state: 'closed' } });
     expect(result.observation.pulls).toMatchObject({ status: 'read', value: [] });
-    expect(result.independentTests.status).toBe('no-record-in-observed-sources');
+    expect(result.independentTests.status).toBe('no-structured-task-claim-or-issue-comments');
   });
 
   it('inspects a task-matched merged PR separately without inventing a timeline reference', async () => {
@@ -1235,6 +1235,37 @@ describe('task creation resume by explicit Issue', () => {
     expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
     expect(JSON.parse(s.out.join('')).actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
     expect(s.statusWrites()).toBe(1);
+  });
+
+  it('recovers an uncertain board write through a pending file PR without duplicate mutations', async () => {
+    const s = fixture({ onProject: true, boardUnset: true, loseStatusResponse: true, recoverBranch: true });
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const firstPlan = JSON.parse(s.out.join(''));
+    const status = firstPlan.actions.find((action: { kind: string }) => action.kind === 'project.field');
+    expect(status).toBeDefined();
+    s.out.length = 0;
+    expect(await run([...args, '--approve', status.id], s.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(s.out.join('')).actions[0]).toMatchObject({ kind: 'project.field', outcome: 'failed' });
+    expect(s.statusWrites()).toBe(1);
+    expect(s.pullWrites()).toBe(0);
+    s.out.length = 0;
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const secondPlan = JSON.parse(s.out.join(''));
+    expect(secondPlan.actions.map((action: { kind: string }) => action.kind)).toEqual(['files.pull-request']);
+    s.out.length = 0;
+    expect(await run([...args, '--approve', secondPlan.actions[0].id], s.deps)).toBe(EXIT.unconfirmed);
+    expect(JSON.parse(s.out.join('')).status).toBe('pending');
+    expect(s.createCount()).toBe(0);
+    expect(s.statusWrites()).toBe(1);
+    expect(s.pullWrites()).toBe(1);
+    s.out.length = 0;
+    expect(await run(args, s.deps)).toBe(EXIT.unconfirmed);
+    const repeated = JSON.parse(s.out.join(''));
+    expect(repeated.status).toBe('pending');
+    expect(repeated.actions).toEqual([]);
+    expect(s.createCount()).toBe(0);
+    expect(s.statusWrites()).toBe(1);
+    expect(s.pullWrites()).toBe(1);
   });
 
   it('does not open a file PR while the unset status action awaits approval', async () => {

@@ -71,6 +71,8 @@ The Issue and Project readers now reject a missing or malformed assignee list; t
 
 This audit maps evidence to scope; it does not mark the requirement verified.
 
+Post-merge review at `6641d2f`: the controlled suites and the retained live observations below support the individual workflow cases, but they do not all run in a single live scenario on that revision. In particular, a separate Weaver board-source Status write is covered by controlled recovery tests rather than the live registration where `Todo` was already present; lost network responses are simulated; and GitHub reads and writes are not atomic. The observed label-source repair, board-ahead and stale-approval boundary, and no-op recheck are real isolated Project observations, not independent human verification. These distinctions should remain visible in the completion review rather than being promoted to stronger claims by the post-merge green test run.
+
 | Criteria | Available evidence | Remaining evidence or boundary |
 | --- | --- | --- |
 | AC-001, AC-002 | TASK-132 records earlier isolated registration for both sources. The current board-source fixture registered Issue #21, observed Project membership and configured fields, and verified the merged files and links; current label-source observation is recorded above and in TASK-134. `packages/cli/test/run.test.ts` tests configured label and board writes. | The current label-source registration through merged files is recorded below. The board-source Status was already `Todo` when added, so that observation does not prove a separate Weaver Status mutation; review retained fixtures and their limitations. |

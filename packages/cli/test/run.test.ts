@@ -1278,6 +1278,13 @@ describe('task creation resume by explicit Issue', () => {
     korean.deps.env.WEAVER_LANG = 'ko';
     expect(await run([...args, '--assignee', 'other-agent'], korean.deps)).toBe(EXIT.failed);
     expect(JSON.parse(korean.out.join('')).error.message).toContain('기록된 등록 요청');
+    const textMode = fixture({ onProject: true, body });
+    textMode.deps.env.WEAVER_LANG = 'ko';
+    expect(await run([...args, '--assignee', 'other-agent', '--text'], textMode.deps)).toBe(EXIT.failed);
+    expect(textMode.err.join('')).toContain('기록된 등록 요청');
+    expect(textMode.out.join('')).toBe('');
+    expect(textMode.createCount()).toBe(0);
+    expect(textMode.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
     const marker = body.match(/<!-- weaver-registration:v2 [\s\S]*? -->/)?.[0];
     if (!marker) throw new Error('missing registration marker');
     for (const altered of [body + marker, body.replace('operation=refs/heads/weaver/reservations/op-', 'operation=refs/heads/weaver/reservations/other-')]) {

@@ -295,8 +295,13 @@ async function closingAssociation(ctx: Ctx, repositoryUrl: string, pull: number,
 async function readPullEvidence(ctx: Ctx, source: { number: number; title: string; html_url: string; repository_url: string }, ref: { owner: string; repo: string; number: number }): Promise<PullEvidence> {
   const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx, `${source.repository_url}/pulls/${source.number}`);
   if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
-  const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx, `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`);
-  if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+  let checks: PullEvidence['checks'] = 'unknown';
+  let checksError: Notice | undefined;
+  try {
+    const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx, `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`);
+    if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+    checks = summarizeChecks(runs.check_runs);
+  } catch (error) { checksError = errorNotice(error); }
   const statusUrl = `${source.repository_url}/commits/${pr.head.sha}/status?per_page=100`;
   let statusContexts: NonNullable<PullEvidence['statusContexts']> = { state: 'unknown', apiUrl: statusUrl };
   try {
@@ -308,7 +313,8 @@ async function readPullEvidence(ctx: Ctx, source: { number: number; title: strin
   return {
     number: source.number, title: source.title, url: source.html_url,
     state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
-    checks: summarizeChecks(runs.check_runs),
+    checks,
+    ...(checksError ? { checksError } : {}),
     link: await closingAssociation(ctx, source.repository_url, source.number, ref),
     textClaimsClosing: claimsClosing(`${source.title}\n${pr.body ?? ''}`, source.repository_url, ref),
     revision: pr.head.sha,

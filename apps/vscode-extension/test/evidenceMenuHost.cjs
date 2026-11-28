@@ -63,6 +63,11 @@ async function run() {
     assert(unavailableItems.some((item) => item.label === t('ui.overview.evidence.pulls-unavailable', 'ko')));
     assert(unavailableItems.some((item) => item.label === t('ui.overview.evidence.comments-unavailable', 'ko')));
     assert(!unavailableItems.some((item) => item.label === t('ui.overview.evidence.no-reviews', 'ko')));
+    github.fetchCompletionEvidence = async () => ({ issueUrl, readAt: '2026-11-28T00:00:00Z', issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ number: 2, title: 'work', url: pullUrl, state: 'merged', checks: 'unknown', checksError: { code: 'github.err.http', args: { status: 403 } }, link: 'mentions', revision: 'new-head', statusContexts: { state: 'none', apiUrl: 'https://api.github.com/repos/example/repo/commits/new-head/status' } }] }, reviews: [{ pullUrl, observation: { status: 'read', value: [] } }], comments: { status: 'read', value: [] } });
+    await view.cardMenu(issueUrl);
+    assert(unavailableItems.some((item) => item.label === t('ui.overview.evidence.checks-unavailable', 'ko')));
+    assert(unavailableItems.some((item) => item.label.includes('PR #2')));
+    assert(unavailableItems.some((item) => item.label === t('ui.overview.evidence.no-reviews', 'ko')));
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, case: 'Overview evidence menu and source links in English and Korean (mock GitHub)', realGitHubWrites: 0 }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));

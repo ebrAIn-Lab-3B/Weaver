@@ -20,6 +20,8 @@ export interface PullEvidence {
   url: string;
   state: 'open' | 'closed' | 'merged';
   checks: ChecksState;
+  /** Present when check-run retrieval failed or was incomplete. */
+  checksError?: Notice;
   /** GitHub's closing association, not a conclusion drawn from pull request text. */
   link: 'closes' | 'mentions' | 'unknown';
   /** A textual closing claim is useful context but does not establish an association. */
@@ -79,6 +81,14 @@ export function evidenceGaps(column: KanbanColumn, evidence: TaskEvidence | unde
   gaps.push(...groupedPullGap(live, 'pending', 'gap.checks-pending'));
   gaps.push(...groupedPullGap(live, 'none', 'gap.checks-none'));
   gaps.push(...groupedPullGap(live, 'unknown', 'gap.checks-unknown'));
+  for (const [states, code] of [
+    [['failure', 'error'], 'gap.status-failing'],
+    [['pending'], 'gap.status-pending'],
+    [['unknown'], 'gap.status-unknown'],
+  ] as const) {
+    const matching = live.filter((pull) => pull.statusContexts && (states as readonly string[]).includes(pull.statusContexts.state)).map((pull) => `#${pull.number}`);
+    if (matching.length) gaps.push({ code, args: { prs: matching, count: matching.length } });
+  }
   return gaps;
 }
 

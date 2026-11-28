@@ -84,6 +84,13 @@ describe('describePull', () => {
     expect(evidenceGaps('Verified', { pulls: [pull({ checks: 'unknown' })] }).map((gap) => gap.code)).toContain('gap.checks-unknown');
     expect(describePull(pull({ checks: 'unknown' }), 'ko')).toContain('체크 결과 불명확');
   });
+
+  it('reports failing, pending and unavailable status contexts separately from passing check runs', () => {
+    for (const [state, code] of [['failure', 'gap.status-failing'], ['pending', 'gap.status-pending'], ['unknown', 'gap.status-unknown']] as const) {
+      const gaps = evidenceGaps('Verified', { pulls: [pull({ checks: 'passing', statusContexts: { state, apiUrl: 'https://api.github.com/status' } })] });
+      expect(gaps.map((gap) => gap.code)).toContain(code);
+    }
+  });
 });
 
 describe('closesIssue', () => {

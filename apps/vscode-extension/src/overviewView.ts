@@ -520,6 +520,7 @@ export class OverviewView {
     else if (!evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
     else for (const pull of evidence.pulls.value) {
       add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+      if (pull.checksError) add(text('ui.overview.evidence.checks-unavailable'), formatNotice(pull.checksError, currentLocale()));
       if (pull.statusContexts) add(text('ui.overview.evidence.status-contexts', { state: text(`ui.overview.evidence.status.${pull.statusContexts.state}`) }), pull.statusContexts.apiUrl);
     }
     for (const entry of evidence.reviews ?? []) {

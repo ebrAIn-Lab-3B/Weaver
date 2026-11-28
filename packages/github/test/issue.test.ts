@@ -150,7 +150,7 @@ describe('fetchEvidence', () => {
       if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'abc' } } };
       return { json: { total_count: 2, check_runs: [{ status: 'completed', conclusion: 'success' }] } };
     });
-    expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+    expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: true, evidence: { pulls: [{ state: 'merged', checks: 'unknown', checksError: { code: 'github.err.evidence-incomplete' } }] } });
   });
 
   it('reads an advertised short timeline page and rejects unexpected next links', async () => {

@@ -7,7 +7,7 @@ const issue = { number: 5, title: 'Task', html_url: issueUrl, state: 'closed', l
 const crossReference = { event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/example/repo/pull/7', repository_url: 'https://api.github.com/repos/example/repo', pull_request: {} } } };
 const claim = (id: number, body: string) => ({ html_url: `${issueUrl}#issuecomment-${id}`, user: { login: id === 1 ? 'author' : 'reviewer' }, body, created_at: '2026-11-27T00:00:00Z', updated_at: '2026-11-27T00:00:00Z' });
 
-function fixture(options: { comments?: unknown; reviews?: unknown; commentsStatus?: number } = {}) {
+function fixture(options: { comments?: unknown; reviews?: unknown; commentsStatus?: number; checksStatus?: number } = {}) {
   const urls: string[] = [];
   const fetchFn = (async (input: string, init?: { body?: string }) => {
     urls.push(input);
@@ -17,7 +17,7 @@ function fixture(options: { comments?: unknown; reviews?: unknown; commentsStatu
     else if (input.includes('/timeline')) json = [crossReference];
     else if (input.includes('/comments')) { json = options.comments ?? [claim(1, 'I ran tests'), claim(2, 'The independent run could not be repeated')]; status = options.commentsStatus ?? 200; }
     else if (input.includes('/reviews')) json = options.reviews ?? [];
-    else if (input.includes('/check-runs')) json = { total_count: 0, check_runs: [] };
+    else if (input.includes('/check-runs')) { json = { total_count: 0, check_runs: [] }; status = options.checksStatus ?? 200; }
     else if (input.endsWith('/pulls/7')) json = { state: 'closed', merged_at: '2026-11-27T00:00:00Z', body: 'Closes #5', head: { sha: 'abc123' } };
     else json = issue;
     return { ok: status < 400, status, json: async () => json };
@@ -38,6 +38,13 @@ describe('completion evidence observations', () => {
     const result = await fetchCompletionEvidence('token', issueUrl, now, denied.fetchFn);
     expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.http' } });
     expect(result.reviews?.[0].observation).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+  });
+
+  it('retains merge, association and review observations when check runs are inaccessible', async () => {
+    const denied = fixture({ checksStatus: 403 });
+    const result = await fetchCompletionEvidence('token', issueUrl, now, denied.fetchFn);
+    expect(result.pulls).toMatchObject({ status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'unknown', checksError: { code: 'github.err.http' } }] });
+    expect(result.reviews).toMatchObject([{ observation: { status: 'read', value: [] } }]);
   });
 
   it('reads an additional page after a full page and preserves review provenance', async () => {

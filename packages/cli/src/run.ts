@@ -678,6 +678,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
         if (pull.link === 'unknown') finding('closing-unavailable', 'cli.evidence-inspect.closing-unavailable', pull.url);
         if (pull.checks === 'none') finding('no-checks', 'cli.evidence-inspect.no-checks', pull.url);
         if (pull.checks === 'unknown') finding('checks-inconclusive', 'cli.evidence-inspect.checks-inconclusive', pull.url);
+        if (pull.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', pull.url);
+        if (pull.statusContexts?.state === 'failure' || pull.statusContexts?.state === 'error') finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', pull.url);
+        if (pull.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', pull.url);
       }
     }
     if (observed.comments.status === 'unavailable') finding('comments-unavailable', 'cli.evidence-inspect.comments-unavailable', issueUrl);
@@ -704,6 +707,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     for (const candidate of candidateEvidence) {
       finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
       if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
+      if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', candidate.url);
+      if (candidate.pull.ok && (candidate.pull.facts.statusContexts?.state === 'failure' || candidate.pull.facts.statusContexts?.state === 'error')) finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', candidate.url);
+      if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', candidate.url);
       if (candidate.reviews.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', candidate.url);
       else {
         const revision = candidate.pull.ok ? candidate.pull.facts.revision : undefined;

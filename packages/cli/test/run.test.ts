@@ -1544,6 +1544,17 @@ describe('weaver card move', () => {
     expect(gh.calls.some((c) => c.startsWith('PATCH'))).toBe(false);
   });
 
+  it('keeps the Verified move blocked when check-run retrieval fails despite a readable PR', async () => {
+    const { deps, out } = setup();
+    withGitHub(deps, { linkedPull: true });
+    const original = deps.fetch as Fetch;
+    deps.fetch = async (url, init) => url.includes('/check-runs')
+      ? { ok: false, status: 403, json: async () => ({}) }
+      : original(url, init);
+    expect(await run(['card', 'move', 'TASK-010', '--to', 'Verified'], deps)).toBe(EXIT.usage);
+    expect(JSON.parse(out.join('')).error.code).toBe('cli.move-refused');
+  });
+
   it('allows a move to Verified for a task with an evidence exception, without asking GitHub for evidence', async () => {
     const { deps, out } = setup();
     deps.files = async () => [FILES[0], { path: FILES[1].path, text: FILES[1].text.replace('assignee: claude-code\n', 'assignee: claude-code\nevidence_exception: before the rule\n') }];

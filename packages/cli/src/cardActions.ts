@@ -53,6 +53,9 @@ export async function planCardMove(input: MoveInput): Promise<Planned> {
   if (column === 'Verified' && !input.evidenceException) {
     const read = await fetchEvidence(input.token, card.url, input.fetchFn);
     const gaps = evidenceGaps('Verified', read.ok ? read.evidence : undefined, input.evidence);
+    // Preserve the existing fail-closed move boundary when an evidence read failed,
+    // even though the diagnostic can now retain other independently read facts.
+    if (read.ok && read.evidence.pulls.some((pull) => pull.checksError)) gaps.push({ code: 'gap.evidence-not-loaded' });
     const blocking = gaps.filter((gap) => gap.code === 'gap.no-linked-pr' || gap.code === 'gap.evidence-not-loaded');
     if (blocking.length) {
       return { ok: false, refusal: { code: 'cli.move-refused', args: { ref: `${card.repository}#${card.number}`, gaps: blocking.map((gap) => formatNotice(gap, locale)) } } };

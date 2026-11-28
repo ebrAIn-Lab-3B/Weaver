@@ -1,5 +1,6 @@
 import { NoticeError, errorNotice } from './errors';
 import { evidenceNext } from './evidencePagination';
+import { mapLimit } from './processes';
 import {
   BoardItem,
   CheckRunLike,
@@ -14,6 +15,8 @@ import {
 
 /** The global `fetch`, or a replacement for a test. */
 export type FetchFn = typeof fetch;
+/** Bound concurrent PR observations; each observation can issue several source reads. */
+export const EVIDENCE_READ_LIMIT = 4;
 
 interface Ctx {
   token: string;
@@ -368,9 +371,7 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
       sources.set(source.html_url, source);
     }
 
-    const pulls = await Promise.all(
-      [...sources.values()].map((source) => readPullEvidence(ctx, source, ref)),
-    );
+    const pulls = await mapLimit([...sources.values()], EVIDENCE_READ_LIMIT, (source) => readPullEvidence(ctx, source, ref));
     return { ok: true, evidence: { pulls: pulls.sort((a, b) => a.number - b.number) } };
   } catch (error) {
     return { ok: false, error: errorNotice(error) };

@@ -75,6 +75,37 @@ describe('completion evidence observations', () => {
       else expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
     }
   });
+
+  it('bounds concurrent PR and review observations without dropping or reordering results', async () => {
+    let activePulls = 0, activeReviews = 0, maxPulls = 0, maxReviews = 0;
+    const events = Array.from({ length: 9 }, (_, index) => ({ event: 'cross-referenced', source: { issue: { number: index + 1, title: `PR ${index + 1}`, html_url: `https://github.com/example/repo/pull/${index + 1}`, repository_url: 'https://api.github.com/repos/example/repo', pull_request: {} } } }));
+    const fetchFn = (async (url: string) => {
+      const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json }) as Response;
+      if (url.includes('/timeline')) return reply(events);
+      if (url.includes('/comments')) return reply([]);
+      if (url.endsWith('/graphql')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+      if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
+      if (url.includes('/status?')) return reply({ total_count: 0, statuses: [], state: 'pending' });
+      if (url.includes('/reviews')) {
+        activeReviews++; maxReviews = Math.max(maxReviews, activeReviews);
+        await new Promise((resolve) => setTimeout(resolve, 5)); activeReviews--;
+        return reply([]);
+      }
+      if (/\/pulls\/\d+$/.test(url)) {
+        activePulls++; maxPulls = Math.max(maxPulls, activePulls);
+        await new Promise((resolve) => setTimeout(resolve, 5)); activePulls--;
+        return reply({ state: 'closed', merged_at: '2026-11-27T00:00:00Z', body: '', head: { sha: 'abc123' } });
+      }
+      return reply(issue);
+    }) as FetchFn;
+    const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
+    expect(result.pulls.status).toBe('read');
+    if (result.pulls.status === 'read') expect(result.pulls.value.map((pull) => pull.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(result.reviews).toHaveLength(9);
+    expect(maxPulls).toBeLessThanOrEqual(4);
+    expect(maxReviews).toBeLessThanOrEqual(4);
+    expect(maxPulls).toBeGreaterThan(1);
+  });
 });
 
 describe('all-state pull inventory', () => {

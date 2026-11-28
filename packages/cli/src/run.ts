@@ -23,7 +23,7 @@ import {
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { EVIDENCE_READ_LIMIT, fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, mapLimit, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -705,14 +705,14 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || [...linked, ...linkedListed].some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
     const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
     const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
-    const candidateEvidence = await Promise.all(candidates.map(async (candidate) => {
+    const candidateEvidence = await mapLimit(candidates, EVIDENCE_READ_LIMIT, async (candidate) => {
       const fetchFn = deps.fetch as unknown as FetchFn | undefined;
       const [pull, reviews] = await Promise.all([fetchCandidatePullEvidence(token, issueUrl, candidate, fetchFn), fetchPullReviews(token, candidate.url, fetchFn)]);
       if (!pull.ok) return { url: candidate.url, pull, reviews };
       // Candidate discovery alone does not establish that a PR references the Issue.
       const { link, ...facts } = pull.pull;
       return { url: candidate.url, pull: { ok: true as const, facts, closingAssociation: link === 'mentions' ? 'not-closing' : link }, reviews };
-    }));
+    });
     for (const candidate of candidateEvidence) {
       finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
       if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);

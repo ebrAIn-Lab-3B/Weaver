@@ -1985,6 +1985,22 @@ describe('rule-based status reconciliation flow', () => {
     expect(result.report).toContainEqual(expect.objectContaining({ kind: 'issue-project-unknown' }));
   });
 
+  it('does not infer missing Project membership from a card with mismatched Issue identity', async () => {
+    const { deps, out } = setup();
+    const originalFetch = deps.fetch!;
+    deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && JSON.parse(init.body).query.includes('items(first:100')) {
+        const mismatch = issue(10, { url: 'https://github.com/other/repo/issues/10' });
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', field: { options: [{ name: 'Todo' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [mismatch] } } } } }) };
+      }
+      return originalFetch(url, init);
+    };
+    expect(await run(['reconcile'], deps)).toBe(EXIT.ok);
+    const result = JSON.parse(out.join(''));
+    expect(result.actions.filter((action: { kind: string }) => action.kind === 'project.add')).toEqual([]);
+    expect(result.report).toContainEqual(expect.objectContaining({ kind: 'issue-project-unknown' }));
+  });
+
   it('stops when the Project field reread fails rather than planning from an older snapshot', async () => {
     const { deps, out } = setup();
     const originalFetch = deps.fetch!;

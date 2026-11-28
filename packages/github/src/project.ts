@@ -1,4 +1,4 @@
-import { mergeCardPulls, placeIssue, type CardPull, type ColumnRules, type KanbanPlacement, type Notice, type RawPull } from '@ebrain-lab/weaver-markdown';
+import { mergeCardPulls, parseIssueUrl, placeIssue, type CardPull, type ColumnRules, type KanbanPlacement, type Notice, type RawPull } from '@ebrain-lab/weaver-markdown';
 
 export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<{
   ok: boolean;
@@ -165,7 +165,8 @@ export async function readProject(
     for (const node of found.items.nodes) {
       if (!node || typeof node !== 'object') return { ok: false, error: { code: 'project.pagination-incomplete' } };
       const issue = node.content;
-      const invalidIssue = issue?.__typename === 'Issue' && (typeof issue.repository?.nameWithOwner !== 'string' || !issue.repository.nameWithOwner || typeof issue.url !== 'string' || !issue.url || !Number.isSafeInteger(issue.number) || (issue.number as number) < 1 || typeof issue.title !== 'string' || !issue.title || (issue.state !== 'OPEN' && issue.state !== 'CLOSED'));
+      const issueRef = typeof issue?.url === 'string' ? parseIssueUrl(issue.url) : undefined;
+      const invalidIssue = issue?.__typename === 'Issue' && (typeof issue.repository?.nameWithOwner !== 'string' || !issue.repository.nameWithOwner || !issueRef || `${issueRef.owner}/${issueRef.repo}`.toLowerCase() !== issue.repository.nameWithOwner.toLowerCase() || issueRef.number !== issue.number || !Number.isSafeInteger(issue.number) || (issue.number as number) < 1 || typeof issue.title !== 'string' || !issue.title || (issue.state !== 'OPEN' && issue.state !== 'CLOSED'));
       const invalidContent = !issue || typeof issue !== 'object' || !['Issue', 'PullRequest', 'DraftIssue'].includes(issue.__typename);
       if (invalidContent || invalidIssue) membershipComplete = false;
       const repository = issue?.repository?.nameWithOwner;

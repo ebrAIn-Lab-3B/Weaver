@@ -60,6 +60,15 @@ describe('readProject', () => {
     const result = await readProject('t', project, undefined, fetchImpl);
     expect(result.ok && result.read.cards[0].pullsIncomplete).toBe(true);
   });
+
+  it('marks Project membership incomplete when a card URL disagrees with its Issue identity', async () => {
+    for (const url of ['https://github.com/other/repo/issues/1', 'https://github.com/me/Weaver/issues/2', 'https://github.com/me/Weaver/pull/1']) {
+      const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { url })], null) });
+      expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: false, cards: [], skipped: 1 } });
+    }
+    const valid = fake({ body: page([issue('me/Weaver', 1, { url: 'https://github.com/ME/weaver/issues/1/' })], null) });
+    expect(await readProject('t', project, undefined, valid.fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: true, cards: [{ number: 1 }] } });
+  });
   it('reads the Issues of every repository when no list is given', async () => {
     const { fetchImpl } = fake({ body: page([issue('me/a', 1), issue('other/b', 2)], null) });
     const result = await readProject('t', project, undefined, fetchImpl);

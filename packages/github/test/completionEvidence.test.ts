@@ -1,0 +1,55 @@
+import { describe, expect, it } from 'vitest';
+import { fetchCompletionEvidence, type FetchFn } from '../src';
+
+const issueUrl = 'https://github.com/example/repo/issues/5';
+const now = new Date('2026-11-28T00:00:00Z');
+const issue = { number: 5, title: 'Task', html_url: issueUrl, state: 'closed', labels: ['state:done'], assignees: [] };
+const crossReference = { event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/example/repo/pull/7', repository_url: 'https://api.github.com/repos/example/repo', pull_request: {} } } };
+const claim = (id: number, body: string) => ({ html_url: `${issueUrl}#issuecomment-${id}`, user: { login: id === 1 ? 'author' : 'reviewer' }, body, created_at: '2026-11-27T00:00:00Z', updated_at: '2026-11-27T00:00:00Z' });
+
+function fixture(options: { comments?: unknown; reviews?: unknown; commentsStatus?: number } = {}) {
+  const urls: string[] = [];
+  const fetchFn = (async (input: string, init?: { body?: string }) => {
+    urls.push(input);
+    let json: unknown;
+    let status = 200;
+    if (input.endsWith('/graphql')) json = { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    else if (input.includes('/timeline')) json = [crossReference];
+    else if (input.includes('/comments')) { json = options.comments ?? [claim(1, 'I ran tests'), claim(2, 'The independent run could not be repeated')]; status = options.commentsStatus ?? 200; }
+    else if (input.includes('/reviews')) json = options.reviews ?? [];
+    else if (input.includes('/check-runs')) json = { total_count: 0, check_runs: [] };
+    else if (input.endsWith('/pulls/7')) json = { state: 'closed', merged_at: '2026-11-27T00:00:00Z', body: 'Closes #5', head: { sha: 'abc123' } };
+    else json = issue;
+    return { ok: status < 400, status, json: async () => json };
+  }) as unknown as FetchFn;
+  return { fetchFn, urls };
+}
+
+describe('completion evidence observations', () => {
+  it('keeps Issue, closing relation, checks, attributed claims and absent formal reviews distinct', async () => {
+    const { fetchFn } = fixture();
+    const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
+    expect(result).toMatchObject({ readAt: now.toISOString(), issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', textClaimsClosing: true, checks: 'none', revision: 'abc123' }] }, reviews: [{ revision: 'abc123', observation: { status: 'read', value: [] } }] });
+    expect(result.comments).toMatchObject({ status: 'read', value: [{ author: 'author', body: 'I ran tests' }, { author: 'reviewer', body: 'The independent run could not be repeated' }] });
+  });
+
+  it('distinguishes access failure and malformed review data from empty collections', async () => {
+    const denied = fixture({ commentsStatus: 403, reviews: [{}] });
+    const result = await fetchCompletionEvidence('token', issueUrl, now, denied.fetchFn);
+    expect(result.comments).toMatchObject({ status: 'unavailable', error: { code: 'github.err.http' } });
+    expect(result.reviews?.[0].observation).toMatchObject({ status: 'unavailable', error: { code: 'github.err.evidence-incomplete' } });
+  });
+
+  it('reads an additional page after a full page and preserves review provenance', async () => {
+    const first = Array.from({ length: 100 }, (_, i) => claim(i + 1, `claim ${i}`));
+    const base = fixture();
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (url.includes('/comments')) return { ok: true, status: 200, json: async () => url.endsWith('page=1') ? first : [] } as Response;
+      if (url.includes('/reviews')) return { ok: true, status: 200, json: async () => [{ html_url: 'https://github.com/example/repo/pull/7#pullrequestreview-1', user: { login: 'reviewer' }, state: 'APPROVED', submitted_at: '2026-11-27T00:00:00Z', commit_id: 'old-sha', body: 'Looks good' }] } as Response;
+      return base.fetchFn(url, init);
+    }) as FetchFn;
+    const result = await fetchCompletionEvidence('token', issueUrl, now, fetchFn);
+    expect(result.comments.status === 'read' && result.comments.value).toHaveLength(100);
+    expect(result.reviews?.[0]).toMatchObject({ revision: 'abc123', observation: { status: 'read', value: [{ author: 'reviewer', revision: 'old-sha', state: 'APPROVED' }] } });
+  });
+});

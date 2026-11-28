@@ -13,6 +13,7 @@ import {
   sameServer,
   MessageArgs,
   MessageKey,
+  normalizeIssueUrl,
   effectiveRepositories,
   planTaskFields,
   parseIssueUrl,
@@ -21,7 +22,7 @@ import {
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchIssue, fetchIssueBody, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { fetchCompletionEvidence, fetchIssue, fetchIssueBody, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -86,8 +87,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   if (args.command === 'card' && (args.positional[0] !== 'move' || args.positional.length < 2 || !args.options.to)) {
     return fail(EXIT.usage, 'cli.missing-argument', { command: 'card move', argument: 'a card and --to <column>' });
   }
-  if (args.command === 'evidence' && (args.positional[0] !== 'attach' || args.positional.length < 2 || !args.options.pull)) {
-    return fail(EXIT.usage, 'cli.missing-argument', { command: 'evidence attach', argument: 'a card and --pull <number or address>' });
+  if (args.command === 'evidence' && (args.positional.length < 2 || (args.positional[0] !== 'inspect' && args.positional[0] !== 'attach') || (args.positional[0] === 'attach' && !args.options.pull))) {
+    return fail(EXIT.usage, 'cli.missing-argument', { command: 'evidence', argument: 'inspect <task or Issue>, or attach <card> --pull <number or address>' });
   }
 
   const root = path.resolve(deps.cwd, args.options.root ?? '.');
@@ -635,6 +636,69 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       return { status: incomplete ? 'incomplete' : 'read', resolved: initial.filter((m) => !currentKeys.has(key(m)) && !stillHasStatusGap(m) && (m.kind !== 'merged-pr-not-linked' || missingPulls.length === 0) && (m.kind !== 'issue-not-on-project' || latest.read.membershipComplete !== false) && (!statusKinds.has(m.kind) || (latest.read.statusOptions !== undefined && latest.read.cards.find((card) => card.url === m.url)?.boardStatusRead === true))).map(show), remaining: current.map(show), ...(missingPulls.length ? { unavailablePullRepositories: missingPulls } : {}) };
     };
     return confirmAndRun(plan.actions, [], { report: plan.reports, dryRun, context, recheck });
+  }
+
+  if (args.command === 'evidence' && args.positional[0] === 'inspect') {
+    const requested = args.positional[1];
+    const matchingTasks = artifacts.filter((artifact) => artifact.kind === 'task' && (artifact.id.toLowerCase() === requested.toLowerCase() || (artifact.issue && normalizeIssueUrl(artifact.issue) === normalizeIssueUrl(requested))));
+    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.map((task) => task.path) });
+    const requestedCard = findCards(all, requested);
+    if (requestedCard.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: requestedCard.map((card) => `${card.repository}#${card.number}`) });
+    const direct = parseIssueUrl(requested) ? requested : undefined;
+    const issueUrl = matchingTasks[0]?.kind === 'task' ? matchingTasks[0].issue : requestedCard[0]?.url ?? direct;
+    if (!issueUrl) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
+    const issueRef = parseIssueUrl(issueUrl);
+    if (!issueRef || !repositories.some((repository) => repository.toLowerCase() === `${issueRef.owner}/${issueRef.repo}`.toLowerCase())) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
+    const linked = artifacts.filter((artifact) => artifact.kind === 'task' && artifact.issue && normalizeIssueUrl(artifact.issue) === normalizeIssueUrl(issueUrl));
+    const projectCard = cards.find((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl));
+    const repository = `${issueRef.owner}/${issueRef.repo}`;
+    const process = processes.get(repository.toLowerCase());
+    const usableProcess = process && process.file !== 'failed' && !process.issues.some((item) => item.severity === 'error');
+    const [observed, mergedInventory] = await Promise.all([
+      fetchCompletionEvidence(token, issueUrl, deps.now(), deps.fetch as unknown as FetchFn | undefined),
+      readMergedPulls(token, repository, 50, deps.fetch),
+    ]);
+    const findings: { kind: string; message: string; url: string }[] = [];
+    const finding = (kind: string, key: MessageKey, url: string) => findings.push({ kind, message: say(key), url });
+    if (!observed.issue.ok) finding('issue-unavailable', 'cli.evidence-inspect.issue-unavailable', issueUrl);
+    if (observed.pulls.status === 'unavailable') finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', issueUrl);
+    else {
+      if (observed.pulls.value.length === 0) finding('no-referenced-pr', 'cli.evidence-inspect.no-pr', issueUrl);
+      for (const pull of observed.pulls.value) {
+        if (pull.state === 'merged' && pull.link === 'mentions') finding('merged-not-closing', 'cli.evidence-inspect.non-closing', pull.url);
+        if (pull.link === 'unknown') finding('closing-unavailable', 'cli.evidence-inspect.closing-unavailable', pull.url);
+        if (pull.checks === 'none') finding('no-checks', 'cli.evidence-inspect.no-checks', pull.url);
+        if (pull.checks === 'unknown') finding('checks-inconclusive', 'cli.evidence-inspect.checks-inconclusive', pull.url);
+      }
+    }
+    if (observed.comments.status === 'unavailable') finding('comments-unavailable', 'cli.evidence-inspect.comments-unavailable', issueUrl);
+    for (const entry of observed.reviews ?? []) {
+      if (entry.observation.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', entry.pullUrl);
+      else if (entry.observation.value.length === 0) finding('no-formal-review', 'cli.evidence-inspect.no-review', entry.pullUrl);
+    }
+    if (!usableProcess) finding('process-unavailable', 'cli.evidence-inspect.process-unavailable', issueUrl);
+    if (linked.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
+    if (!mergedInventory.ok || mergedInventory.incomplete) finding('merged-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
+    const discovered = mergedInventory.ok ? mergedInventory.pulls.filter((pull) => pull.closes.includes(issueRef.number) || linked.some((task) => task.kind === 'task' && taskIdsOfPull(pull).includes(task.id))) : [];
+    const referencedUrls = new Set(observed.pulls.status === 'read' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
+    for (const pull of discovered) if (!referencedUrls.has(pull.url.toLowerCase())) finding('other-merged-pr', 'cli.evidence-inspect.other-pr', pull.url);
+    const detail = {
+      schema: SCHEMA,
+      project: setup.project,
+      membership: projectCard ? 'present' : boardRead.membershipComplete === true ? 'absent' : 'unknown',
+      placement: projectCard && usableProcess ? { column: projectCard.placement.column, gaps: projectCard.placement.gaps, labels: projectCard.labels, boardStatus: projectCard.boardStatus ?? null, boardStatusRead: projectCard.boardStatusRead === true } : null,
+      process: usableProcess ? { file: process.file, sources: process.sources, columns: process.process.columns, evidence: process.process.evidence } : null,
+      tasks: linked.map((task) => task.kind === 'task' ? { id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null } : null),
+      sharedIssue: linked.length > 1,
+      independentTests: 'unverified',
+      observation: observed,
+      mergedInventory: mergedInventory.ok ? { status: mergedInventory.incomplete ? 'incomplete' : 'read', pulls: discovered } : { status: 'unavailable', error: mergedInventory.error },
+      findings,
+      guidance: say('cli.evidence-inspect.guidance'),
+    };
+    if (wantsText) deps.out(`${say('cli.evidence-inspect.heading')}\n${JSON.stringify(detail, null, 2)}\n`);
+    else deps.out(`${JSON.stringify(detail)}\n`);
+    return EXIT.ok;
   }
 
   if (args.command === 'card' || args.command === 'evidence') {

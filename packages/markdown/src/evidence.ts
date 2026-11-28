@@ -12,7 +12,7 @@ export function honoredException(reason: string | undefined, rules: EvidenceRule
   return rules.exceptions ? reason : undefined;
 }
 
-export type ChecksState = 'passing' | 'failing' | 'pending' | 'none';
+export type ChecksState = 'passing' | 'failing' | 'pending' | 'none' | 'unknown';
 
 export interface PullEvidence {
   number: number;
@@ -45,6 +45,7 @@ export function summarizeChecks(runs: CheckRunLike[]): ChecksState {
   if (runs.length === 0) return 'none';
   if (runs.some((run) => run.status === 'completed' && run.conclusion && FAILING.has(run.conclusion))) return 'failing';
   if (runs.some((run) => run.status !== 'completed')) return 'pending';
+  if (runs.some((run) => run.conclusion !== 'success')) return 'unknown';
   return 'passing';
 }
 
@@ -75,6 +76,7 @@ export function evidenceGaps(column: KanbanColumn, evidence: TaskEvidence | unde
   gaps.push(...groupedPullGap(live, 'failing', 'gap.checks-failing'));
   gaps.push(...groupedPullGap(live, 'pending', 'gap.checks-pending'));
   gaps.push(...groupedPullGap(live, 'none', 'gap.checks-none'));
+  gaps.push(...groupedPullGap(live, 'unknown', 'gap.checks-unknown'));
   return gaps;
 }
 
@@ -82,7 +84,7 @@ export function evidenceGaps(column: KanbanColumn, evidence: TaskEvidence | unde
 function groupedPullGap(
   pulls: PullEvidence[],
   state: ChecksState,
-  code: 'gap.checks-failing' | 'gap.checks-pending' | 'gap.checks-none',
+  code: 'gap.checks-failing' | 'gap.checks-pending' | 'gap.checks-none' | 'gap.checks-unknown',
 ): Notice[] {
   const matching = pulls.filter((pull) => pull.checks === state).map((pull) => `#${pull.number}`);
   return matching.length === 0 ? [] : [{ code, args: { prs: matching, count: matching.length } }];

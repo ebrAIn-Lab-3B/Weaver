@@ -11,8 +11,8 @@ describe('summarizeChecks', () => {
   it('reports none when there are no runs', () => {
     expect(summarizeChecks([])).toBe('none');
   });
-  it('passes only when every run completed without failure', () => {
-    expect(summarizeChecks([{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'skipped' }])).toBe('passing');
+  it('passes only when every run completed successfully', () => {
+    expect(summarizeChecks([{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'success' }])).toBe('passing');
   });
   it('fails when any run failed, even if others are pending', () => {
     expect(summarizeChecks([{ status: 'completed', conclusion: 'failure' }, { status: 'in_progress', conclusion: null }])).toBe('failing');
@@ -76,6 +76,13 @@ describe('describePull', () => {
     const gaps = evidenceGaps('Verified', { pulls: [unknown] });
     expect(gaps.map((gap) => gap.code)).toContain('gap.closing-unknown');
     expect(gaps.map((gap) => gap.code)).not.toContain('gap.no-closing-pr');
+  });
+
+  it('does not call neutral or skipped checks passing', () => {
+    expect(summarizeChecks([{ status: 'completed', conclusion: 'neutral' }])).toBe('unknown');
+    expect(summarizeChecks([{ status: 'completed', conclusion: 'skipped' }])).toBe('unknown');
+    expect(evidenceGaps('Verified', { pulls: [pull({ checks: 'unknown' })] }).map((gap) => gap.code)).toContain('gap.checks-unknown');
+    expect(describePull(pull({ checks: 'unknown' }), 'ko')).toContain('체크 결과 불명확');
   });
 });
 

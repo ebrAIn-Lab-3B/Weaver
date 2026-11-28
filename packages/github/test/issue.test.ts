@@ -103,7 +103,7 @@ describe('fetchEvidence', () => {
       }
       if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #5', head: { sha: 'abc' } } };
       if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 5, repository: { nameWithOwner: 'me/Weaver' } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
-      return { json: { check_runs: [{ status: 'completed', conclusion: 'success' }] } };
+      return { json: { total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success' }] } };
     });
     const result = await fetchEvidence('t', ISSUE, fetchFn);
     expect(result.ok).toBe(true);

@@ -76,6 +76,76 @@ describe('weaver show', () => {
   });
 });
 
+describe('weaver evidence inspect', () => {
+  it('observes a closed shared Issue without inferring verification from a non-closing merged PR', async () => {
+    const s = setup();
+    s.deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: FILES[1].text.replaceAll('TASK-010', 'TASK-011').replace('assignee: claude-code', 'assignee: other\ntests: self-reported passing\nevidence_exception: approved exception') }];
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
+      if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Card ten', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: ['status:in-progress'], assignees: [] });
+      if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
+      if (url.includes('/issues/10/comments')) return reply([{ html_url: 'https://github.com/me/Weaver/issues/10#issuecomment-1', user: { login: 'reviewer' }, body: 'Could not repeat the claimed test', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }]);
+      if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #10', head: { sha: 'abc' } });
+      if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
+      if (url.includes('/pulls/7/reviews')) return reply([]);
+      if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+      return original(url, init);
+    };
+    expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+    const result = JSON.parse(s.out.join(''));
+    expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: 'unverified', observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
+    expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', testClaim: 'self-reported passing', evidenceException: 'approved exception', exceptionHonored: true })]));
+    expect(result.observation.comments.value[0]).toMatchObject({ author: 'reviewer', body: 'Could not repeat the claimed test' });
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toEqual(expect.arrayContaining(['merged-not-closing', 'no-checks', 'no-formal-review', 'shared-issue']));
+    expect(s.writes.some((write) => write.includes('mutation'))).toBe(false);
+  });
+
+  it('supports Korean guidance and reports inaccessible evidence instead of an empty result', async () => {
+    const s = setup();
+    expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', 'ko'], s.deps)).toBe(EXIT.ok);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.guidance).toContain('추론하지 않습니다');
+    expect(result.observation.pulls).toMatchObject({ status: 'unavailable' });
+    expect(result.observation.reviews).toBeNull();
+    expect(result.findings.find((finding: { kind: string }) => finding.kind === 'pulls-unavailable').message).toContain('불완전');
+  });
+
+  it('reports each configured source and does not honor a disabled exception', async () => {
+    for (const source of ['labels', 'board-status'] as const) {
+      const s = setup();
+      s.deps.files = async () => [FILES[0], { ...FILES[1], text: FILES[1].text.replace('assignee: claude-code', 'assignee: claude-code\nevidence_exception: accepted for review') }];
+      const original = s.deps.fetch as Fetch;
+      s.deps.fetch = async (url, init) => {
+        if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => `columns:\n  source: ${source}\n${source === 'board-status' ? '  board:\n    In Progress: In progress\n' : ''}evidence:\n  exceptions: false\n` } as never;
+        return original(url, init);
+      };
+      expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+      const result = JSON.parse(s.out.join(''));
+      expect(result.process.columns.source).toBe(source);
+      expect(result.tasks[0]).toMatchObject({ evidenceException: 'accepted for review', exceptionHonored: false });
+      expect(result.placement).toBeTruthy();
+    }
+  });
+
+  it('reads a linked Issue directly when a complete Project inventory has no card', async () => {
+    const s = setup();
+    const original = s.deps.fetch as Fetch;
+    s.deps.fetch = async (url, init) => {
+      if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('projectV2')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [issue(11)] } } } } }) };
+      if (url.endsWith('/issues/10')) return { ok: true, status: 200, json: async () => ({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: [], assignees: [] }) };
+      if (url.includes('/issues/10/timeline') || url.includes('/issues/10/comments')) return { ok: true, status: 200, json: async () => [] };
+      return original(url, init);
+    };
+    expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
+    const result = JSON.parse(s.out.join(''));
+    expect(result.membership).toBe('absent');
+    expect(result.placement).toBeNull();
+    expect(result.observation.issue).toMatchObject({ ok: true, issue: { state: 'closed' } });
+    expect(result.observation.pulls).toMatchObject({ status: 'read', value: [] });
+  });
+});
+
 describe('failures', () => {
   it('reports a missing registry, a missing token, and a bad command as JSON, or as text with --text', async () => {
     let s = setup({ registry: '' });

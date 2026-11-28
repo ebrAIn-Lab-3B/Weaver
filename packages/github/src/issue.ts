@@ -2,7 +2,6 @@ import { NoticeError, errorNotice } from './errors';
 import {
   BoardItem,
   CheckRunLike,
-  closesIssue,
   IssueSnapshot,
   MovePlan,
   Notice,
@@ -259,6 +258,15 @@ const CLOSING_REFERENCES = `query($o:String!,$r:String!,$n:Int!,$after:String){r
 type ClosingReferences = { nodes?: { number: number; repository: { nameWithOwner: string } }[]; pageInfo?: { hasNextPage: boolean; endCursor: string | null } };
 type ClosingReply = { repository?: { pullRequest?: { closingIssuesReferences?: ClosingReferences } } };
 
+/** A textual hint is qualified to the PR repository, but still never proves an association. */
+function claimsClosing(text: string, pullRepositoryUrl: string, issue: { owner: string; repo: string; number: number }): boolean {
+  const pullRepository = /^https:\/\/api\.github\.com\/repos\/([\w.-]+\/[\w.-]+)$/.exec(pullRepositoryUrl);
+  if (!pullRepository) return false;
+  const wanted = `${issue.owner}/${issue.repo}`.toLowerCase();
+  const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
+  return [...text.matchAll(pattern)].some((match) => Number(match[2]) === issue.number && (match[1] ?? pullRepository[1]).toLowerCase() === wanted);
+}
+
 /** Read the repository-qualified relationship GitHub records, without inferring it from PR text. */
 async function closingAssociation(ctx: Ctx, repositoryUrl: string, pull: number, issue: { owner: string; repo: string; number: number }): Promise<PullEvidence['link']> {
   const repo = /^https:\/\/api\.github\.com\/repos\/([\w.-]+)\/([\w.-]+)$/.exec(repositoryUrl);
@@ -317,10 +325,11 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
         const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx,
           `${source.repository_url}/pulls/${source.number}`,
         );
+        if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
         const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx,
           `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`,
         );
-        if (typeof runs.total_count === 'number' && runs.total_count > runs.check_runs.length) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+        if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
         const link = await closingAssociation(ctx, source.repository_url, source.number, ref);
         return {
           number: source.number,
@@ -329,8 +338,8 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
           state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
           checks: summarizeChecks(runs.check_runs),
           link,
-          textClaimsClosing: closesIssue(`${source.title}
-${pr.body ?? ''}`, ref.number),
+          textClaimsClosing: claimsClosing(`${source.title}
+${pr.body ?? ''}`, source.repository_url, ref),
           revision: pr.head.sha,
         };
       }),

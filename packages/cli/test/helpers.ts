@@ -139,7 +139,7 @@ export function withGitHub(deps: Deps, options: { linkedPull?: boolean; pullMerg
       }
       if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: options.pullMerged === false ? null : '2026-11-01T00:00:00Z', body: 'Closes #10', head: { sha: 'abc' }, number: 7, title: 'feat: ten (TASK-010)', html_url: 'https://github.com/me/Weaver/pull/7' });
       if (url.endsWith('/pulls/9')) return reply({}, 404);
-      if (url.includes('/check-runs')) return reply({ check_runs: [{ status: 'completed', conclusion: 'success' }] });
+      if (url.includes('/check-runs')) return reply({ total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success' }] });
       return reply({});
     }
     if (init?.body) {

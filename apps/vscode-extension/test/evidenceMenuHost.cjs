@@ -47,8 +47,8 @@ async function run() {
       assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.status-contexts', locale, { state: t('ui.overview.evidence.status.success', locale) })));
       assert(evidenceItems.some((item) => item.detail?.includes('old-head') && item.detail.includes('new-head')));
       assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.claims-warning', locale)));
-      assert(evidenceItems.some((item) => item.url === commentUrl && item.detail.includes('Cannot reproduce')));
-      assert(evidenceItems.some((item) => item.url === `${issueUrl}#issuecomment-5` && item.detail.includes('Independent test passed') && item.label.includes('other-tester')));
+      assert(evidenceItems.some((item) => item.url === commentUrl && item.detail.includes('Cannot reproduce') && item.label.includes('tester') && item.label.includes('2026-11-28T00:00:00Z')));
+      assert(evidenceItems.some((item) => item.url === `${issueUrl}#issuecomment-5` && item.detail.includes('Independent test passed') && item.label.includes('other-tester') && item.label.includes('2026-11-28T01:00:00Z')));
       assert.equal(opened.at(-1), commentUrl);
     }
     assert.equal(calls, 2);

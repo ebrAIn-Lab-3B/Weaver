@@ -90,6 +90,44 @@ describe('weaver show', () => {
 });
 
 describe('weaver evidence inspect', () => {
+  it('preserves contradictory attributed test claims for manual review in either configured column source', async () => {
+    for (const source of ['labels', 'board-status']) for (const lang of ['en', 'ko']) {
+      const s = setup();
+      s.deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: FILES[1].text.replaceAll('TASK-010', 'TASK-011').replace('assignee: claude-code', 'assignee: other\nevidence_exception: approved exception') }];
+      const original = s.deps.fetch as Fetch;
+      const sha = 'a'.repeat(40);
+      const issueUrl = 'https://github.com/me/Weaver/issues/10';
+      s.deps.fetch = async (url, init) => {
+        const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
+        if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => `columns:\n  source: ${source}\nevidence:\n  exceptions: true\n` } as never;
+        if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Task', html_url: issueUrl, state: 'closed', labels: [], assignees: [] });
+        if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
+        if (url.includes('/issues/10/comments')) return reply([
+          { html_url: `${issueUrl}#issuecomment-1`, user: { login: 'one' }, body: `Independent test of ${sha} passed.`, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' },
+          { html_url: `${issueUrl}#issuecomment-2`, user: { login: 'two' }, body: `Independent test of ${sha} failed.`, created_at: '2026-11-01T01:00:00Z', updated_at: '2026-11-01T01:00:00Z' },
+        ]);
+        if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #10', head: { sha } });
+        if (url.includes('/pulls/7/reviews') || url.includes('/pulls?state=all')) return reply([]);
+        if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
+        if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+        return original(url, init);
+      };
+      expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', lang], s.deps)).toBe(EXIT.ok);
+      const result = JSON.parse(s.out.join(''));
+      expect(result.process.columns.source).toBe(source);
+      expect(result.sharedIssue).toBe(true);
+      expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', exceptionHonored: true })]));
+      expect(result.independentTests.status).toBe('unverified');
+      expect(result.observation.comments).toMatchObject({ status: 'read', value: [
+        { author: 'one', url: `${issueUrl}#issuecomment-1`, body: `Independent test of ${sha} passed.` },
+        { author: 'two', url: `${issueUrl}#issuecomment-2`, body: `Independent test of ${sha} failed.` },
+      ] });
+      expect(result.observation.pulls).toMatchObject({ status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none', revision: sha }] });
+      expect(result.observation.reviews[0].observation).toMatchObject({ status: 'read', value: [] });
+      expect(result.findings.map((f: { kind: string }) => f.kind)).toEqual(expect.arrayContaining(['merged-not-closing', 'no-checks', 'no-formal-review', 'shared-issue']));
+      expect(s.writes.some((write) => write.includes('mutation'))).toBe(false);
+    }
+  });
   it('reads configured workflow evidence for the referenced revision without claiming independent verification', async () => {
     for (const lang of ['en', 'ko']) {
       const s = setup();

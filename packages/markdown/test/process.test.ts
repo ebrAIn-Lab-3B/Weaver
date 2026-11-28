@@ -31,6 +31,14 @@ describe('the defaults are today\'s behavior', () => {
 });
 
 describe('parseProcess: a file that holds nothing, or something partial', () => {
+  it('accepts only an explicitly configured GitHub Actions workflow identifier', () => {
+    expect(parse('evidence:\n  independent-tests:\n    source: github-actions\n    workflow-id: 123\n').process.evidence.independentTests).toEqual({ source: 'github-actions', workflowId: 123 });
+    for (const value of ['{source: unknown, workflow-id: 123}', '{source: github-actions, workflow-id: 0}', '{source: github-actions, workflow-id: "123"}', '{source: github-actions, workflow-id: 123, extra: true}', 'true']) {
+      const result = parse(`evidence:\n  independent-tests: ${value}\n`);
+      expect(result.process.evidence.independentTests).toBeUndefined();
+      expect(result.issues.map((issue) => issue.code)).toContain('process-invalid-evidence-value');
+    }
+  });
   it('reads optional collaboration Project fields without introducing organization defaults', () => {
     const result = parse('version: 1\ncollaboration:\n  project-fields: ["Coordinator", "Waiting"]\n');
     expect(result.process.collaboration).toEqual({ projectFields: ['Coordinator', 'Waiting'] });

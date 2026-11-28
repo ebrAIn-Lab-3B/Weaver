@@ -4,6 +4,7 @@ export * from './pulls';
 export * from './write';
 export * from './issue';
 export * from './completionEvidence';
+export * from './actionsEvidence';
 export * from './errors';
 export * from './discover';
 export * from './processFile';

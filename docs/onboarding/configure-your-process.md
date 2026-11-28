@@ -123,6 +123,8 @@ evidence:
 
 A team whose work is mostly decisions or documents, or who do not open pull requests, will usually want the first two.
 
+GitHub Actions is optional. Without this configuration Weaver does not query Actions workflows or runs, and no Actions read permission is needed. To observe a repository-specific Actions test source, add `independent-tests` under `evidence` with `source: github-actions` and a numeric `workflow-id`. Obtain the ID from `gh api repos/OWNER/REPOSITORY/actions/workflows`. `weaver evidence inspect` reads runs at each referenced PR's exact head revision. A matching successful run is an observation, not proof of an independent test or a change to Verified. See [repository-configured test evidence](../architecture/repository-configured-test-evidence.md) for limitations and an example.
+
 ## Step 3. Set the idle limit
 
 ```yaml

@@ -229,14 +229,14 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
         .join('');
       filter = `<div class="filter"><span class="muted">${e(tt('ui.overview.projects'))}</span>${chips}${hidden.size ? button('showAll', 'ui.overview.show-all') : ''}</div>`;
       const mismatchHtml = state.mismatches.length
-        ? `<details class="mismatches" open><summary>\u26a0 ${e(tt('ui.overview.mismatches', { count: state.mismatches.length }))}</summary>
+        ? `<div class="mismatch-row"><details class="mismatches" open><summary>\u26a0 ${e(tt('ui.overview.mismatches', { count: state.mismatches.length }))}</summary>
         <p class="muted small">${e(tt('ui.overview.mismatches-note'))}</p>
         <ul class="plain">${state.mismatches
           .map(
             (m) =>
               `<li>${e(t(`mismatch.${m.kind}` as MessageKey, locale, m.args))}${m.path ? ` <a href="#" data-file="${e(m.path)}">${e(tt('ui.overview.open-file', { path: m.path }))}</a>` : ''}${m.url ? ` <a href="#" data-url="${e(m.url)}">\u2197</a>` : ''}</li>`,
           )
-          .join('')}</ul></details>`
+          .join('')}</ul></details>${button('reviewMismatches', 'ui.overview.fix-mismatches')}</div>`
         : `<p class="muted small">${e(tt(state.skippedChecks.length || state.reading.length ? 'ui.overview.mismatches-incomplete' : 'ui.overview.mismatches-none'))}</p>`;
       const skippedChecks = state.skippedChecks.length
         ? `<p class="muted small">${e(tt('ui.overview.mismatches-skipped', { reasons: state.skippedChecks.map((n) => formatNotice(n, locale)).join(' ') }))}</p>`
@@ -279,6 +279,8 @@ export function renderOverviewHtml(state: OverviewState, nonce: string, cspSourc
   .scroll::-webkit-scrollbar-thumb:hover { background: var(--vscode-scrollbarSlider-hoverBackground); }
   .scroll::-webkit-scrollbar-corner { background: transparent; }
   details.mismatches { margin: 4px 0 10px; }
+  .mismatch-row { display: flex; align-items: flex-start; gap: 12px; }
+  .mismatch-row details { flex: 0 1 auto; min-width: 0; }
   details.mismatches summary { cursor: pointer; color: var(--vscode-editorWarning-foreground); font-weight: 600; }
   details.mismatches li { padding: 2px 0; }
   .filter { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 0 8px; }

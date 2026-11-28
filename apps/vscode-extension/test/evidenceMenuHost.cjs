@@ -23,7 +23,7 @@ async function run() {
     github.fetchCompletionEvidence = async (_token, url) => {
       calls++;
       assert.equal(url, issueUrl);
-      return { issueUrl, readAt: '2026-11-28T00:00:00Z', issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ number: 2, title: 'work', url: pullUrl, state: 'merged', checks: 'none', link: 'mentions', revision: 'new-head', statusContexts: { state: 'success', count: 1, apiUrl: 'https://api.github.com/repos/example/repo/commits/new-head/status' } }] }, reviews: [{ pullUrl, revision: 'new-head', observation: { status: 'read', value: [{ url: `${pullUrl}#pullrequestreview-4`, author: 'reviewer', state: 'APPROVED', revision: 'old-head', submittedAt: '2026-11-27T00:00:00Z', body: '' }] } }], comments: { status: 'read', value: [{ url: commentUrl, author: 'tester', body: 'Cannot reproduce prior test claim', createdAt: '2026-11-27T00:00:00Z', updatedAt: '2026-11-28T00:00:00Z' }] } };
+      return { issueUrl, readAt: '2026-11-28T00:00:00Z', issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ number: 2, title: 'work', url: pullUrl, state: 'merged', checks: 'none', link: 'mentions', revision: 'new-head', statusContexts: { state: 'success', count: 1, apiUrl: 'https://api.github.com/repos/example/repo/commits/new-head/status' } }] }, reviews: [{ pullUrl, revision: 'new-head', observation: { status: 'read', value: [{ url: `${pullUrl}#pullrequestreview-4`, author: 'reviewer', state: 'APPROVED', revision: 'old-head', submittedAt: '2026-11-27T00:00:00Z', body: '' }, { url: `${pullUrl}#pullrequestreview-6`, author: 'reviewer', state: 'toString', revision: 'new-head', submittedAt: '2026-11-28T00:00:00Z', body: '' }] } }], comments: { status: 'read', value: [{ url: commentUrl, author: 'tester', body: 'Cannot reproduce prior test claim', createdAt: '2026-11-27T00:00:00Z', updatedAt: '2026-11-28T00:00:00Z' }, { url: `${issueUrl}#issuecomment-5`, author: 'other-tester', body: 'Independent test passed', createdAt: '2026-11-28T01:00:00Z', updatedAt: '2026-11-28T01:00:00Z' }] } };
     };
     const store = { get: (_key, fallback) => fallback, update: async () => {} };
     const view = new OverviewView(store, {});
@@ -43,11 +43,15 @@ async function run() {
       };
       await view.cardMenu(issueUrl);
       assert(menuItems.some((item) => item.label.includes(t('ui.overview.menu.evidence', locale))));
+      assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.issue-state', locale, { state: t('ui.overview.evidence.issue-state.closed', locale) })));
       assert(evidenceItems.some((item) => item.label.includes('PR #2') && item.detail.includes('new-head')));
       assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.status-contexts', locale, { state: t('ui.overview.evidence.status.success', locale) })));
       assert(evidenceItems.some((item) => item.detail?.includes('old-head') && item.detail.includes('new-head')));
+      assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.review', locale, { author: 'reviewer', state: t('ui.overview.evidence.review-state.approved', locale) })));
+      assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.review', locale, { author: 'reviewer', state: 'toString' })));
       assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.claims-warning', locale)));
-      assert(evidenceItems.some((item) => item.url === commentUrl && item.detail.includes('Cannot reproduce')));
+      assert(evidenceItems.some((item) => item.url === commentUrl && item.detail.includes('Cannot reproduce') && item.label.includes('tester') && item.label.includes('2026-11-28T00:00:00Z')));
+      assert(evidenceItems.some((item) => item.url === `${issueUrl}#issuecomment-5` && item.detail.includes('Independent test passed') && item.label.includes('other-tester') && item.label.includes('2026-11-28T01:00:00Z')));
       assert.equal(opened.at(-1), commentUrl);
     }
     assert.equal(calls, 2);

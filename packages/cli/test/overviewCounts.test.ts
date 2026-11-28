@@ -51,6 +51,14 @@ describe('Overview unfinished repository counts', () => {
     expect(html).not.toContain('No mismatches between files');
   });
 
+  it('offers mismatch review beside the report in both languages only when findings exist', () => {
+    const state: OverviewState = { kind: 'ready', projectTitle: 'Board', lanes: [], skipped: 0, hidden: [], collapsed: [], mismatches: [], skippedChecks: [], reading: [], focusActive: false, showFinished: false, finished: {} };
+    expect(renderOverviewHtml(state, 'nonce', 'csp', 'en')).not.toContain('data-cmd="reviewMismatches"');
+    state.mismatches = [{ kind: 'task-without-issue', subject: 'TASK-001', args: { task: 'TASK-001' }, path: 'task.md' }];
+    expect(renderOverviewHtml(state, 'nonce', 'csp', 'en')).toContain('<button data-cmd="reviewMismatches">Review fixes</button>');
+    expect(renderOverviewHtml(state, 'nonce', 'csp', 'ko')).toContain('<button data-cmd="reviewMismatches">수정 검토</button>');
+  });
+
   it('recomputes counts when the board changes and renders offline lanes', () => {
     const [lane] = buildLanes(registry, cards);
     const updated = buildLanes(registry, [...cards, makeCard(8, 'Queue')])[0];

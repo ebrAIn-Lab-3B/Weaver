@@ -90,11 +90,39 @@ describe('weaver show', () => {
 });
 
 describe('weaver evidence inspect', () => {
+  it('reads configured workflow evidence for the referenced revision without claiming independent verification', async () => {
+    for (const lang of ['en', 'ko']) {
+      const s = setup();
+      const original = s.deps.fetch as Fetch;
+      const sha = 'a'.repeat(40);
+      s.deps.fetch = async (url, init) => {
+        const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
+        if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'evidence:\n  independent-tests:\n    source: github-actions\n    workflow-id: 7\n' } as never;
+        if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'open', labels: [], assignees: [] });
+        if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
+        if (url.includes('/issues/10/comments') || url.includes('/pulls/7/reviews') || url.includes('/pulls?state=all')) return reply([]);
+        if (url.endsWith('/pulls/7')) return reply({ state: 'open', merged_at: null, body: '', head: { sha } });
+        if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
+        if (url.endsWith('/actions/workflows/7')) return reply({ id: 7, path: '.github/workflows/test.yml' });
+        if (url.includes('/actions/workflows/7/runs?')) return reply({ total_count: 1, workflow_runs: [{ id: 12, workflow_id: 7, html_url: 'https://github.com/me/Weaver/actions/runs/12', head_sha: sha, event: 'pull_request', status: 'completed', conclusion: 'success', actor: { login: 'author' }, triggering_actor: { login: 'reviewer' }, run_attempt: 1 }] });
+        if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+        return original(url, init);
+      };
+      expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', lang], s.deps)).toBe(EXIT.ok);
+      const evidence = JSON.parse(s.out.join('')).independentTests;
+      expect(evidence.source).toEqual({ status: 'configured', source: 'github-actions', workflowId: 7 });
+      expect(evidence.workflowObservations).toMatchObject([{ observation: { status: 'read', revision: sha, runs: [{ conclusion: 'success', triggeringActor: 'reviewer' }] } }]);
+      expect(evidence.status).not.toBe('verified');
+      expect(s.writes.some((write) => write.includes('mutation'))).toBe(false);
+    }
+  });
   it('observes a closed shared Issue without inferring verification from a non-closing merged PR', async () => {
     const s = setup();
+    const actionsRequests: string[] = [];
     s.deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: FILES[1].text.replaceAll('TASK-010', 'TASK-011').replace('assignee: claude-code', 'assignee: other\ntests: self-reported passing\nevidence_exception: approved exception') }];
     const original = s.deps.fetch as Fetch;
     s.deps.fetch = async (url, init) => {
+      if (url.includes('/actions/')) actionsRequests.push(url);
       const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
       if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Card ten', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: ['status:in-progress'], assignees: [] });
       if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
@@ -107,6 +135,9 @@ describe('weaver evidence inspect', () => {
     };
     expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
     const result = JSON.parse(s.out.join(''));
+    expect(result.independentTests.source).toEqual({ status: 'unconfigured' });
+    expect(result.independentTests.workflowObservations).toBeNull();
+    expect(actionsRequests).toEqual([]);
     expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: { status: 'unverified', commentSource: 'read', taskClaims: [{ path: 'tasks/TASK-011.md', text: 'self-reported passing' }] }, observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
     expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', testClaim: 'self-reported passing', evidenceException: 'approved exception', exceptionHonored: true })]));
     expect(result.observation.comments.value[0]).toMatchObject({ author: 'reviewer', body: 'Could not repeat the claimed test' });
@@ -796,18 +827,20 @@ describe('weaver task create', () => {
     const issueAction = JSON.parse(first.out.join('')).actions[0].id;
     const s = setup();
     const original = s.deps.fetch as Fetch;
-    let posted: { title: string; body: string } | undefined;
+    let posted: { title: string; body: string; labels: string[] } | undefined;
     let createCalls = 0;
     s.deps.fetch = async (url, init) => {
       if (url.endsWith('/issues') && init.method === 'POST') {
         createCalls += 1;
-        posted = JSON.parse(init.body) as { title: string; body: string };
+        posted = JSON.parse(init.body) as { title: string; body: string; labels: string[] };
         throw new Error('response lost');
       }
       if (url.includes('/issues?state=all&') && posted) return { ok: true, status: 200, json: async () => [{ title: posted!.title, body: posted!.body, html_url: 'https://github.com/me/Weaver/issues/77' }] };
       return original(url, init);
     };
     expect(await run([...ARGS, '--approve', issueAction], s.deps)).toBe(EXIT.failed);
+    expect(posted?.labels).toEqual(['task', 'status:backlog']);
+    expect(s.writes.some((w) => w.includes('addProjectV2ItemById'))).toBe(false);
     expect(JSON.parse(s.out.join('')).actions[0].identifiers.issue).toBeUndefined();
     expect(JSON.parse(s.out.join('')).actions[0].message).toContain('Do not create another Issue');
     expect(JSON.parse(s.out.join('')).actions[0].message).toContain('prior executor has stopped');
@@ -1267,8 +1300,31 @@ describe('task creation resume by explicit Issue', () => {
       const changed = fixture({ onProject: true, body });
       expect(await run([...args, ...changedArgs], changed.deps)).toBe(EXIT.failed);
       expect(JSON.parse(changed.out.join('')).error.code).toBe('cli.task-create.resume-unsafe');
+      expect(JSON.parse(changed.out.join('')).error.details.reason).toBe('intent-mismatch');
+      expect(JSON.parse(changed.out.join('')).error.message).toContain('recorded registration intent differs');
       expect(changed.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
       expect(changed.shell.some((entry) => entry.args[0] === 'push')).toBe(false);
+    }
+    const korean = fixture({ onProject: true, body });
+    korean.deps.env.WEAVER_LANG = 'ko';
+    expect(await run([...args, '--assignee', 'other-agent'], korean.deps)).toBe(EXIT.failed);
+    expect(JSON.parse(korean.out.join('')).error.message).toContain('기록된 등록 요청');
+    const textMode = fixture({ onProject: true, body });
+    textMode.deps.env.WEAVER_LANG = 'ko';
+    expect(await run([...args, '--assignee', 'other-agent', '--text'], textMode.deps)).toBe(EXIT.failed);
+    expect(textMode.err.join('')).toContain('기록된 등록 요청');
+    expect(textMode.out.join('')).toBe('');
+    expect(textMode.createCount()).toBe(0);
+    expect(textMode.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
+    const marker = body.match(/<!-- weaver-registration:v2 [\s\S]*? -->/)?.[0];
+    if (!marker) throw new Error('missing registration marker');
+    for (const altered of [body + marker, body.replace('operation=refs/heads/weaver/reservations/op-', 'operation=refs/heads/weaver/reservations/other-')]) {
+      const unsafe = fixture({ onProject: true, body: altered });
+      expect(await run(args, unsafe.deps)).toBe(EXIT.failed);
+      const error = JSON.parse(unsafe.out.join('')).error;
+      expect(error.code).toBe('cli.task-create.resume-unsafe');
+      expect(error.details?.reason).toBeUndefined();
+      expect(unsafe.writes.some((write) => write.includes('addProjectV2ItemById'))).toBe(false);
     }
   });
 

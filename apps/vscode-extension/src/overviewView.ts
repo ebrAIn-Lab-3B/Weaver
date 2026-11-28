@@ -15,6 +15,7 @@ import {
   isFinished,
   makeSnapshot,
   MergedPull,
+  MessageKey,
   moveLane,
   readSnapshot,
   snapshotAge,
@@ -335,6 +336,7 @@ export class OverviewView {
     log(`message ${message.type}${message.id ? ` ${message.id}` : ''}`);
     if (message.type === 'signIn') await this.load(true);
     else if (message.type === 'refresh') await this.refreshAll();
+    else if (message.type === 'reviewMismatches') await this.reviewMismatches();
     else if (message.type === 'setUp') await vscode.commands.executeCommand('weaver.setUp');
     else if (message.type === 'toggleLane' && message.id) {
       this.flip(this.hidden, HIDDEN_KEY, message.id);
@@ -398,6 +400,25 @@ export class OverviewView {
       await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, ...(requirementUri ? { requirement: { id: link.id, uri: requirementUri } } : {}), project: this.registry.registry.project, displayed: card.nextAssignment, auditUri: this.auditFolder });
       await this.refreshAll();
     } finally { this.applyingProposal = false; }
+  }
+
+  /** Review one current mismatch; writes still use their existing confirmation flow. */
+  private async reviewMismatches(): Promise<void> {
+    const state = this.state();
+    if (state.kind !== 'ready' || !state.mismatches.length) return;
+    type FixItem = vscode.QuickPickItem & { run?: () => Promise<unknown> | Thenable<unknown> | void };
+    const items: FixItem[] = state.mismatches.map((m) => {
+      const card = m.url ? this.find(m.url)?.card : undefined;
+      const canDraft = m.kind === 'card-without-file' && Boolean(card?.taskId && m.url);
+      const file = m.path ? this.loaded?.uris.get(m.path) : undefined;
+      const issueUrl = m.url && isOpenableUrl(m.url) ? m.url : undefined;
+      const description = canDraft ? text('ui.overview.fix-task-pr') : file ? text('ui.overview.fix-file') : issueUrl ? text('ui.overview.fix-issue') : text('ui.overview.fix-manual');
+      const run = canDraft && issueUrl ? () => this.makeTaskFileOf(issueUrl) : file ? () => vscode.window.showTextDocument(file, { viewColumn: vscode.ViewColumn.Active }) : issueUrl ? () => openPage(issueUrl) : undefined;
+      return { label: m.subject, description, detail: text(`mismatch.${m.kind}` as MessageKey, m.args), ...(run ? { run } : {}) };
+    });
+    const selected = await this.choose(items, { placeHolder: text('ui.overview.fix-placeholder'), matchOnDetail: true });
+    if (selected?.run) await selected.run();
+    else if (selected) void vscode.window.showInformationMessage(text('ui.overview.fix-manual'));
   }
 
   private find(url: string): { card: ProjectCard; link?: RequirementLink } | undefined {
@@ -514,7 +535,7 @@ export class OverviewView {
     const items: EvidenceItem[] = [];
     const add = (label: string, detail?: string, url?: string) => items.push({ label, ...(detail ? { detail } : {}), ...(url && isOpenableUrl(url) ? { url } : {}) });
     add(text('ui.overview.evidence.read-at', { time: evidence.readAt }), text('ui.overview.evidence.scope'));
-    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: evidence.issue.issue.state }), card.url, card.url);
+    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: text(`ui.overview.evidence.issue-state.${evidence.issue.issue.state}`) }), card.url, card.url);
     else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
     if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
     else {
@@ -529,7 +550,11 @@ export class OverviewView {
     for (const entry of evidence.reviews ?? []) {
       if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
       else if (!entry.observation.value.length) add(text('ui.overview.evidence.no-reviews'), entry.pullUrl, entry.pullUrl);
-      else for (const review of entry.observation.value) add(text('ui.overview.evidence.review', { author: review.author ?? '—', state: review.state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+      else for (const review of entry.observation.value) {
+        const reviewStates: Record<string, MessageKey> = { APPROVED: 'ui.overview.evidence.review-state.approved', CHANGES_REQUESTED: 'ui.overview.evidence.review-state.changes-requested', COMMENTED: 'ui.overview.evidence.review-state.commented', DISMISSED: 'ui.overview.evidence.review-state.dismissed', PENDING: 'ui.overview.evidence.review-state.pending' };
+        const state = Object.prototype.hasOwnProperty.call(reviewStates, review.state) ? text(reviewStates[review.state]) : review.state;
+        add(text('ui.overview.evidence.review', { author: review.author ?? '—', state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+      }
     }
     if (evidence.comments.status === 'unavailable') add(text('ui.overview.evidence.comments-unavailable'), formatNotice(evidence.comments.error, currentLocale()));
     else for (const comment of evidence.comments.value) add(text('ui.overview.evidence.comment', { author: comment.author ?? '—', time: comment.updatedAt }), comment.body.replace(/\s+/g, ' ').slice(0, 240), comment.url);

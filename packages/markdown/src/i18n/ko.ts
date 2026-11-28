@@ -328,6 +328,8 @@ export const ko: Record<MessageKey, Message> = {
   'ui.overview.evidence.read-at': '조회 시각: {time}',
   'ui.overview.evidence.scope': 'Issue 타임라인, 참조 PR, 체크 실행, 리뷰 및 Issue 댓글입니다. 저장소의 전체 PR 목록은 아닙니다.',
   'ui.overview.evidence.issue-state': 'Issue 상태: {state}',
+  'ui.overview.evidence.issue-state.open': '열림',
+  'ui.overview.evidence.issue-state.closed': '닫힘',
   'ui.overview.evidence.issue-unavailable': 'Issue 상태를 확인할 수 없습니다',
   'ui.overview.evidence.pulls-unavailable': 'PR 참조를 읽을 수 없거나 불완전합니다',
   'ui.overview.evidence.checks-unavailable': '체크 실행을 읽을 수 없거나 불완전합니다',

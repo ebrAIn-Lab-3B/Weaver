@@ -43,6 +43,7 @@ async function run() {
       };
       await view.cardMenu(issueUrl);
       assert(menuItems.some((item) => item.label.includes(t('ui.overview.menu.evidence', locale))));
+      assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.issue-state', locale, { state: t('ui.overview.evidence.issue-state.closed', locale) })));
       assert(evidenceItems.some((item) => item.label.includes('PR #2') && item.detail.includes('new-head')));
       assert(evidenceItems.some((item) => item.label === t('ui.overview.evidence.status-contexts', locale, { state: t('ui.overview.evidence.status.success', locale) })));
       assert(evidenceItems.some((item) => item.detail?.includes('old-head') && item.detail.includes('new-head')));

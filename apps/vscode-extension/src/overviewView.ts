@@ -514,7 +514,7 @@ export class OverviewView {
     const items: EvidenceItem[] = [];
     const add = (label: string, detail?: string, url?: string) => items.push({ label, ...(detail ? { detail } : {}), ...(url && isOpenableUrl(url) ? { url } : {}) });
     add(text('ui.overview.evidence.read-at', { time: evidence.readAt }), text('ui.overview.evidence.scope'));
-    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: evidence.issue.issue.state }), card.url, card.url);
+    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: text(`ui.overview.evidence.issue-state.${evidence.issue.issue.state}`) }), card.url, card.url);
     else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
     if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
     else {

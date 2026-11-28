@@ -329,6 +329,8 @@ export const en = {
   'ui.overview.evidence.read-at': 'Read at {time}',
   'ui.overview.evidence.scope': 'Issue timeline, referenced PRs, check runs, reviews and Issue comments; not a complete repository PR inventory.',
   'ui.overview.evidence.issue-state': 'Issue state: {state}',
+  'ui.overview.evidence.issue-state.open': 'open',
+  'ui.overview.evidence.issue-state.closed': 'closed',
   'ui.overview.evidence.issue-unavailable': 'Issue state unavailable',
   'ui.overview.evidence.pulls-unavailable': 'PR references unavailable or incomplete',
   'ui.overview.evidence.checks-unavailable': 'Check runs unavailable or incomplete',

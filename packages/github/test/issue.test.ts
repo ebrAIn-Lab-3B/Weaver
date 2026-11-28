@@ -21,8 +21,8 @@ function routes(answer: (call: Call) => { status?: number; json?: unknown }) {
 
 describe('fetchIssue', () => {
   it('refuses malformed state and incomplete labels instead of assuming an open Issue', async () => {
-    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [{ name: 'task' }] };
-    for (const change of [{ state: undefined }, { state: 'unknown' }, { labels: [{ name: null }] }, { number: 0 }, { assignees: [{}] }]) {
+    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [{ name: 'task' }], assignees: [] };
+    for (const change of [{ state: undefined }, { state: 'unknown' }, { labels: [{ name: null }] }, { number: 0 }, { assignees: undefined }, { assignees: [{}] }]) {
       const result = await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, ...change } })).fetchFn);
       expect(result).toMatchObject({ ok: false, error: { code: 'github.err.issue-incomplete' } });
     }

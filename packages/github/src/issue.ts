@@ -53,7 +53,7 @@ export async function fetchIssue(token: string, issueUrl: string, fetchFn: Fetch
       labels: ({ name?: string } | string)[];
       assignees?: { login: string }[];
     };
-    if (!data || !Number.isSafeInteger(data.number) || data.number < 1 || typeof data.title !== 'string' || typeof data.html_url !== 'string' || (data.state !== 'open' && data.state !== 'closed') || !Array.isArray(data.labels) || data.labels.some((label) => typeof label === 'string' ? !label : !label || typeof label.name !== 'string' || !label.name) || (data.assignees !== undefined && (!Array.isArray(data.assignees) || data.assignees.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)))) {
+    if (!data || !Number.isSafeInteger(data.number) || data.number < 1 || typeof data.title !== 'string' || typeof data.html_url !== 'string' || (data.state !== 'open' && data.state !== 'closed') || !Array.isArray(data.labels) || data.labels.some((label) => typeof label === 'string' ? !label : !label || typeof label.name !== 'string' || !label.name) || !Array.isArray(data.assignees) || data.assignees.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)) {
       return { ok: false, error: { code: 'github.err.issue-incomplete' } };
     }
     const returned = parseIssueUrl(data.html_url);
@@ -66,7 +66,7 @@ export async function fetchIssue(token: string, issueUrl: string, fetchFn: Fetch
         url: data.html_url,
         state: data.state,
         labels: data.labels.map((label) => (typeof label === 'string' ? label : label.name ?? '')).filter(Boolean),
-        assignees: (data.assignees ?? []).map((a) => a.login),
+        assignees: data.assignees.map((a) => a.login),
       },
     };
   } catch (error) {

@@ -336,6 +336,7 @@ export class OverviewView {
     log(`message ${message.type}${message.id ? ` ${message.id}` : ''}`);
     if (message.type === 'signIn') await this.load(true);
     else if (message.type === 'refresh') await this.refreshAll();
+    else if (message.type === 'reviewMismatches') await this.reviewMismatches();
     else if (message.type === 'setUp') await vscode.commands.executeCommand('weaver.setUp');
     else if (message.type === 'toggleLane' && message.id) {
       this.flip(this.hidden, HIDDEN_KEY, message.id);
@@ -399,6 +400,25 @@ export class OverviewView {
       await applyCardProposal({ issueUrl: card.url, taskId: link.taskId, taskUri: uri, ...(requirementUri ? { requirement: { id: link.id, uri: requirementUri } } : {}), project: this.registry.registry.project, displayed: card.nextAssignment, auditUri: this.auditFolder });
       await this.refreshAll();
     } finally { this.applyingProposal = false; }
+  }
+
+  /** Review one current mismatch; writes still use their existing confirmation flow. */
+  private async reviewMismatches(): Promise<void> {
+    const state = this.state();
+    if (state.kind !== 'ready' || !state.mismatches.length) return;
+    type FixItem = vscode.QuickPickItem & { run?: () => Promise<unknown> | Thenable<unknown> | void };
+    const items: FixItem[] = state.mismatches.map((m) => {
+      const card = m.url ? this.find(m.url)?.card : undefined;
+      const canDraft = m.kind === 'card-without-file' && Boolean(card?.taskId && m.url);
+      const file = m.path ? this.loaded?.uris.get(m.path) : undefined;
+      const issueUrl = m.url && isOpenableUrl(m.url) ? m.url : undefined;
+      const description = canDraft ? text('ui.overview.fix-task-pr') : file ? text('ui.overview.fix-file') : issueUrl ? text('ui.overview.fix-issue') : text('ui.overview.fix-manual');
+      const run = canDraft && issueUrl ? () => this.makeTaskFileOf(issueUrl) : file ? () => vscode.window.showTextDocument(file, { viewColumn: vscode.ViewColumn.Active }) : issueUrl ? () => openPage(issueUrl) : undefined;
+      return { label: m.subject, description, detail: text(`mismatch.${m.kind}` as MessageKey, m.args), ...(run ? { run } : {}) };
+    });
+    const selected = await this.choose(items, { placeHolder: text('ui.overview.fix-placeholder'), matchOnDetail: true });
+    if (selected?.run) await selected.run();
+    else if (selected) void vscode.window.showInformationMessage(text('ui.overview.fix-manual'));
   }
 
   private find(url: string): { card: ProjectCard; link?: RequirementLink } | undefined {

@@ -28,6 +28,7 @@ async function run() {
     assert.match(html, /Backlog, Todo/);
     assert.match(html, /Backlog: status:backlog → Backlog/);
     assert.match(html, /Issue 라벨 status:backlog/);
+    assert.match(html, /<button data-cmd="reviewMismatches">수정 검토<\/button>/);
 
     rules.source = 'board-status';
     const labels = ['status:backlog'];
@@ -42,6 +43,13 @@ async function run() {
     const unavailable = view.state();
     assert(unavailable.skippedChecks.some((n) => n.code === 'cli.reconcile.process-unavailable'));
     assert(!unavailable.mismatches.some((m) => m.kind === 'board-status-differs'));
+    let requested;
+    view.state = () => ({ kind: 'ready', mismatches: [{ kind: 'card-without-file', subject: '#1', args: { number: 1, repository: 'o/r', title: 'Card' }, url: 'https://github.com/o/r/issues/1' }] });
+    view.find = () => ({ card: { taskId: 'TASK-001' } });
+    view.makeTaskFileOf = async (url) => { requested = url; };
+    view.choose = async (items) => items[0];
+    await view.onMessage({ type: 'reviewMismatches' });
+    assert.equal(requested, 'https://github.com/o/r/issues/1');
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'passed', vscode: vscode.version, case: 'overview rules and unavailable process (mock GitHub)' }));
   } catch (error) {
     await fs.writeFile(process.env.WEAVER_AUTHOR_RESULT, JSON.stringify({ status: 'failed', error: String(error.stack || error) }));

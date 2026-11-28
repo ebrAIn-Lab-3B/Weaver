@@ -129,6 +129,29 @@ describe('weaver evidence inspect', () => {
     expect(result.findings.find((finding: { kind: string }) => finding.kind === 'pulls-unavailable').message).toContain('불완전');
   });
 
+  it('flags failing and pending check runs in both languages for referenced and candidate PRs', async () => {
+    for (const candidate of [false, true]) for (const [state, status, conclusion] of [['failing', 'completed', 'failure'], ['pending', 'in_progress', null]] as const) for (const lang of ['en', 'ko']) {
+      const s = setup();
+      const original = s.deps.fetch as Fetch;
+      s.deps.fetch = async (url, init) => {
+        const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
+        if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'open', labels: [], assignees: [] });
+        if (url.includes('/issues/10/timeline')) return reply(candidate ? [] : [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
+        if (url.includes('/issues/10/comments') || url.includes('/pulls/7/reviews')) return reply([]);
+        if (url.includes('/pulls?state=all')) return reply(candidate ? [{ number: 7, title: 'TASK-010', html_url: 'https://github.com/me/Weaver/pull/7', body: '', head: { ref: 'task-010' } }] : []);
+        if (url.endsWith('/pulls/7')) return reply({ state: 'open', merged_at: null, body: '', head: { sha: 'head7' } });
+        if (url.includes('/check-runs')) return reply({ total_count: 1, check_runs: [{ status, conclusion }] });
+        if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+        return original(url, init);
+      };
+      expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', lang], s.deps)).toBe(EXIT.ok);
+      const result = JSON.parse(s.out.join(''));
+      const finding = result.findings.find((item: { kind: string }) => item.kind === `checks-${state}`);
+      expect(finding).toMatchObject({ url: 'https://github.com/me/Weaver/pull/7' });
+      expect(finding.message).toContain(lang === 'ko' ? '체크' : 'check');
+    }
+  });
+
   it('marks a placement observed only when Project and direct Issue facts agree', async () => {
     const s = setup();
     const original = s.deps.fetch as Fetch;
@@ -199,6 +222,7 @@ describe('weaver evidence inspect', () => {
     expect(result.candidateEvidence).toMatchObject([{ url: 'https://github.com/me/Weaver/pull/7', pull: { ok: true, closingAssociation: 'not-closing', facts: { checks: 'none', revision: 'head7', state: 'merged' } }, reviews: { status: 'read', value: [{ revision: 'older' }] } }]);
     expect(result.candidateEvidence[0].pull.facts).not.toHaveProperty('link');
     expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('other-pr');
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('no-checks');
     expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('review-different-revision');
   });
 

@@ -705,6 +705,8 @@ export const en = {
   'cli.evidence-inspect.closing-unavailable': 'The GitHub closing association could not be established.',
   'cli.evidence-inspect.no-checks': 'No check runs were found for the observed PR head revision.',
   'cli.evidence-inspect.checks-inconclusive': 'The observed checks do not establish a passing result.',
+  'cli.evidence-inspect.checks-failing': 'A check run failed on the observed PR head revision.',
+  'cli.evidence-inspect.checks-pending': 'A check run is pending on the observed PR head revision.',
   'cli.evidence-inspect.status-unavailable': 'Commit status contexts are unavailable or incomplete.',
   'cli.evidence-inspect.status-failed': 'Commit status contexts report a failure or error.',
   'cli.evidence-inspect.status-pending': 'Commit status contexts are pending.',

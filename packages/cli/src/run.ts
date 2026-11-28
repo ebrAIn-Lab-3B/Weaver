@@ -679,6 +679,12 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     ]);
     const findings: { kind: string; message: string; url: string }[] = [];
     const finding = (kind: string, key: MessageKey, url: string) => findings.push({ kind, message: say(key), url });
+    const checkFinding = (checks: string, url: string) => {
+      if (checks === 'none') finding('no-checks', 'cli.evidence-inspect.no-checks', url);
+      if (checks === 'unknown') finding('checks-inconclusive', 'cli.evidence-inspect.checks-inconclusive', url);
+      if (checks === 'failing') finding('checks-failing', 'cli.evidence-inspect.checks-failing', url);
+      if (checks === 'pending') finding('checks-pending', 'cli.evidence-inspect.checks-pending', url);
+    };
     const issueComparison = projectCard && observed.issue.ok ? {
       status: projectCard.state === observed.issue.issue.state && JSON.stringify([...projectCard.labels].sort()) === JSON.stringify([...observed.issue.issue.labels].sort()) ? 'consistent' : 'conflicting',
       projectState: projectCard.state,
@@ -697,8 +703,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       for (const pull of observed.pulls.value) {
         if (pull.state === 'merged' && pull.link === 'mentions') finding('merged-not-closing', 'cli.evidence-inspect.non-closing', pull.url);
         if (pull.link === 'unknown') finding('closing-unavailable', 'cli.evidence-inspect.closing-unavailable', pull.url);
-        if (pull.checks === 'none') finding('no-checks', 'cli.evidence-inspect.no-checks', pull.url);
-        if (pull.checks === 'unknown') finding('checks-inconclusive', 'cli.evidence-inspect.checks-inconclusive', pull.url);
+        checkFinding(pull.checks, pull.url);
         if (pull.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', pull.url);
         if (pull.statusContexts?.state === 'failure' || pull.statusContexts?.state === 'error') finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', pull.url);
         if (pull.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', pull.url);
@@ -728,6 +733,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     for (const candidate of candidateEvidence) {
       finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
       if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
+      if (candidate.pull.ok) checkFinding(candidate.pull.facts.checks, candidate.url);
       if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', candidate.url);
       if (candidate.pull.ok && (candidate.pull.facts.statusContexts?.state === 'failure' || candidate.pull.facts.statusContexts?.state === 'error')) finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', candidate.url);
       if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', candidate.url);

@@ -700,6 +700,8 @@ export const ko: Record<MessageKey, Message> = {
   'cli.evidence-inspect.closing-unavailable': 'GitHub 종료 연결을 확인할 수 없습니다.',
   'cli.evidence-inspect.no-checks': '확인한 PR 헤드 리비전에 체크 실행이 없습니다.',
   'cli.evidence-inspect.checks-inconclusive': '확인한 체크에서 성공 여부를 판단할 수 없습니다.',
+  'cli.evidence-inspect.checks-failing': '확인한 PR 헤드 리비전에서 체크 실행이 실패했습니다.',
+  'cli.evidence-inspect.checks-pending': '확인한 PR 헤드 리비전에서 체크 실행이 진행 중입니다.',
   'cli.evidence-inspect.status-unavailable': '커밋 상태 컨텍스트를 읽을 수 없거나 불완전합니다.',
   'cli.evidence-inspect.status-failed': '커밋 상태 컨텍스트가 실패 또는 오류를 보고합니다.',
   'cli.evidence-inspect.status-pending': '커밋 상태 컨텍스트가 대기 중입니다.',

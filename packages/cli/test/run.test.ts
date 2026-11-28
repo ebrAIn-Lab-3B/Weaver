@@ -1052,7 +1052,7 @@ describe('weaver task create with a task contract (DEC-016)', () => {
   it('writes the declared fields and headings into the task file', () => {
     const text = renderTaskFile({ id: 'TASK-001', title: 'T', requirement: 'REQ-001', issueUrl: 'https://github.com/me/x/issues/1', issueNumber: 1, repository: 'me/x', criteria: [], assigneeType: 'agent', fileFields: [{ name: 'owner', value: 'alpha' }, { name: 'note', value: 'a: b' }], sections: ['Context'] });
     expect(text).toContain('assignee_type: agent\nowner: alpha\nnote: "a: b"\n---');
-    expect(text.endsWith('the Kanban column comes from the Issue.\n\n## Context\n')).toBe(true);
+    expect(text.endsWith('the configured process determines Kanban placement.\n\n## Context\n')).toBe(true);
   });
 });
 

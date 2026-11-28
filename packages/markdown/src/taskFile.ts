@@ -48,7 +48,7 @@ export function renderTaskFile(input: TaskFileInput): string {
     ...(input.fileFields ?? []).map((f) => `${f.name}: ${yamlValue(f.value)}`),
     '---',
   ];
-  return `${front.join('\n')}\n\n# ${input.id} ${input.title}\n\nTracked in [Issue #${input.issueNumber}](${input.issueUrl}). Ownership is recorded here; the Kanban column comes from the Issue.\n${(input.sections ?? []).map((heading) => `\n## ${heading}\n`).join('')}`;
+  return `${front.join('\n')}\n\n# ${input.id} ${input.title}\n\nTracked in [Issue #${input.issueNumber}](${input.issueUrl}). Ownership is recorded here; the configured process determines Kanban placement.\n${(input.sections ?? []).map((heading) => `\n## ${heading}\n`).join('')}`;
 }
 
 /** The task line of a requirement: `- \`TASK-###\` Title — [GitHub Issue #n](url)`. */

@@ -118,9 +118,11 @@ describe('weaver evidence inspect', () => {
   });
   it('observes a closed shared Issue without inferring verification from a non-closing merged PR', async () => {
     const s = setup();
+    const actionsRequests: string[] = [];
     s.deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: FILES[1].text.replaceAll('TASK-010', 'TASK-011').replace('assignee: claude-code', 'assignee: other\ntests: self-reported passing\nevidence_exception: approved exception') }];
     const original = s.deps.fetch as Fetch;
     s.deps.fetch = async (url, init) => {
+      if (url.includes('/actions/')) actionsRequests.push(url);
       const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
       if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Card ten', html_url: 'https://github.com/me/Weaver/issues/10', state: 'closed', labels: ['status:in-progress'], assignees: [] });
       if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
@@ -133,6 +135,9 @@ describe('weaver evidence inspect', () => {
     };
     expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
     const result = JSON.parse(s.out.join(''));
+    expect(result.independentTests.source).toEqual({ status: 'unconfigured' });
+    expect(result.independentTests.workflowObservations).toBeNull();
+    expect(actionsRequests).toEqual([]);
     expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: { status: 'unverified', commentSource: 'read', taskClaims: [{ path: 'tasks/TASK-011.md', text: 'self-reported passing' }] }, observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
     expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', testClaim: 'self-reported passing', evidenceException: 'approved exception', exceptionHonored: true })]));
     expect(result.observation.comments.value[0]).toMatchObject({ author: 'reviewer', body: 'Could not repeat the claimed test' });

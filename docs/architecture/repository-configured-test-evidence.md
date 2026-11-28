@@ -17,7 +17,7 @@ evidence:
     workflow-id: 123456
 ```
 
-Find the ID with `gh api repos/OWNER/REPOSITORY/actions/workflows`. No section means no configured producer. Malformed or unsupported configuration is an error and is not replaced by a trusted default. Configuration by itself does not mark a run or task verified. The `weaver evidence inspect` output includes the source configuration and an observation for each referenced PR at its observed head SHA. A partial PR inventory stays partial; unavailable records are not empty records. Candidate PRs are not implicitly treated as referenced PRs.
+Find the ID with `gh api repos/OWNER/REPOSITORY/actions/workflows`. The integration is opt-in: no section means no configured producer, no Actions API requests and no Actions read permission requirement. Malformed or unsupported configuration is an error and is not replaced by a trusted default. Configuration by itself does not mark a run or task verified. The `weaver evidence inspect` output includes the source configuration and an observation for each referenced PR at its observed head SHA. A partial PR inventory stays partial; unavailable records are not empty records. Candidate PRs are not implicitly treated as referenced PRs.
 
 ## Trust and uncertainty
 

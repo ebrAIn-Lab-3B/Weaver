@@ -16,6 +16,7 @@ import {
   makeSnapshot,
   MergedPull,
   MessageKey,
+  type Mismatch,
   moveLane,
   readSnapshot,
   snapshotAge,
@@ -344,7 +345,12 @@ export class OverviewView {
       if (!finding || this.registry.kind !== 'ok') void vscode.window.showWarningMessage(text('ui.reconcile.changed'));
       else if (!this.reconciling) {
         this.reconciling = true;
-        try { await reconcileMismatch(finding, this.registry.registry.project); await this.refreshAll(); }
+        try {
+          const card = finding.url ? this.find(finding.url)?.card : undefined;
+          if (finding.kind === 'pulls-incomplete' && card) await this.inspectCardEvidence(card);
+          else await reconcileMismatch(finding, this.registry.registry.project, (detail) => this.guideMismatch(finding, detail));
+          await this.refreshAll();
+        }
         finally { this.reconciling = false; }
       }
     }
@@ -414,6 +420,19 @@ export class OverviewView {
   }
 
   /** Review one current mismatch; writes still use their existing confirmation flow. */
+  private async guideMismatch(finding: Mismatch, detail: string): Promise<void> {
+    type Option = vscode.QuickPickItem & { run: () => Promise<unknown> | Thenable<unknown> };
+    const options: Option[] = [];
+    const card = finding.url ? this.find(finding.url)?.card : undefined;
+    if (card) options.push({ label: text('ui.reconcile.inspect-evidence'), detail, run: () => this.inspectCardEvidence(card) });
+    if (finding.url && isOpenableUrl(finding.url)) options.push({ label: text('ui.reconcile.open-issue'), detail: finding.url, run: () => openPage(finding.url as string) });
+    const file = finding.path ? this.loaded?.uris.get(finding.path) : undefined;
+    if (file) options.push({ label: text('ui.reconcile.open-file'), detail: finding.path, run: () => vscode.window.showTextDocument(file, { viewColumn: vscode.ViewColumn.Active }) });
+    options.push({ label: text('ui.reconcile.refresh'), detail, run: () => this.refreshAll() });
+    const selected = await this.choose(options, { placeHolder: text('ui.reconcile.next-step'), matchOnDetail: true });
+    if (selected) await selected.run();
+  }
+
   private reconciling = false;
 
   private async reviewMismatches(): Promise<void> {

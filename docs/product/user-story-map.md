@@ -100,6 +100,7 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-033` — As a stakeholder who works in Notion, I can see a requirement's current status, tasks, and evidence links on its Notion page, without opening the repository.
 - `US-034` — As a maintainer, I can tell which Notion page a requirement came from, and I can see when the page and the repository file have drifted apart.
 - `US-038` — As a maintainer, I can see the fixes that `reconcile` plans from the Overview and approve them one by one, without an agent or the command line. (Friction found on 2026-11-02: changing a status label needed `gh` or the CLI. Belongs to `REQ-009`.)
+  The mismatch-review entry is a partial step toward US-038 / REQ-009: it does not yet show the CLI reconciliation plan or apply its Project Status actions. Completing that story requires sharing the plan and same-scope recheck between the CLI and editor, presenting the exact target and before/after values for individual confirmation, rejecting stale or inaccessible reads, and reporting partial results without a clean-success claim. Board-ahead and ambiguous cases remain decisions under DEC-012. The existing CLI flow and its approvals are unchanged.
 - Repo-only GitHub operations reuse the Overview's `repo` and `project` session before requesting a separate `repo` session. (Defect found on 2026-11-21: task status remained unread after GitHub sign-in.)
 - `US-039` — As a team member, I can create a task from the editor with a title, a description, and an owner, and the task file, the Issue, and the Project card are made together. (Friction found on 2026-11-02: a task made by `task create` had an empty description, and the editor has no way to create one.)
 - `US-040` — As a task owner, I can add a progress note or a decision to a task file from the Requirement view, instead of editing the Markdown by hand or asking an agent.
@@ -246,5 +247,3 @@ In the first release, the story map is connected to GitHub Issues rather than a 
 - Real-time bidirectional synchronization with every external tool
 - Automatically making final product acceptance decisions without a human policy
 - A private task database that duplicates GitHub Issues
-
-The mismatch-review entry is a partial step toward US-038 / REQ-009: it does not yet show the CLI reconciliation plan or apply its Project Status actions. Completing that story requires sharing the plan and same-scope recheck between the CLI and editor, presenting the exact target and before/after values for individual confirmation, rejecting stale or inaccessible reads, and reporting partial results without a clean-success claim. Board-ahead and ambiguous cases remain decisions under DEC-012. The existing CLI flow and its approvals are unchanged.

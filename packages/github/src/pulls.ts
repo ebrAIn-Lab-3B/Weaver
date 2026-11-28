@@ -5,7 +5,7 @@ export type PullsResult = { ok: true; pulls: MergedPull[]; incomplete?: boolean 
 
 const API = 'https://api.github.com/graphql';
 
-const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage} nodes{number title url body headRefName closingIssuesReferences(first:5){pageInfo{hasNextPage} nodes{number}}}}}}`;
+const QUERY = `query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequests(states:MERGED,first:$n,orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage} nodes{number title url body headRefName closingIssuesReferences(first:5){pageInfo{hasNextPage} nodes{number repository{nameWithOwner}}}}}}}`;
 
 interface Reply {
   data?: {
@@ -18,7 +18,7 @@ interface Reply {
           url: string;
           headRefName: string;
           body?: string | null;
-          closingIssuesReferences: { nodes: { number: number }[]; pageInfo?: { hasNextPage: boolean } };
+          closingIssuesReferences: { nodes: { number: number; repository?: { nameWithOwner?: string } }[]; pageInfo?: { hasNextPage: boolean } };
         }[];
       };
     };
@@ -49,17 +49,18 @@ export async function readMergedPulls(
     const body = (await response.json()) as Reply;
     const found = body.data?.repository;
     if (!response.ok || body.errors?.length || !found) return failed;
+    const incomplete = (pull: (typeof found.pullRequests.nodes)[number]) => pull.closingIssuesReferences.pageInfo?.hasNextPage !== false || pull.closingIssuesReferences.nodes.some((issue) => !issue || !Number.isSafeInteger(issue.number) || issue.number < 1 || typeof issue.repository?.nameWithOwner !== 'string' || !issue.repository.nameWithOwner);
     return {
       ok: true,
-      ...(found.pullRequests.pageInfo?.hasNextPage !== false || found.pullRequests.nodes.some((pull) => pull.closingIssuesReferences.pageInfo?.hasNextPage !== false) ? { incomplete: true } : {}),
+      ...(found.pullRequests.pageInfo?.hasNextPage !== false || found.pullRequests.nodes.some(incomplete) ? { incomplete: true } : {}),
       pulls: found.pullRequests.nodes.map((pull) => ({
         repository,
         number: pull.number,
         title: pull.title,
         url: pull.url,
         branch: pull.headRefName,
-        closes: pull.closingIssuesReferences.nodes.map((issue) => issue.number),
-        ...(pull.closingIssuesReferences.pageInfo?.hasNextPage !== false ? { closingIncomplete: true } : {}),
+        closes: pull.closingIssuesReferences.nodes.filter((issue) => issue?.repository?.nameWithOwner?.toLowerCase() === repository.toLowerCase() && Number.isSafeInteger(issue.number) && issue.number > 0).map((issue) => issue.number),
+        ...(incomplete(pull) ? { closingIncomplete: true } : {}),
         ...(partialIssuesOfPull(pull.body).length ? { partial: partialIssuesOfPull(pull.body) } : {}),
       })),
     };

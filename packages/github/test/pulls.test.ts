@@ -8,7 +8,7 @@ const node = (number: number, closes: number[]) => ({
   title: `PR ${number}`,
   url: `https://github.com/o/a/pull/${number}`,
   headRefName: `feat/task-0${number}-x`,
-  closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: closes.map((n) => ({ number: n })) },
+  closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: closes.map((n) => ({ number: n, repository: { nameWithOwner: 'o/a' } })) },
 });
 
 describe('readMergedPulls', () => {
@@ -39,6 +39,19 @@ describe('readMergedPulls', () => {
     const item = { ...node(80, []), closingIssuesReferences: { nodes: [] } };
     const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { nodes: [item] } } } }));
     expect(result).toMatchObject({ ok: true, incomplete: true, pulls: [{ closingIncomplete: true }] });
+  });
+
+  it('does not treat a same-number Issue in a different repository as closing the local Issue', async () => {
+    const item = { ...node(80, []), closingIssuesReferences: { nodes: [{ number: 65, repository: { nameWithOwner: 'other/repo' } }], pageInfo: { hasNextPage: false } } };
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [item] } } } }));
+    expect(result).toMatchObject({ ok: true, pulls: [{ closes: [] }] });
+    if (result.ok) expect(result.incomplete).toBeUndefined();
+  });
+
+  it('treats a closing Issue with missing repository identity as incomplete', async () => {
+    const item = { ...node(80, []), closingIssuesReferences: { nodes: [{ number: 65 }], pageInfo: { hasNextPage: false } } };
+    const result = await readMergedPulls('t', 'o/a', 50, reply({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: [item] } } } }));
+    expect(result).toMatchObject({ ok: true, incomplete: true, pulls: [{ closes: [], closingIncomplete: true }] });
   });
 
   it('asks for the owner, the name, and the limit', async () => {

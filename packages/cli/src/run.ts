@@ -13,15 +13,17 @@ import {
   sameServer,
   MessageArgs,
   MessageKey,
+  normalizeIssueUrl,
   effectiveRepositories,
   planTaskFields,
   parseIssueUrl,
   repositoryFromRemote,
+  requirementForTask,
   Setup,
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { fetchIssue, fetchIssueBody, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { EVIDENCE_READ_LIMIT, fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, mapLimit, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -86,8 +88,8 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   if (args.command === 'card' && (args.positional[0] !== 'move' || args.positional.length < 2 || !args.options.to)) {
     return fail(EXIT.usage, 'cli.missing-argument', { command: 'card move', argument: 'a card and --to <column>' });
   }
-  if (args.command === 'evidence' && (args.positional[0] !== 'attach' || args.positional.length < 2 || !args.options.pull)) {
-    return fail(EXIT.usage, 'cli.missing-argument', { command: 'evidence attach', argument: 'a card and --pull <number or address>' });
+  if (args.command === 'evidence' && (args.positional.length < 2 || (args.positional[0] !== 'inspect' && args.positional[0] !== 'attach') || (args.positional[0] === 'attach' && !args.options.pull))) {
+    return fail(EXIT.usage, 'cli.missing-argument', { command: 'evidence', argument: 'inspect <task or Issue>, or attach <card> --pull <number or address>' });
   }
 
   const root = path.resolve(deps.cwd, args.options.root ?? '.');
@@ -103,6 +105,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
   if (!token) return fail(EXIT.failed, 'cli.no-token');
 
   const read = await readProject(token, setup.project, setup.repositories?.map((r) => r.repository), deps.fetch);
+  const projectReadAt = deps.now().toISOString();
   if (!read.ok) {
     report(read.error.code, formatNotice(read.error, locale));
     return EXIT.failed;
@@ -637,6 +640,137 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     return confirmAndRun(plan.actions, [], { report: plan.reports, dryRun, context, recheck });
   }
 
+  if (args.command === 'evidence' && args.positional[0] === 'inspect') {
+    const requested = args.positional[1];
+    const taskLinks = artifacts.flatMap((artifact) => {
+      if (artifact.kind !== 'task') return [];
+      const requirement = requirementForTask(artifact, artifacts);
+      const listed = requirement?.tasks.filter((task) => task.id === artifact.id).flatMap((task) => task.issueUrl ? [task.issueUrl] : []) ?? [];
+      const urls = [...new Map([...(artifact.issue ? [artifact.issue] : []), ...listed].map((url) => [normalizeIssueUrl(url), url])).values()];
+      return [{ task: artifact, urls }];
+    });
+    const listedOnly = artifacts.flatMap((requirement) => {
+      if (requirement.kind !== 'requirement') return [];
+      return requirement.tasks.flatMap((task) => {
+        if (!task.issueUrl || taskLinks.some((item) => item.task.id === task.id && requirementForTask(item.task, artifacts)?.path === requirement.path)) return [];
+        return [{ id: task.id, issueUrl: task.issueUrl, requirementPath: requirement.path }];
+      });
+    });
+    const matchingTasks = taskLinks.filter(({ task, urls }) => task.id.toLowerCase() === requested.toLowerCase() || urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(requested)));
+    const matchingListed = listedOnly.filter((item) => item.id.toLowerCase() === requested.toLowerCase() || normalizeIssueUrl(item.issueUrl) === normalizeIssueUrl(requested));
+    if (/^TASK-\d+$/i.test(requested) && matchingTasks.length + matchingListed.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: [...matchingTasks.map((item) => item.task.path), ...matchingListed.map((item) => item.requirementPath)] });
+    const requestedCard = findCards(all, requested);
+    if (requestedCard.length > 1) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: requestedCard.map((card) => `${card.repository}#${card.number}`) });
+    const direct = parseIssueUrl(requested) ? requested : undefined;
+    if (matchingTasks.some((item) => item.urls.length > 1)) return fail(EXIT.usage, 'cli.ambiguous', { ref: requested, matches: matchingTasks.flatMap((item) => item.urls) });
+    const issueUrl = matchingTasks[0]?.urls[0] ?? matchingListed[0]?.issueUrl ?? requestedCard[0]?.url ?? direct;
+    if (!issueUrl) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
+    const issueRef = parseIssueUrl(issueUrl);
+    if (!issueRef || !repositories.some((repository) => repository.toLowerCase() === `${issueRef.owner}/${issueRef.repo}`.toLowerCase())) return fail(EXIT.notFound, 'cli.not-found', { ref: requested });
+    const linked = taskLinks.filter((item) => item.urls.some((url) => normalizeIssueUrl(url) === normalizeIssueUrl(issueUrl))).map((item) => item.task);
+    const linkedListed = listedOnly.filter((item) => normalizeIssueUrl(item.issueUrl) === normalizeIssueUrl(issueUrl));
+    const projectCard = cards.find((card) => normalizeIssueUrl(card.url) === normalizeIssueUrl(issueUrl));
+    const repository = `${issueRef.owner}/${issueRef.repo}`;
+    const process = processes.get(repository.toLowerCase());
+    const usableProcess = process && process.file !== 'failed' && !process.issues.some((item) => item.severity === 'error');
+    const [observed, pullInventory] = await Promise.all([
+      fetchCompletionEvidence(token, issueUrl, deps.now(), deps.fetch as unknown as FetchFn | undefined),
+      fetchPullInventory(token, repository, deps.fetch as unknown as FetchFn | undefined),
+    ]);
+    const findings: { kind: string; message: string; url: string }[] = [];
+    const finding = (kind: string, key: MessageKey, url: string) => findings.push({ kind, message: say(key), url });
+    const checkFinding = (checks: string, url: string) => {
+      if (checks === 'none') finding('no-checks', 'cli.evidence-inspect.no-checks', url);
+      if (checks === 'unknown') finding('checks-inconclusive', 'cli.evidence-inspect.checks-inconclusive', url);
+      if (checks === 'failing') finding('checks-failing', 'cli.evidence-inspect.checks-failing', url);
+      if (checks === 'pending') finding('checks-pending', 'cli.evidence-inspect.checks-pending', url);
+    };
+    const issueComparison = projectCard && observed.issue.ok ? {
+      status: projectCard.state === observed.issue.issue.state && JSON.stringify([...projectCard.labels].sort()) === JSON.stringify([...observed.issue.issue.labels].sort()) ? 'consistent' : 'conflicting',
+      projectState: projectCard.state,
+      issueState: observed.issue.issue.state,
+      projectLabels: [...projectCard.labels].sort(),
+      issueLabels: [...observed.issue.issue.labels].sort(),
+      projectReadAt,
+      issueReadAt: observed.readAt,
+    } : { status: 'unavailable', projectReadAt, issueReadAt: observed.readAt };
+    if (issueComparison.status === 'conflicting') finding('issue-observations-conflict', 'cli.evidence-inspect.observations-conflict', issueUrl);
+    if (!observed.issue.ok) finding('issue-unavailable', 'cli.evidence-inspect.issue-unavailable', issueUrl);
+    if (observed.pulls.status === 'unavailable') finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', issueUrl);
+    else {
+      if (observed.pulls.status === 'partial') for (const missing of observed.pulls.unavailable) finding('pulls-unavailable', 'cli.evidence-inspect.pulls-unavailable', missing.url);
+      if (observed.pulls.status === 'read' && observed.pulls.value.length === 0) finding('no-referenced-pr', 'cli.evidence-inspect.no-pr', issueUrl);
+      for (const pull of observed.pulls.value) {
+        if (pull.state === 'merged' && pull.link === 'mentions') finding('merged-not-closing', 'cli.evidence-inspect.non-closing', pull.url);
+        if (pull.link === 'unknown') finding('closing-unavailable', 'cli.evidence-inspect.closing-unavailable', pull.url);
+        checkFinding(pull.checks, pull.url);
+        if (pull.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', pull.url);
+        if (pull.statusContexts?.state === 'failure' || pull.statusContexts?.state === 'error') finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', pull.url);
+        if (pull.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', pull.url);
+      }
+    }
+    if (observed.comments.status === 'unavailable') finding('comments-unavailable', 'cli.evidence-inspect.comments-unavailable', issueUrl);
+    for (const entry of observed.reviews ?? []) {
+      if (entry.observation.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', entry.pullUrl);
+      else if (entry.observation.value.length === 0) finding('no-formal-review', 'cli.evidence-inspect.no-review', entry.pullUrl);
+      else if (entry.revision && entry.observation.value.some((review) => review.revision && review.revision !== entry.revision)) finding('review-different-revision', 'cli.evidence-inspect.review-revision', entry.pullUrl);
+    }
+    if (!usableProcess) finding('process-unavailable', 'cli.evidence-inspect.process-unavailable', issueUrl);
+    if (linked.length + linkedListed.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
+    if (pullInventory.status === 'unavailable') finding('pull-inventory-incomplete', 'cli.evidence-inspect.inventory-incomplete', issueUrl);
+    const issueNumberPattern = new RegExp(`#${issueRef.number}(?!\\d)`);
+    const discovered = pullInventory.status === 'read' ? pullInventory.value.filter((pull) => issueNumberPattern.test(`${pull.title}\n${pull.body ?? ''}`) || [...linked, ...linkedListed].some((task) => taskIdsOfPull(pull).includes(task.id))) : [];
+    const referencedUrls = new Set(observed.pulls.status !== 'unavailable' ? observed.pulls.value.map((pull) => pull.url.toLowerCase()) : []);
+    const candidates = discovered.filter((pull) => !referencedUrls.has(pull.url.toLowerCase()));
+    const candidateEvidence = await mapLimit(candidates, EVIDENCE_READ_LIMIT, async (candidate) => {
+      const fetchFn = deps.fetch as unknown as FetchFn | undefined;
+      const [pull, reviews] = await Promise.all([fetchCandidatePullEvidence(token, issueUrl, candidate, fetchFn), fetchPullReviews(token, candidate.url, fetchFn)]);
+      if (!pull.ok) return { url: candidate.url, pull, reviews };
+      // Candidate discovery alone does not establish that a PR references the Issue.
+      const { link, ...facts } = pull.pull;
+      return { url: candidate.url, pull: { ok: true as const, facts, closingAssociation: link === 'mentions' ? 'not-closing' : link }, reviews };
+    });
+    for (const candidate of candidateEvidence) {
+      finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
+      if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
+      if (candidate.pull.ok) checkFinding(candidate.pull.facts.checks, candidate.url);
+      if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'unknown') finding('status-contexts-unavailable', 'cli.evidence-inspect.status-unavailable', candidate.url);
+      if (candidate.pull.ok && (candidate.pull.facts.statusContexts?.state === 'failure' || candidate.pull.facts.statusContexts?.state === 'error')) finding('status-contexts-failed', 'cli.evidence-inspect.status-failed', candidate.url);
+      if (candidate.pull.ok && candidate.pull.facts.statusContexts?.state === 'pending') finding('status-contexts-pending', 'cli.evidence-inspect.status-pending', candidate.url);
+      if (candidate.reviews.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', candidate.url);
+      else {
+        const revision = candidate.pull.ok ? candidate.pull.facts.revision : undefined;
+        if (revision && candidate.reviews.value.some((review) => review.revision && review.revision !== revision)) finding('review-different-revision', 'cli.evidence-inspect.review-revision', candidate.url);
+      }
+    }
+    const taskTestClaims = linked.flatMap((task) => task.tests ? [{ path: task.path, text: task.tests }] : []);
+    const independentTests = {
+      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-structured-task-claim-or-issue-comments' : 'unverified',
+      taskClaims: taskTestClaims,
+      commentSource: observed.comments.status,
+      guidance: say('cli.evidence-inspect.test-claims'),
+    };
+    const detail = {
+      schema: SCHEMA,
+      project: setup.project,
+      issueComparison,
+      membership: projectCard ? 'present' : boardRead.membershipComplete === true ? 'absent' : 'unknown',
+      placement: projectCard && usableProcess ? { column: projectCard.placement.column, reliability: issueComparison.status === 'consistent' && projectCard.placement.gaps.length === 0 && (process.process.columns.source !== 'board-status' || projectCard.boardStatusRead === true) ? 'observed' : 'uncertain', gaps: projectCard.placement.gaps, labels: projectCard.labels, boardStatus: projectCard.boardStatus ?? null, boardStatusRead: projectCard.boardStatusRead === true } : null,
+      process: usableProcess ? { file: process.file, sources: process.sources, columns: process.process.columns, evidence: process.process.evidence } : null,
+      tasks: [...linked.map((task) => ({ id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null })), ...linkedListed.map((item) => ({ id: item.id, path: null, requirementPath: item.requirementPath, file: workspaceComplete ? 'absent' : 'unknown', testClaim: null, evidenceException: null, exceptionHonored: null }))],
+      sharedIssue: linked.length + linkedListed.length > 1,
+      independentTests,
+      observation: observed,
+      pullInventory: pullInventory.status === 'read' ? { status: 'read', candidates: discovered } : pullInventory,
+      candidateEvidence,
+      findings,
+      guidance: say('cli.evidence-inspect.guidance'),
+    };
+    if (wantsText) deps.out(`${say('cli.evidence-inspect.heading')}\n${JSON.stringify(detail, null, 2)}\n`);
+    else deps.out(`${JSON.stringify(detail)}\n`);
+    return EXIT.ok;
+  }
+
   if (args.command === 'card' || args.command === 'evidence') {
     const ref = args.positional[1];
     const matches = findCards(all, ref);
@@ -688,9 +822,9 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
             pull.repository.toLowerCase() === card.repository.toLowerCase() &&
             (pull.closes.includes(card.number) || (card.task !== undefined && taskIdsOfPull(pull).includes(card.task.id))),
         )
-        .map((pull) => ({ number: pull.number, title: pull.title, url: pull.url, closes: pull.closes.includes(card.number) }))
+        .map((pull) => ({ number: pull.number, title: pull.title, url: pull.url, closes: pull.closes.includes(card.number), ...(pull.closingIncomplete ? { closingIncomplete: true } : {}) }))
     : null;
-  const warnings = merged.ok ? [] : [formatNotice(merged.error, locale)];
+  const warnings = merged.ok ? (merged.incomplete ? [say('cli.show.pulls-incomplete')] : []) : [formatNotice(merged.error, locale)];
 
   const detail = {
     schema: SCHEMA,

@@ -19,6 +19,19 @@ describe('mergeCardPulls', () => {
     expect(result.map((p) => p.number)).toEqual([5, 6]);
   });
 
+  it('does not transfer a closing association to a same-number PR in another repository', () => {
+    const result = mergeCardPulls([pull(5, 'MERGED')], [pull(5, 'MERGED', { url: 'https://github.com/other/repo/pull/5' })]);
+    expect(result).toHaveLength(2);
+    expect(result.find((item) => item.url.includes('/o/r/'))?.closes).toBe(true);
+    expect(result.find((item) => item.url.includes('/other/repo/'))?.closes).toBeUndefined();
+  });
+
+  it('deduplicates case and trailing-slash variants and rejects inconsistent identities', () => {
+    const result = mergeCardPulls([pull(5, 'MERGED')], [pull(5, 'MERGED', { url: 'https://github.com/O/R/pull/5/' }), pull(6, 'OPEN', { url: 'https://github.com/o/r/pull/7' })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].closes).toBe(true);
+  });
+
   it('shows at most three, keeping the open ones before the merged ones', () => {
     const result = mergeCardPulls([pull(1, 'MERGED'), pull(2, 'MERGED'), pull(3, 'MERGED'), pull(4, 'MERGED')], [pull(2, 'OPEN')]);
     expect(MAX_CARD_PULLS).toBe(3);

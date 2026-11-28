@@ -35,6 +35,13 @@ describe('existing task PR inspection', () => {
     await expect(observeExistingTaskPull({ ...input, fetch: mock() })).resolves.toEqual({ url: pull.html_url, head: sha });
   });
 
+  it('accepts only the exact older generated placement wording during recovery', async () => {
+    const expectedTask = 'Ownership is recorded here; the configured process determines Kanban placement.\n';
+    const legacy = 'Ownership is recorded here; the Kanban column comes from the Issue.\n';
+    await expect(observeExistingTaskPull({ ...input, expectedTask, fetch: mock({ task: legacy }) })).resolves.toEqual({ url: pull.html_url, head: sha });
+    await expect(observeExistingTaskPull({ ...input, expectedTask, fetch: mock({ task: `${legacy}unexpected edit\n` }) })).rejects.toThrow('Task contents differ');
+  });
+
   it('fails closed for conflicting content, ambiguous PRs, failed reads and a changed head', async () => {
     for (const options of [{ task: 'changed' }, { requirement: 'missing link' }, { requirement: `${input.expectedRequirementLine}\n- \`TASK-001\` other issue` }, { duplicate: true }, { failContent: true }, { secondSha: 'b'.repeat(40) }]) {
       await expect(observeExistingTaskPull({ ...input, fetch: mock(options) })).rejects.toThrow();

@@ -47,7 +47,8 @@ function rest(comments: unknown = [], status = 200) {
   const fetchFn = (async (url: string, init?: { method?: string; body?: string }) => {
     calls.push({ method: init?.method ?? 'GET', url, ...(init?.body ? { body: JSON.parse(init.body) } : {}) });
     const ok = status < 400;
-    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : { number: 20, title: 'Issue', html_url: url, state: 'open', labels: [], assignees: [] }) };
+    const issue = /\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/.exec(url);
+    return { ok, status, json: async () => (url.includes('/comments') && (init?.method ?? 'GET') === 'GET' ? comments : { number: issue ? Number(issue[3]) : 20, title: 'Issue', html_url: issue ? `https://github.com/${issue[1]}/${issue[2]}/issues/${issue[3]}` : url, state: 'open', labels: [], assignees: [] }) };
   }) as unknown as FetchFn;
   return { fetchFn, calls };
 }
@@ -161,7 +162,7 @@ describe('planReconcile', () => {
     let taskLink = url(10);
     const fetch = (async (_url: string, init: { body: string }) => {
       const request = JSON.parse(init.body);
-      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: membershipUnknown ? [{ content: null }] : present ? [{ id: 'ITEM', fieldValueByName: null, content: { __typename: 'Issue', number: 10, title: 'Card', url: url(10), state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [] }, assignees: { nodes: [] } } }] : [] } } } } }) };
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: membershipUnknown ? [{ content: null }] : present ? [{ id: 'ITEM', fieldValueByName: null, content: { __typename: 'Issue', number: 10, title: 'Card', url: url(10), state: 'OPEN', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [] }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] : [] } } } } }) };
       if (request.query.includes('resource(url')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P' } }, resource: { id: 'I' } } }) };
       additions += 1; present = true;
       return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) };
@@ -186,7 +187,7 @@ describe('planReconcile', () => {
     let present = false;
     const fetch = (async (_url: string, init: { body: string }) => {
       const request = JSON.parse(init.body);
-      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: present ? [{ id: 'ITEM', fieldValueByName: null, content: { __typename: 'Issue', number: 10, title: 'Card', url: url(10), state: 'CLOSED', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [] }, assignees: { nodes: [] } } }] : [] } } } } }) };
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Board', items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: present ? [{ id: 'ITEM', fieldValueByName: null, content: { __typename: 'Issue', number: 10, title: 'Card', url: url(10), state: 'CLOSED', repository: { nameWithOwner: 'me/Weaver' }, labels: { pageInfo: { hasNextPage: false }, nodes: [] }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] : [] } } } } }) };
       if (request.query.includes('resource(url')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'P' } }, resource: { id: 'I' } } }) };
       present = true;
       return { ok: true, status: 200, json: async () => ({ data: { addProjectV2ItemById: { item: { id: 'ITEM' } } } }) };
@@ -202,6 +203,13 @@ describe('planReconcile', () => {
     const plan = await planReconcile(input({ artifacts, cards: [], pulls: [], fetchFn: unreadable.fetchFn }));
     expect(plan.actions.filter((a) => a.kind === 'project.add')).toEqual([]);
     expect(plan.reports.map((r) => r.kind)).toContain('issue-unavailable');
+  });
+
+  it('does not offer a Project addition when the response names a different Issue', async () => {
+    const fetchFn = (async () => ({ ok: true, status: 200, json: async () => ({ number: 10, title: 'Issue', html_url: 'https://github.com/other/repo/issues/10', state: 'open', labels: [], assignees: [] }) })) as unknown as FetchFn;
+    const plan = await planReconcile(input({ artifacts: quiet, cards: [], pulls: [], fetchFn }));
+    expect(plan.actions.filter((action) => action.kind === 'project.add')).toEqual([]);
+    expect(plan.reports.map((report) => report.kind)).toContain('issue-unavailable');
   });
 
   it('proposes setting a confirmed missing board Status and refuses an unreadable process', async () => {
@@ -278,7 +286,7 @@ describe('planReconcile', () => {
       const request = JSON.parse(init.body); calls.push(request);
       let body: unknown;
       if (request.query.includes('items(first:100')) {
-        body = { data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: boardStatus }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } };
+        body = { data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: boardStatus }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } };
       } else if (request.query.includes('field(name:$f)')) {
         body = { data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } };
       } else {
@@ -299,7 +307,7 @@ describe('planReconcile', () => {
     let writes = 0;
     const fetch = (async (_url: string, init: { body: string }) => {
       const request = JSON.parse(init.body);
-      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'new-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'new-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } }) };
       writes += 1; throw new Error('unexpected write');
     }) as unknown as NonNullable<ReconcileInput['fetch']>;
     const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatus: 'Todo', projectItemId: 'old-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
@@ -312,7 +320,7 @@ describe('planReconcile', () => {
     let writes = 0;
     const fetch = (async (_url: string, init: { body: string }) => {
       const request = JSON.parse(init.body);
-      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } }) };
       writes += 1; throw new Error('unexpected write');
     }) as unknown as NonNullable<ReconcileInput['fetch']>;
     const plan = await planReconcile(input({ artifacts: quiet, cards: [card(10, { boardStatusRead: true, projectItemId: 'selected-item' })], pulls: [], rulesFor: () => rules, freshRulesFor: async () => rules, fetch }));
@@ -329,7 +337,7 @@ describe('planReconcile', () => {
       if (request.query.includes('items(first:100')) {
         projectReads += 1;
         if (projectReads > 1) throw new Error('network failure');
-        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+        return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } }) };
       }
       if (request.query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } }) };
       mutations += 1;
@@ -345,7 +353,7 @@ describe('planReconcile', () => {
     let wrote = false;
     const fetch = (async (_url: string, init: { body: string }) => {
       const request = JSON.parse(init.body);
-      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: wrote ? 'In Progress' : 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: wrote ? 'CLOSED' : 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { nodes: [] } } }] } } } } }) };
+      if (request.query.includes('items(first:100')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { title: 'Selected', field: { options: [{ name: 'Todo' }, { name: 'In Progress' }] }, items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'selected-item', fieldValueByName: { name: wrote ? 'In Progress' : 'Todo' }, content: { __typename: 'Issue', repository: { nameWithOwner: 'me/Weaver' }, number: 10, title: '[TASK-010] Card', url: url(10), state: wrote ? 'CLOSED' : 'OPEN', labels: { nodes: [{ name: 'task' }, { name: 'status:in-progress' }], pageInfo: { hasNextPage: false } }, assignees: { pageInfo: { hasNextPage: false }, nodes: [] } } }] } } } } }) };
       if (request.query.includes('field(name:$f)')) return { ok: true, status: 200, json: async () => ({ data: { repositoryOwner: { projectV2: { id: 'selected-project', field: { id: 'status', options: [{ id: 'progress', name: 'In Progress' }] } } } } }) };
       wrote = true;
       return { ok: true, status: 200, json: async () => ({ data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: 'selected-item' } } } }) };

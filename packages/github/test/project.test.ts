@@ -12,7 +12,7 @@ const issue = (repository: string, number: number, extra: Record<string, unknown
     state: 'OPEN',
     repository: { nameWithOwner: repository },
     labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:backlog' }] },
-    assignees: { nodes: [] },
+    assignees: { pageInfo: { hasNextPage: false }, nodes: [] },
     ...extra,
   },
 });
@@ -39,8 +39,15 @@ function fake(...replies: { status?: number; body: unknown }[]) {
 const project = { owner: 'me', number: 1 };
 
 describe('readProject', () => {
+  it('rejects missing, incomplete, or paginated assignees instead of reporting an empty list', async () => {
+    for (const assignees of [undefined, { nodes: [] }, { pageInfo: { hasNextPage: true }, nodes: [{ login: 'me' }] }]) {
+      const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { assignees })], null) });
+      expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: false, error: { code: 'project.pagination-incomplete' } });
+    }
+  });
+
   it('reports malformed Project pages and labels without throwing or treating them as complete', async () => {
-    for (const body of [null, { errors: [null] }, page([null], null), page([issue('me/Weaver', 1, { assignees: { nodes: [null] } })], null)]) {
+    for (const body of [null, { errors: [null] }, page([null], null), page([issue('me/Weaver', 1, { assignees: { pageInfo: { hasNextPage: false }, nodes: [null] } })], null)]) {
       const { fetchImpl } = fake({ body });
       const result = await readProject('t', project, undefined, fetchImpl);
       expect(result.ok).toBe(false);
@@ -60,6 +67,15 @@ describe('readProject', () => {
     const result = await readProject('t', project, undefined, fetchImpl);
     expect(result.ok && result.read.cards[0].pullsIncomplete).toBe(true);
   });
+
+  it('marks Project membership incomplete when a card URL disagrees with its Issue identity', async () => {
+    for (const url of ['https://github.com/other/repo/issues/1', 'https://github.com/me/Weaver/issues/2', 'https://github.com/me/Weaver/pull/1']) {
+      const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { url })], null) });
+      expect(await readProject('t', project, undefined, fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: false, cards: [], skipped: 1 } });
+    }
+    const valid = fake({ body: page([issue('me/Weaver', 1, { url: 'https://github.com/ME/weaver/issues/1/' })], null) });
+    expect(await readProject('t', project, undefined, valid.fetchImpl)).toMatchObject({ ok: true, read: { membershipComplete: true, cards: [{ number: 1 }] } });
+  });
   it('reads the Issues of every repository when no list is given', async () => {
     const { fetchImpl } = fake({ body: page([issue('me/a', 1), issue('other/b', 2)], null) });
     const result = await readProject('t', project, undefined, fetchImpl);
@@ -75,7 +91,7 @@ describe('readProject', () => {
             title: '[TASK-029] Verify access',
             state: 'CLOSED',
             labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'task' }, { name: 'status:verified' }] },
-            assignees: { nodes: [{ login: 'me' }] },
+            assignees: { pageInfo: { hasNextPage: false }, nodes: [{ login: 'me' }] },
           }),
         ],
         null,
@@ -247,6 +263,20 @@ describe('readProject', () => {
     expect(query).toContain('closedByPullRequestsReferences(last:3');
     expect(query).toContain('nodes{number url title state}');
     expect(query).toContain('CrossReferencedEvent');
+  });
+
+  it('keeps same-number PRs from different repositories distinct in Project cards', async () => {
+    const close = { number: 5, url: 'https://github.com/me/Weaver/pull/5', title: 'Closes', state: 'MERGED' };
+    const mention = { number: 5, url: 'https://github.com/other/repo/pull/5', title: 'Mentions', state: 'MERGED' };
+    const { fetchImpl } = fake({ body: page([issue('me/Weaver', 1, { closedByPullRequestsReferences: { totalCount: 1, nodes: [close] }, timelineItems: { totalCount: 1, nodes: [{ source: mention }] } })], null) });
+    const result = await readProject('t', project, ['me/Weaver'], fetchImpl);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.read.cards[0].pulls).toEqual([
+      expect.objectContaining({ url: close.url, closes: true }),
+      expect.not.objectContaining({ url: close.url }),
+    ]);
+    expect(result.read.cards[0].pulls?.find((pull) => pull.url === mention.url)?.closes).toBeUndefined();
   });
 
   it('omits board status and task id when absent', async () => {

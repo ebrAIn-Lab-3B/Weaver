@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { planMove } from '@ebrain-lab/weaver-markdown';
-import { addIssueComment, applyMove, fetchEvidence, fetchIssue, fetchPull, hasIssueComment, setBoardStatus, setIssueAssignees, type FetchFn } from '../src';
+import { addIssueComment, applyMove, fetchCandidatePullEvidence, fetchEvidence, fetchIssue, fetchPull, hasIssueComment, setBoardStatus, setIssueAssignees, type FetchFn } from '../src';
 
 const ISSUE = 'https://github.com/me/Weaver/issues/5';
 
@@ -21,8 +21,8 @@ function routes(answer: (call: Call) => { status?: number; json?: unknown }) {
 
 describe('fetchIssue', () => {
   it('refuses malformed state and incomplete labels instead of assuming an open Issue', async () => {
-    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [{ name: 'task' }] };
-    for (const change of [{ state: undefined }, { state: 'unknown' }, { labels: [{ name: null }] }, { number: 0 }, { assignees: [{}] }]) {
+    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [{ name: 'task' }], assignees: [] };
+    for (const change of [{ state: undefined }, { state: 'unknown' }, { labels: [{ name: null }] }, { number: 0 }, { assignees: undefined }, { assignees: [{}] }]) {
       const result = await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, ...change } })).fetchFn);
       expect(result).toMatchObject({ ok: false, error: { code: 'github.err.issue-incomplete' } });
     }
@@ -33,6 +33,14 @@ describe('fetchIssue', () => {
     }));
     const result = await fetchIssue('t', ISSUE, fetchFn);
     expect(result).toEqual({ ok: true, issue: { number: 5, title: 'T', url: ISSUE, state: 'open', labels: ['task', 'status:review'], assignees: ['me'] } });
+  });
+
+  it('rejects an Issue response with a different repository, number, or URL identity', async () => {
+    const issue = { number: 5, title: 'T', html_url: ISSUE, state: 'open', labels: [], assignees: [] };
+    for (const change of [{ number: 6 }, { html_url: 'https://github.com/other/Weaver/issues/5' }, { html_url: 'https://github.com/me/Weaver/issues/6' }, { html_url: 'https://github.com/me/Weaver/pull/5' }]) {
+      expect(await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, ...change } })).fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.issue-incomplete' } });
+    }
+    expect(await fetchIssue('t', ISSUE, routes(() => ({ json: { ...issue, html_url: 'https://github.com/ME/weaver/issues/5/' } })).fetchFn)).toMatchObject({ ok: true });
   });
 
   it('turns a missing Issue, a bad address, and a network failure into notices', async () => {
@@ -102,12 +110,44 @@ describe('fetchEvidence', () => {
         };
       }
       if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #5', head: { sha: 'abc' } } };
-      return { json: { check_runs: [{ status: 'completed', conclusion: 'success' }] } };
+      if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 5, repository: { nameWithOwner: 'me/Weaver' } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
+      return { json: { total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success' }] } };
     });
     const result = await fetchEvidence('t', ISSUE, fetchFn);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.evidence.pulls).toMatchObject([{ number: 7, state: 'merged', link: 'closes' }]);
+    expect(result.evidence.pulls).toMatchObject([{ number: 7, state: 'merged', link: 'closes', textClaimsClosing: true, revision: 'abc' }]);
+  });
+
+  it('distinguishes a text claim from a complete, repository-qualified closing association and an unavailable read', async () => {
+    const base = (relationship: unknown) => routes((call) => {
+      if (call.url.includes('/timeline')) return { json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'feat', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] };
+      if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: 'Closes #5', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) return { json: relationship };
+      return { json: { total_count: 0, check_runs: [] } };
+    }).fetchFn;
+    const other = { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 5, repository: { nameWithOwner: 'other/repo' } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    const nonClosing = await fetchEvidence('t', ISSUE, base(other));
+    expect(nonClosing).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'mentions', textClaimsClosing: true, checks: 'none' }] } });
+    const unavailable = await fetchEvidence('t', ISSUE, base({ errors: [{ message: 'forbidden' }] }));
+    expect(unavailable).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'unknown', textClaimsClosing: true }] } });
+    const truncated = { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: true, endCursor: null } } } } } };
+    expect(await fetchEvidence('t', ISSUE, base(truncated))).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'unknown' }] } });
+  });
+
+  it('follows closing-reference pages before reporting a missing association', async () => {
+    const { fetchFn, calls } = routes((call) => {
+      if (call.url.includes('/timeline')) return { json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'feat', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] };
+      if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) {
+        const after = (call.body as { variables: { after: string | null } }).variables.after;
+        const refs = after === null ? { nodes: [], pageInfo: { hasNextPage: true, endCursor: 'next' } } : { nodes: [{ number: 5, repository: { nameWithOwner: 'me/Weaver' } }], pageInfo: { hasNextPage: false, endCursor: null } };
+        return { json: { data: { repository: { pullRequest: { closingIssuesReferences: refs } } } } };
+      }
+      return { json: { total_count: 0, check_runs: [] } };
+    });
+    expect(await fetchEvidence('t', ISSUE, fetchFn)).toMatchObject({ ok: true, evidence: { pulls: [{ link: 'closes' }] } });
+    expect(calls.filter((call) => call.url.endsWith('/graphql'))).toHaveLength(2);
   });
 
   it('refuses to infer evidence from a truncated timeline or check-run list', async () => {
@@ -118,12 +158,63 @@ describe('fetchEvidence', () => {
       if (call.url.endsWith('/pulls/7')) return { json: { state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'abc' } } };
       return { json: { total_count: 2, check_runs: [{ status: 'completed', conclusion: 'success' }] } };
     });
-    expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+    expect(await fetchEvidence('t', ISSUE, checks.fetchFn)).toMatchObject({ ok: true, evidence: { pulls: [{ state: 'merged', checks: 'unknown', checksError: { code: 'github.err.evidence-incomplete' } }] } });
+  });
+
+  it('reads an advertised short timeline page and rejects unexpected next links', async () => {
+    for (const next of ['https://api.github.com/repos/me/Weaver/issues/5/timeline?per_page=100&page=2', 'https://api.github.com/repos/me/other/issues/5/timeline?per_page=100&page=2']) {
+      const base = routes(() => ({ json: { total_count: 0, check_runs: [] } })).fetchFn;
+      const fetchFn = (async (url: string, init?: RequestInit) => {
+        if (url.includes('/timeline')) {
+          const first = url.endsWith('page=1');
+          return { ok: true, status: 200, headers: new Headers(first ? { link: `<${next}>; rel="next"` } : {}), json: async () => [{ event: 'commented' }] } as Response;
+        }
+        return base(url, init);
+      }) as FetchFn;
+      const result = await fetchEvidence('t', ISSUE, fetchFn);
+      expect(result.ok).toBe(next.includes('/me/Weaver/'));
+      if (!result.ok) expect(result.error.code).toBe('github.err.evidence-incomplete');
+    }
   });
 
   it('turns a failed call into a notice', async () => {
     const result = await fetchEvidence('t', ISSUE, routes(() => ({ status: 500 })).fetchFn);
     expect(result).toMatchObject({ ok: false, error: { code: 'github.err.http' } });
+  });
+
+  it('does not hide inaccessible or inconsistent cross-reference identity', async () => {
+    const missing = routes(() => ({ json: [{ event: 'cross-referenced', source: {} }] }));
+    expect(await fetchEvidence('t', ISSUE, missing.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+    const mismatch = routes(() => ({ json: [{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/other/repo/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }] }));
+    expect(await fetchEvidence('t', ISSUE, mismatch.fetchFn)).toMatchObject({ ok: false, error: { code: 'github.err.evidence-incomplete' } });
+  });
+});
+
+describe('candidate pull evidence', () => {
+  it('retains an unmerged PR state without treating candidate discovery as a timeline reference', async () => {
+    const { fetchFn } = routes((call) => {
+      if (call.url.endsWith('/pulls/9')) return { json: { state: 'open', merged_at: null, body: 'work', head: { sha: 'abc' } } };
+      if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
+      return { json: { total_count: 0, check_runs: [] } };
+    });
+    expect(await fetchCandidatePullEvidence('t', ISSUE, { title: 'work (TASK-005)', url: 'https://github.com/me/Weaver/pull/9' }, fetchFn)).toMatchObject({ ok: true, pull: { state: 'open', checks: 'none', link: 'mentions', revision: 'abc' } });
+  });
+
+  it('reads commit status contexts independently from check runs and refuses incomplete status pages', async () => {
+    for (const [response, expected] of [
+      [{ state: 'success', total_count: 1, statuses: [{ state: 'success' }] }, 'success'],
+      [{ state: 'pending', total_count: 0, statuses: [] }, 'none'],
+      [{ state: 'success', total_count: 2, statuses: [{ state: 'success' }] }, 'unknown'],
+      [{}, 'unknown'],
+    ] as const) {
+      const { fetchFn } = routes((call) => {
+        if (call.url.endsWith('/pulls/9')) return { json: { state: 'open', merged_at: null, body: '', head: { sha: 'abc' } } };
+        if (call.url.endsWith('/graphql')) return { json: { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } } };
+        if (call.url.includes('/status?')) return { json: response };
+        return { json: { total_count: 0, check_runs: [] } };
+      });
+      expect(await fetchCandidatePullEvidence('t', ISSUE, { title: 'work', url: 'https://github.com/me/Weaver/pull/9' }, fetchFn)).toMatchObject({ ok: true, pull: { checks: 'none', statusContexts: { state: expected } } });
+    }
   });
 });
 

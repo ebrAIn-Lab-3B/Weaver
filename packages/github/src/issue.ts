@@ -1,8 +1,9 @@
 import { NoticeError, errorNotice } from './errors';
+import { evidenceNext } from './evidencePagination';
+import { mapLimit } from './processes';
 import {
   BoardItem,
   CheckRunLike,
-  closesIssue,
   IssueSnapshot,
   MovePlan,
   Notice,
@@ -14,6 +15,8 @@ import {
 
 /** The global `fetch`, or a replacement for a test. */
 export type FetchFn = typeof fetch;
+/** Bound concurrent PR observations; each observation can issue several source reads. */
+export const EVIDENCE_READ_LIMIT = 4;
 
 interface Ctx {
   token: string;
@@ -50,9 +53,11 @@ export async function fetchIssue(token: string, issueUrl: string, fetchFn: Fetch
       labels: ({ name?: string } | string)[];
       assignees?: { login: string }[];
     };
-    if (!data || !Number.isSafeInteger(data.number) || data.number < 1 || typeof data.title !== 'string' || typeof data.html_url !== 'string' || (data.state !== 'open' && data.state !== 'closed') || !Array.isArray(data.labels) || data.labels.some((label) => typeof label === 'string' ? !label : !label || typeof label.name !== 'string' || !label.name) || (data.assignees !== undefined && (!Array.isArray(data.assignees) || data.assignees.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)))) {
+    if (!data || !Number.isSafeInteger(data.number) || data.number < 1 || typeof data.title !== 'string' || typeof data.html_url !== 'string' || (data.state !== 'open' && data.state !== 'closed') || !Array.isArray(data.labels) || data.labels.some((label) => typeof label === 'string' ? !label : !label || typeof label.name !== 'string' || !label.name) || !Array.isArray(data.assignees) || data.assignees.some((assignee) => !assignee || typeof assignee.login !== 'string' || !assignee.login)) {
       return { ok: false, error: { code: 'github.err.issue-incomplete' } };
     }
+    const returned = parseIssueUrl(data.html_url);
+    if (!returned || returned.owner.toLowerCase() !== ref.owner.toLowerCase() || returned.repo.toLowerCase() !== ref.repo.toLowerCase() || returned.number !== ref.number || data.number !== ref.number) return { ok: false, error: { code: 'github.err.issue-incomplete' } };
     return {
       ok: true,
       issue: {
@@ -61,7 +66,7 @@ export async function fetchIssue(token: string, issueUrl: string, fetchFn: Fetch
         url: data.html_url,
         state: data.state,
         labels: data.labels.map((label) => (typeof label === 'string' ? label : label.name ?? '')).filter(Boolean),
-        assignees: (data.assignees ?? []).map((a) => a.login),
+        assignees: data.assignees.map((a) => a.login),
       },
     };
   } catch (error) {
@@ -255,6 +260,83 @@ interface TimelineEvent {
   };
 }
 
+const CLOSING_REFERENCES = `query($o:String!,$r:String!,$n:Int!,$after:String){repository(owner:$o,name:$r){pullRequest(number:$n){closingIssuesReferences(first:100,after:$after){nodes{number repository{nameWithOwner}} pageInfo{hasNextPage endCursor}}}}}`;
+type ClosingReferences = { nodes?: { number: number; repository: { nameWithOwner: string } }[]; pageInfo?: { hasNextPage: boolean; endCursor: string | null } };
+type ClosingReply = { repository?: { pullRequest?: { closingIssuesReferences?: ClosingReferences } } };
+
+/** A textual hint is qualified to the PR repository, but still never proves an association. */
+function claimsClosing(text: string, pullRepositoryUrl: string, issue: { owner: string; repo: string; number: number }): boolean {
+  const pullRepository = /^https:\/\/api\.github\.com\/repos\/([\w.-]+\/[\w.-]+)$/.exec(pullRepositoryUrl);
+  if (!pullRepository) return false;
+  const wanted = `${issue.owner}/${issue.repo}`.toLowerCase();
+  const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)\b/gi;
+  return [...text.matchAll(pattern)].some((match) => Number(match[2]) === issue.number && (match[1] ?? pullRepository[1]).toLowerCase() === wanted);
+}
+
+/** Read the repository-qualified relationship GitHub records, without inferring it from PR text. */
+async function closingAssociation(ctx: Ctx, repositoryUrl: string, pull: number, issue: { owner: string; repo: string; number: number }): Promise<PullEvidence['link']> {
+  const repo = /^https:\/\/api\.github\.com\/repos\/([\w.-]+)\/([\w.-]+)$/.exec(repositoryUrl);
+  if (!repo) return 'unknown';
+  try {
+    let after: string | null = null;
+    const seen = new Set<string>();
+    for (let page = 0; page < 50; page += 1) {
+      const data: ClosingReply = await graphql<ClosingReply>(ctx, CLOSING_REFERENCES, { o: repo[1], r: repo[2], n: pull, after });
+      const refs: ClosingReferences | undefined = data?.repository?.pullRequest?.closingIssuesReferences;
+      if (!refs || !Array.isArray(refs.nodes) || !refs.pageInfo || typeof refs.pageInfo.hasNextPage !== 'boolean' || refs.nodes.some((node) => !node || !Number.isSafeInteger(node.number) || typeof node.repository?.nameWithOwner !== 'string')) return 'unknown';
+      if (refs.nodes.some((node) => node.number === issue.number && node.repository.nameWithOwner.toLowerCase() === `${issue.owner}/${issue.repo}`.toLowerCase())) return 'closes';
+      if (!refs.pageInfo.hasNextPage) return 'mentions';
+      const cursor: string | null = refs.pageInfo.endCursor;
+      if (!cursor || seen.has(cursor)) return 'unknown';
+      seen.add(cursor);
+      after = cursor;
+    }
+  } catch {
+    // A failed or inaccessible relationship is unknown, not a missing relationship.
+  }
+  return 'unknown';
+}
+
+async function readPullEvidence(ctx: Ctx, source: { number: number; title: string; html_url: string; repository_url: string }, ref: { owner: string; repo: string; number: number }): Promise<PullEvidence> {
+  const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx, `${source.repository_url}/pulls/${source.number}`);
+  if (!pr || !['open', 'closed'].includes(pr.state) || (pr.merged_at !== null && typeof pr.merged_at !== 'string') || typeof pr.head?.sha !== 'string' || !pr.head.sha) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+  let checks: PullEvidence['checks'] = 'unknown';
+  let checksError: Notice | undefined;
+  try {
+    const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx, `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`);
+    if (!runs || !Number.isSafeInteger(runs.total_count) || !Array.isArray(runs.check_runs) || runs.total_count !== runs.check_runs.length || runs.check_runs.some((run) => !run || typeof run.status !== 'string' || (run.conclusion !== null && typeof run.conclusion !== 'string'))) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+    checks = summarizeChecks(runs.check_runs);
+  } catch (error) { checksError = errorNotice(error); }
+  const statusUrl = `${source.repository_url}/commits/${pr.head.sha}/status?per_page=100`;
+  let statusContexts: NonNullable<PullEvidence['statusContexts']> = { state: 'unknown', apiUrl: statusUrl };
+  try {
+    const status = await getJson<{ state?: unknown; total_count?: unknown; statuses?: unknown }>(ctx, statusUrl);
+    if (Number.isSafeInteger(status?.total_count) && Number(status.total_count) >= 0 && Array.isArray(status.statuses) && status.statuses.length === status.total_count && ['success', 'failure', 'error', 'pending'].includes(String(status.state))) {
+      statusContexts = { state: status.total_count === 0 ? 'none' : status.state as 'success' | 'failure' | 'error' | 'pending', count: status.total_count as number, apiUrl: statusUrl };
+    }
+  } catch { /* An unavailable status API is not an absent or successful status. */ }
+  return {
+    number: source.number, title: source.title, url: source.html_url,
+    state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
+    checks,
+    ...(checksError ? { checksError } : {}),
+    link: await closingAssociation(ctx, source.repository_url, source.number, ref),
+    textClaimsClosing: claimsClosing(`${source.title}\n${pr.body ?? ''}`, source.repository_url, ref),
+    revision: pr.head.sha,
+    statusContexts,
+  };
+}
+
+/** Inspect a candidate PR without claiming the Issue timeline references it. */
+export async function fetchCandidatePullEvidence(token: string, issueUrl: string, candidate: { url: string; title: string }, fetchFn: FetchFn = fetch): Promise<{ ok: true; pull: PullEvidence } | { ok: false; error: Notice }> {
+  const issue = parseIssueUrl(issueUrl);
+  const pull = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/([1-9]\d*)\/?$/i.exec(candidate.url);
+  if (!issue || !pull || !Number.isSafeInteger(Number(pull[3]))) return { ok: false, error: { code: 'github.err.evidence-incomplete' } };
+  try {
+    return { ok: true, pull: await readPullEvidence({ token, fetchFn }, { number: Number(pull[3]), title: candidate.title, html_url: candidate.url, repository_url: `${API}/repos/${pull[1]}/${pull[2]}` }, issue) };
+  } catch (error) { return { ok: false, error: errorNotice(error) }; }
+}
+
 /**
  * Finds pull requests that reference the Issue (timeline cross-references),
  * then reads each one's merge state and check runs. A reference is a link,
@@ -268,43 +350,36 @@ export async function fetchEvidence(token: string, issueUrl: string, fetchFn: Fe
   try {
     const events: TimelineEvent[] = [];
     for (let page = 1; page <= 3; page += 1) {
-      const batch = await getJson<TimelineEvent[]>(ctx,
-        `${API}/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/timeline?per_page=100&page=${page}`,
-      );
+      const timelineUrl = `${API}/repos/${ref.owner}/${ref.repo}/issues/${ref.number}/timeline`;
+      const response = await fetchFn(`${timelineUrl}?per_page=100&page=${page}`, { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28' } });
+      if (!response.ok) throw new NoticeError({ code: 'github.err.http', args: { status: response.status } });
+      const batch: unknown = await response.json();
+      if (!Array.isArray(batch) || batch.length > 100 || batch.some((event) => !event || typeof event !== 'object' || typeof event.event !== 'string')) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      const next = await evidenceNext(response.headers?.get('link'), timelineUrl, page, token, fetchFn);
       events.push(...batch);
-      if (batch.length < 100) break;
+      if (batch.length < 100 && !next) break;
       if (page === 3) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
     }
 
     const sources = new Map<string, NonNullable<NonNullable<TimelineEvent['source']>['issue']>>();
     for (const event of events) {
       const source = event.source?.issue;
-      if (event.event === 'cross-referenced' && source?.pull_request && source.repository_url.startsWith(`${API}/repos/`)) {
-        sources.set(source.html_url, source);
-      }
+      if (event.event !== 'cross-referenced') continue;
+      if (!source || !Number.isSafeInteger(source.number) || source.number < 1 || typeof source.title !== 'string' || typeof source.html_url !== 'string' || typeof source.repository_url !== 'string') throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      if (!source.pull_request) continue;
+      const repository = /^https:\/\/api\.github\.com\/repos\/([\w.-]+)\/([\w.-]+)$/.exec(source.repository_url);
+      const pull = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)\/?$/i.exec(source.html_url);
+      if (!repository || !pull || repository[1].toLowerCase() !== pull[1].toLowerCase() || repository[2].toLowerCase() !== pull[2].toLowerCase() || Number(pull[3]) !== source.number) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
+      sources.set(source.html_url, source);
     }
 
-    const pulls = await Promise.all(
-      [...sources.values()].map(async (source): Promise<PullEvidence> => {
-        const pr = await getJson<{ state: string; merged_at: string | null; body: string | null; head: { sha: string } }>(ctx,
-          `${source.repository_url}/pulls/${source.number}`,
-        );
-        const runs = await getJson<{ total_count?: number; check_runs: CheckRunLike[] }>(ctx,
-          `${source.repository_url}/commits/${pr.head.sha}/check-runs?per_page=100`,
-        );
-        if (typeof runs.total_count === 'number' && runs.total_count > runs.check_runs.length) throw new NoticeError({ code: 'github.err.evidence-incomplete' });
-        return {
-          number: source.number,
-          title: source.title,
-          url: source.html_url,
-          state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : 'closed',
-          checks: summarizeChecks(runs.check_runs),
-          link: closesIssue(`${source.title}
-${pr.body ?? ''}`, ref.number) ? 'closes' : 'mentions',
-        };
-      }),
-    );
-    return { ok: true, evidence: { pulls: pulls.sort((a, b) => a.number - b.number) } };
+    const results = await mapLimit([...sources.values()], EVIDENCE_READ_LIMIT, async (source) => {
+      try { return { ok: true as const, pull: await readPullEvidence(ctx, source, ref) }; }
+      catch (error) { return { ok: false as const, url: source.html_url, error: errorNotice(error) }; }
+    });
+    const pulls = results.flatMap((result) => result.ok ? [result.pull] : []).sort((a, b) => a.number - b.number);
+    const unavailablePulls = results.flatMap((result) => result.ok ? [] : [{ url: result.url, error: result.error }]);
+    return { ok: true, evidence: { pulls, ...(unavailablePulls.length ? { unavailablePulls } : {}) } };
   } catch (error) {
     return { ok: false, error: errorNotice(error) };
   }

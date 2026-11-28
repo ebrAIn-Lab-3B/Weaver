@@ -28,13 +28,15 @@ import {
   requirementsByIssue,
   taskDirectoryOf,
   honoredException,
+  describePull,
+  formatNotice,
   staleNotices,
   LaneGuideline,
   ValidationIssue,
   planNextAssignee,
   type Roster,
 } from '@ebrain-lab/weaver-markdown';
-import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
+import { fetchCompletionEvidence, mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
@@ -405,6 +407,10 @@ export class OverviewView {
     return { card, link: requirementsByIssue(this.loaded?.artifacts ?? []).get(wanted) };
   }
 
+  private choose<T extends vscode.QuickPickItem>(items: T[], options: vscode.QuickPickOptions): Thenable<T | undefined> {
+    return vscode.window.showQuickPick(items, options);
+  }
+
   /** The main action of a card: its requirement scrolled to the task, or the Issue when no file is visible. */
   private async openCard(url: string): Promise<void> {
     // A card built from the files has no Issue address; it is named by its requirement and task.
@@ -486,6 +492,7 @@ export class OverviewView {
         run: () => (isOpenableUrl(card.url) ? openInSystemBrowser(card.url) : undefined),
       },
       { label: `$(git-pull-request) ${text('ui.overview.menu.pull-request')}`, run: () => this.openPullRequest(card) },
+      { label: `$(checklist) ${text('ui.overview.menu.evidence')}`, run: () => this.inspectCardEvidence(card) },
       folder
         ? { label: `$(folder) ${text('ui.overview.menu.repository-folder', { repository: card.repository })}`, run: () => vscode.commands.executeCommand('revealInExplorer', folder.uri) }
         : clone
@@ -493,10 +500,42 @@ export class OverviewView {
           : unavailable(text('ui.overview.menu.repository-folder', { repository: card.repository }), text('ui.overview.na.no-folder', { repository: card.repository })),
     ];
 
-    const picked = await vscode.window.showQuickPick(items, { placeHolder: text('ui.overview.menu.placeholder') });
+    const picked = await this.choose(items, { placeHolder: text('ui.overview.menu.placeholder') });
     if (!picked) return;
     if (picked.reason) void vscode.window.showInformationMessage(picked.reason);
     else await picked.run?.();
+  }
+
+  private async inspectCardEvidence(card: ProjectCard): Promise<void> {
+    const token = await getGitHubToken(false, ['repo', 'project']);
+    if (!token) { void vscode.window.showInformationMessage(text('ui.overview.na.sign-in')); return; }
+    const evidence = await fetchCompletionEvidence(token, card.url, new Date());
+    type EvidenceItem = vscode.QuickPickItem & { url?: string };
+    const items: EvidenceItem[] = [];
+    const add = (label: string, detail?: string, url?: string) => items.push({ label, ...(detail ? { detail } : {}), ...(url && isOpenableUrl(url) ? { url } : {}) });
+    add(text('ui.overview.evidence.read-at', { time: evidence.readAt }), text('ui.overview.evidence.scope'));
+    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: evidence.issue.issue.state }), card.url, card.url);
+    else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
+    if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
+    else {
+      if (evidence.pulls.status === 'partial') for (const missing of evidence.pulls.unavailable) add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(missing.error, currentLocale()), missing.url);
+      if (evidence.pulls.status === 'read' && !evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
+      for (const pull of evidence.pulls.value) {
+        add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+        if (pull.checksError) add(text('ui.overview.evidence.checks-unavailable'), formatNotice(pull.checksError, currentLocale()));
+        if (pull.statusContexts) add(text('ui.overview.evidence.status-contexts', { state: text(`ui.overview.evidence.status.${pull.statusContexts.state}`) }), pull.statusContexts.apiUrl);
+      }
+    }
+    for (const entry of evidence.reviews ?? []) {
+      if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
+      else if (!entry.observation.value.length) add(text('ui.overview.evidence.no-reviews'), entry.pullUrl, entry.pullUrl);
+      else for (const review of entry.observation.value) add(text('ui.overview.evidence.review', { author: review.author ?? '—', state: review.state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+    }
+    if (evidence.comments.status === 'unavailable') add(text('ui.overview.evidence.comments-unavailable'), formatNotice(evidence.comments.error, currentLocale()));
+    else for (const comment of evidence.comments.value) add(text('ui.overview.evidence.comment', { author: comment.author ?? '—', time: comment.updatedAt }), comment.body.replace(/\s+/g, ' ').slice(0, 240), comment.url);
+    add(text('ui.overview.evidence.claims-warning'));
+    const picked = await this.choose(items, { placeHolder: text('ui.overview.evidence.placeholder'), matchOnDetail: true });
+    if (picked?.url) await openPage(picked.url);
   }
 
   private async openPullRequest(card: ProjectCard): Promise<void> {
@@ -511,8 +550,9 @@ export class OverviewView {
       return;
     }
     const pulls = result.evidence.pulls.filter((pull) => isOpenableUrl(pull.url));
+    if (result.evidence.unavailablePulls?.length) void vscode.window.showWarningMessage(text('ui.overview.evidence.pulls-unavailable'));
     if (pulls.length === 0) {
-      void vscode.window.showInformationMessage(text('ui.overview.na.no-pull-request'));
+      if (!result.evidence.unavailablePulls?.length) void vscode.window.showInformationMessage(text('ui.overview.na.no-pull-request'));
       return;
     }
     const pull =

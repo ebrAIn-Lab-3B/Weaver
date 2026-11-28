@@ -16,7 +16,7 @@ export const issue = (number: number, extra: Record<string, unknown> = {}) => ({
     timelineItems: { totalCount: 0, nodes: [] },
     repository: { nameWithOwner: 'me/Weaver' },
     labels: { pageInfo: { hasNextPage: false }, nodes: [{ name: 'status:in-progress' }] },
-    assignees: { nodes: [] },
+    assignees: { pageInfo: { hasNextPage: false }, nodes: [] },
     ...extra,
   },
 });
@@ -81,7 +81,7 @@ export function setup(options: { token?: string | undefined; registry?: string; 
       return { ok: true, status: 200, json: async () => body };
     }
     if (options.pullsFail) return { ok: false, status: 500, json: async () => ({}) };
-    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10 }] } }];
+    const nodes = [{ number: 7, title: 'feat: ten (TASK-010)', url: 'https://github.com/me/Weaver/pull/7', headRefName: 'feat/task-010', closingIssuesReferences: { pageInfo: { hasNextPage: false }, nodes: [{ number: 10, repository: { nameWithOwner: 'me/Weaver' } }] } }];
     return { ok: true, status: 200, json: async () => ({ data: { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes } } } }) };
   };
   const deps: Deps = {
@@ -139,7 +139,7 @@ export function withGitHub(deps: Deps, options: { linkedPull?: boolean; pullMerg
       }
       if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: options.pullMerged === false ? null : '2026-11-01T00:00:00Z', body: 'Closes #10', head: { sha: 'abc' }, number: 7, title: 'feat: ten (TASK-010)', html_url: 'https://github.com/me/Weaver/pull/7' });
       if (url.endsWith('/pulls/9')) return reply({}, 404);
-      if (url.includes('/check-runs')) return reply({ check_runs: [{ status: 'completed', conclusion: 'success' }] });
+      if (url.includes('/check-runs')) return reply({ total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success' }] });
       return reply({});
     }
     if (init?.body) {

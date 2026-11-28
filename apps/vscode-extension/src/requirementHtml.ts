@@ -144,8 +144,10 @@ export function renderRequirementHtml(
     if (!result?.ok) return '<span class="muted">—</span>';
     if (result.evidenceError) return `<span class="warn small">${e(formatNotice(result.evidenceError, locale))}</span>`;
     const pulls = result.evidence?.pulls ?? [];
-    if (pulls.length === 0) return `<span class="muted">${e(tt('ui.evidence.no-pr'))}</span>`;
-    return pulls
+    const partial = (result.evidence?.unavailablePulls?.length ?? 0) > 0;
+    if (pulls.length === 0 && !partial) return `<span class="muted">${e(tt('ui.evidence.no-pr'))}</span>`;
+    const warning = partial ? `<div class="warn small">${e(formatNotice({ code: 'gap.evidence-not-loaded' }, locale))}</div>` : '';
+    return warning + pulls
       .map((p) => `<div class="small"><a href="#" data-url="${e(p.url)}" title="${e(p.title)}">${e(describePull(p, locale))}</a></div>`)
       .join('');
   };

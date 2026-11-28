@@ -89,6 +89,7 @@ Discover intent → Shape requirements → Plan work → Execute work → Verify
 - `US-027` — As an agent, I can read the Kanban and create, move, and annotate cards through one documented tool, and a human confirms only the moves that matter.
 - `US-028` — As a user talking with an agent, a ticket I create becomes a task file, an Issue, and a Project card in one step, so it is not forgotten when the conversation moves on.
 - `US-068` — As a contributor or agent, I can register and verify a task across its files, Issue, Project and configured status, and safely recover incomplete registration. (Belongs to `REQ-024`; friction observed in HealthBridge TASK-011–014.)
+  The Overview offers mismatch review beside its report: it opens a relevant file or Issue, or offers an existing task-file PR flow. Other repairs remain a manual or CLI workflow, with separate confirmations.
 - `US-029` — As a team member, I can see stale cards on the board: idle for too long, without evidence, or waiting for a human decision.
 - `US-030` — As a maintainer, I can see where repository files, Issues, and the central Project disagree, so I know what needs fixing before anything is changed automatically.
 - `US-031` — As a maintainer, I can rely on a steward agent to register missing Issues and Project cards and attach evidence, so keeping the board current does not cost the team's energy.

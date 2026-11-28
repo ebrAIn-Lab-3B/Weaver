@@ -684,6 +684,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
     for (const entry of observed.reviews ?? []) {
       if (entry.observation.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', entry.pullUrl);
       else if (entry.observation.value.length === 0) finding('no-formal-review', 'cli.evidence-inspect.no-review', entry.pullUrl);
+      else if (entry.revision && entry.observation.value.some((review) => review.revision && review.revision !== entry.revision)) finding('review-different-revision', 'cli.evidence-inspect.review-revision', entry.pullUrl);
     }
     if (!usableProcess) finding('process-unavailable', 'cli.evidence-inspect.process-unavailable', issueUrl);
     if (linked.length > 1) finding('shared-issue', 'cli.evidence-inspect.shared', issueUrl);
@@ -704,7 +705,18 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       finding('other-pr', 'cli.evidence-inspect.other-pr', candidate.url);
       if (!candidate.pull.ok) finding('candidate-unavailable', 'cli.evidence-inspect.candidate-unavailable', candidate.url);
       if (candidate.reviews.status === 'unavailable') finding('reviews-unavailable', 'cli.evidence-inspect.reviews-unavailable', candidate.url);
+      else {
+        const revision = candidate.pull.ok ? candidate.pull.facts.revision : undefined;
+        if (revision && candidate.reviews.value.some((review) => review.revision && review.revision !== revision)) finding('review-different-revision', 'cli.evidence-inspect.review-revision', candidate.url);
+      }
     }
+    const taskTestClaims = linked.flatMap((task) => task.tests ? [{ path: task.path, text: task.tests }] : []);
+    const independentTests = {
+      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-record-in-observed-sources' : 'unverified',
+      taskClaims: taskTestClaims,
+      commentSource: observed.comments.status,
+      guidance: say('cli.evidence-inspect.test-claims'),
+    };
     const detail = {
       schema: SCHEMA,
       project: setup.project,
@@ -713,7 +725,7 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       process: usableProcess ? { file: process.file, sources: process.sources, columns: process.process.columns, evidence: process.process.evidence } : null,
       tasks: linked.map((task) => task.kind === 'task' ? { id: task.id, path: task.path, testClaim: task.tests ?? null, evidenceException: task.evidenceException ?? null, exceptionHonored: usableProcess ? Boolean(honoredException(task.evidenceException, process.process.evidence)) : null } : null),
       sharedIssue: linked.length > 1,
-      independentTests: 'unverified',
+      independentTests,
       observation: observed,
       pullInventory: pullInventory.status === 'read' ? { status: 'read', candidates: discovered } : pullInventory,
       candidateEvidence,

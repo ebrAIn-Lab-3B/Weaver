@@ -28,13 +28,15 @@ import {
   requirementsByIssue,
   taskDirectoryOf,
   honoredException,
+  describePull,
+  formatNotice,
   staleNotices,
   LaneGuideline,
   ValidationIssue,
   planNextAssignee,
   type Roster,
 } from '@ebrain-lab/weaver-markdown';
-import { mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
+import { fetchCompletionEvidence, mapLimit, placeWithRules, ProjectCard, ProjectRead, readMergedPulls, readProject, taskFileState } from '@ebrain-lab/weaver-github';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fabricRoot } from './fabricRoot';
@@ -486,6 +488,7 @@ export class OverviewView {
         run: () => (isOpenableUrl(card.url) ? openInSystemBrowser(card.url) : undefined),
       },
       { label: `$(git-pull-request) ${text('ui.overview.menu.pull-request')}`, run: () => this.openPullRequest(card) },
+      { label: `$(checklist) ${text('ui.overview.menu.evidence')}`, run: () => this.inspectCardEvidence(card) },
       folder
         ? { label: `$(folder) ${text('ui.overview.menu.repository-folder', { repository: card.repository })}`, run: () => vscode.commands.executeCommand('revealInExplorer', folder.uri) }
         : clone
@@ -497,6 +500,31 @@ export class OverviewView {
     if (!picked) return;
     if (picked.reason) void vscode.window.showInformationMessage(picked.reason);
     else await picked.run?.();
+  }
+
+  private async inspectCardEvidence(card: ProjectCard): Promise<void> {
+    const token = await getGitHubToken(false, ['repo', 'project']);
+    if (!token) { void vscode.window.showInformationMessage(text('ui.overview.na.sign-in')); return; }
+    const evidence = await fetchCompletionEvidence(token, card.url, new Date());
+    type EvidenceItem = vscode.QuickPickItem & { url?: string };
+    const items: EvidenceItem[] = [];
+    const add = (label: string, detail?: string, url?: string) => items.push({ label, ...(detail ? { detail } : {}), ...(url && isOpenableUrl(url) ? { url } : {}) });
+    add(text('ui.overview.evidence.read-at', { time: evidence.readAt }), text('ui.overview.evidence.scope'));
+    if (evidence.issue.ok) add(text('ui.overview.evidence.issue-state', { state: evidence.issue.issue.state }), card.url, card.url);
+    else add(text('ui.overview.evidence.issue-unavailable'), formatNotice(evidence.issue.error, currentLocale()));
+    if (evidence.pulls.status === 'unavailable') add(text('ui.overview.evidence.pulls-unavailable'), formatNotice(evidence.pulls.error, currentLocale()));
+    else if (!evidence.pulls.value.length) add(text('ui.overview.evidence.no-pulls'));
+    else for (const pull of evidence.pulls.value) add(describePull(pull, currentLocale()), text('ui.overview.evidence.revision', { revision: pull.revision ?? '—' }), pull.url);
+    for (const entry of evidence.reviews ?? []) {
+      if (entry.observation.status === 'unavailable') add(text('ui.overview.evidence.reviews-unavailable'), entry.pullUrl, entry.pullUrl);
+      else if (!entry.observation.value.length) add(text('ui.overview.evidence.no-reviews'), entry.pullUrl, entry.pullUrl);
+      else for (const review of entry.observation.value) add(text('ui.overview.evidence.review', { author: review.author ?? '—', state: review.state }), text('ui.overview.evidence.review-detail', { revision: review.revision ?? '—', head: entry.revision ?? '—', time: review.submittedAt ?? '—' }), review.url);
+    }
+    if (evidence.comments.status === 'unavailable') add(text('ui.overview.evidence.comments-unavailable'), formatNotice(evidence.comments.error, currentLocale()));
+    else for (const comment of evidence.comments.value) add(text('ui.overview.evidence.comment', { author: comment.author ?? '—', time: comment.updatedAt }), comment.body.replace(/\s+/g, ' ').slice(0, 240), comment.url);
+    add(text('ui.overview.evidence.claims-warning'));
+    const picked = await vscode.window.showQuickPick(items, { placeHolder: text('ui.overview.evidence.placeholder'), matchOnDetail: true });
+    if (picked?.url) await openPage(picked.url);
   }
 
   private async openPullRequest(card: ProjectCard): Promise<void> {

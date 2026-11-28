@@ -94,7 +94,7 @@ describe('weaver evidence inspect', () => {
     };
     expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
     const result = JSON.parse(s.out.join(''));
-    expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: 'unverified', observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
+    expect(result).toMatchObject({ sharedIssue: true, membership: 'present', independentTests: { status: 'unverified', commentSource: 'read', taskClaims: [{ path: 'tasks/TASK-011.md', text: 'self-reported passing' }] }, observation: { issue: { ok: true, issue: { state: 'closed' } }, pulls: { status: 'read', value: [{ state: 'merged', link: 'mentions', checks: 'none' }] }, reviews: [{ observation: { status: 'read', value: [] } }] } });
     expect(result.tasks).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'TASK-011', testClaim: 'self-reported passing', evidenceException: 'approved exception', exceptionHonored: true })]));
     expect(result.observation.comments.value[0]).toMatchObject({ author: 'reviewer', body: 'Could not repeat the claimed test' });
     expect(result.findings.map((finding: { kind: string }) => finding.kind)).toEqual(expect.arrayContaining(['merged-not-closing', 'no-checks', 'no-formal-review', 'shared-issue']));
@@ -106,6 +106,7 @@ describe('weaver evidence inspect', () => {
     expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', 'ko'], s.deps)).toBe(EXIT.ok);
     const result = JSON.parse(s.out.join(''));
     expect(result.guidance).toContain('추론하지 않습니다');
+    expect(result.independentTests).toMatchObject({ status: 'unavailable', commentSource: 'unavailable' });
     expect(result.observation.pulls).toMatchObject({ status: 'unavailable' });
     expect(result.observation.reviews).toBeNull();
     expect(result.findings.find((finding: { kind: string }) => finding.kind === 'pulls-unavailable').message).toContain('불완전');
@@ -143,6 +144,7 @@ describe('weaver evidence inspect', () => {
     expect(result.placement).toBeNull();
     expect(result.observation.issue).toMatchObject({ ok: true, issue: { state: 'closed' } });
     expect(result.observation.pulls).toMatchObject({ status: 'read', value: [] });
+    expect(result.independentTests.status).toBe('no-record-in-observed-sources');
   });
 
   it('inspects a task-matched merged PR separately without inventing a timeline reference', async () => {
@@ -155,16 +157,17 @@ describe('weaver evidence inspect', () => {
       if (url.includes('/pulls?state=all')) return reply([{ number: 7, title: 'feat: ten (TASK-010)', html_url: 'https://github.com/me/Weaver/pull/7', body: '', head: { ref: 'feat/task-010' } }]);
       if (url.endsWith('/pulls/7')) return reply({ state: 'closed', merged_at: '2026-11-01T00:00:00Z', body: '', head: { sha: 'head7' } });
       if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
-      if (url.includes('/pulls/7/reviews')) return reply([]);
+      if (url.includes('/pulls/7/reviews')) return reply([{ html_url: 'https://github.com/me/Weaver/pull/7#pullrequestreview-1', user: { login: 'reviewer' }, state: 'APPROVED', body: '', submitted_at: '2026-11-01T00:00:00Z', commit_id: 'older' }]);
       if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
       return original(url, init);
     };
     expect(await run(['evidence', 'inspect', 'TASK-010'], s.deps)).toBe(EXIT.ok);
     const result = JSON.parse(s.out.join(''));
     expect(result.observation.pulls).toEqual({ status: 'read', value: [] });
-    expect(result.candidateEvidence).toMatchObject([{ url: 'https://github.com/me/Weaver/pull/7', pull: { ok: true, closingAssociation: 'not-closing', facts: { checks: 'none', revision: 'head7', state: 'merged' } }, reviews: { status: 'read', value: [] } }]);
+    expect(result.candidateEvidence).toMatchObject([{ url: 'https://github.com/me/Weaver/pull/7', pull: { ok: true, closingAssociation: 'not-closing', facts: { checks: 'none', revision: 'head7', state: 'merged' } }, reviews: { status: 'read', value: [{ revision: 'older' }] } }]);
     expect(result.candidateEvidence[0].pull.facts).not.toHaveProperty('link');
     expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('other-pr');
+    expect(result.findings.map((finding: { kind: string }) => finding.kind)).toContain('review-different-revision');
   });
 
   it('resolves a requirement entry when the task file has no Issue and rejects conflicting links', async () => {

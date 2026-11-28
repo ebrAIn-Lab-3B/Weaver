@@ -35,6 +35,8 @@ export interface ProcessConfig {
     closingPullRequest: boolean;
     /** An `evidence_exception` in a task file is honored (DEC-006). */
     exceptions: boolean;
+    /** Explicit GitHub Actions workflow used as a test evidence source. */
+    independentTests?: { source: 'github-actions'; workflowId: number };
   };
   stale: {
     /** Days without a change before an open card in an active column is idle. */
@@ -155,7 +157,14 @@ function readColumns(data: Record<string, unknown>, add: Add): ProcessConfig['co
 
 function readEvidence(data: Record<string, unknown>, add: Add): ProcessConfig['evidence'] {
   const result = defaultProcess().evidence;
-  for (const field of Object.keys(data)) if (!['pull-request', 'closing-pull-request', 'exceptions'].includes(field)) add('warning', 'unknown-field', { field: `evidence.${field}` });
+  for (const field of Object.keys(data)) if (!['pull-request', 'closing-pull-request', 'exceptions', 'independent-tests'].includes(field)) add('warning', 'unknown-field', { field: `evidence.${field}` });
+
+  if (data['independent-tests'] !== undefined) {
+    const value = data['independent-tests'];
+    if (!isMapping(value) || value.source !== 'github-actions' || !Number.isSafeInteger(value['workflow-id']) || Number(value['workflow-id']) < 1 || Object.keys(value).some((key) => !['source', 'workflow-id'].includes(key))) {
+      add('error', 'process-invalid-evidence-value', { field: 'independent-tests', value: String(value) });
+    } else result.independentTests = { source: 'github-actions', workflowId: value['workflow-id'] as number };
+  }
 
   if (data['pull-request'] !== undefined) {
     if ((PULL_REQUEST_EXPECTATIONS as readonly unknown[]).includes(data['pull-request'])) result.pullRequest = data['pull-request'] as PullRequestExpectation;

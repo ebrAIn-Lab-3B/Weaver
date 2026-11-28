@@ -23,7 +23,7 @@ import {
   taskIdsOfPull,
   t,
 } from '@ebrain-lab/weaver-markdown';
-import { EVIDENCE_READ_LIMIT, fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, mapLimit, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
+import { EVIDENCE_READ_LIMIT, fetchActionsEvidence, fetchCandidatePullEvidence, fetchCompletionEvidence, fetchIssue, fetchIssueBody, fetchPullInventory, fetchPullReviews, mapLimit, NoticeError, placeWithRules, readMergedPulls, readProject, type FetchFn } from '@ebrain-lab/weaver-github';
 import { attribution, executeActions, finishActions, parseApproved, PlannedAction, ReportItem, Skipped } from './actions';
 import { Args, parseArgs } from './args';
 import { parseColumn, planCardMove, planEvidenceAttach } from './cardActions';
@@ -749,10 +749,19 @@ export async function run(argv: readonly string[], deps: Deps): Promise<number> 
       }
     }
     const taskTestClaims = linked.flatMap((task) => task.tests ? [{ path: task.path, text: task.tests }] : []);
+    const testSource = usableProcess ? process.process.evidence.independentTests : undefined;
+    const workflowObservations = testSource && observed.pulls.status !== 'unavailable' ? await mapLimit(observed.pulls.value, EVIDENCE_READ_LIMIT, async (pull) => {
+      const sameRepository = pull.url.toLowerCase().startsWith(`https://github.com/${repository.toLowerCase()}/pull/`);
+      const observation = sameRepository && pull.revision ? await fetchActionsEvidence(token, repository, testSource.workflowId, pull.revision, deps.now(), deps.fetch as unknown as FetchFn | undefined) : { status: 'unavailable' as const, error: { code: 'github.err.evidence-incomplete' } };
+      return { pullUrl: pull.url, observation };
+    }) : null;
     const independentTests = {
-      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-structured-task-claim-or-issue-comments' : 'unverified',
+      status: observed.comments.status === 'unavailable' || !workspaceComplete ? 'unavailable' : !testSource && taskTestClaims.length === 0 && observed.comments.value.length === 0 ? 'no-structured-task-claim-or-issue-comments' : 'unverified',
       taskClaims: taskTestClaims,
       commentSource: observed.comments.status,
+      source: !usableProcess ? { status: 'unavailable' } : testSource ? { status: 'configured', ...testSource } : { status: 'unconfigured' },
+      pullInventory: observed.pulls.status,
+      workflowObservations,
       guidance: say('cli.evidence-inspect.test-claims'),
     };
     const detail = {

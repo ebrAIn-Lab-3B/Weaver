@@ -2,13 +2,22 @@
 
 ## Scope and decision
 
-On 2026-11-28 the user chose repository-specific configuration. Weaver must not assume an organization, an agent identity, a field name or a trusted workflow. This document describes an implementation plan; it does not establish that a CI run is independent or change the meaning of Verified. REQ-024 AC-009 and TASK-137 remain in force. Existing Issue comments and task-file text remain attributed, unverified claims.
+On 2026-11-28 the user chose repository-specific configuration. Weaver does not assume an organization, an agent identity, a field name or a trusted workflow. This observation does not establish that a CI run is independent or change the meaning of Verified. REQ-024 AC-009 and TASK-137 remain in force. Existing Issue comments and task-file text remain attributed, unverified claims.
 
 ## First source: GitHub Actions observations
 
 The first adapter should read a GitHub Actions run by a repository-configured workflow identity and an explicitly associated PR head revision. A workflow's name alone is not sufficient identity: use a repository-qualified workflow path or ID, a run ID and exact head SHA, and re-read the run and workflow metadata from GitHub. Display source URLs, repository, workflow identity, run ID, event, actor and triggering account, conclusion, head SHA and observation time. A passing workflow is a successful CI observation, not proof that a particular person independently tested it.
 
-A proposed optional `evidence.independent-tests` section will name the source adapter and repository-specific workflow identity. No section means no configured producer. The exact serialized shape and schema validation must be added together with tests and English/Korean messages. A malformed or unsupported configuration must not silently fall back to a trusted default. Configuration by itself must not mark a run or task verified.
+The optional repository `.weaver/process.yaml` selects a GitHub Actions workflow by its numeric repository-scoped ID:
+
+```yaml
+evidence:
+  independent-tests:
+    source: github-actions
+    workflow-id: 123456
+```
+
+Find the ID with `gh api repos/OWNER/REPOSITORY/actions/workflows`. No section means no configured producer. Malformed or unsupported configuration is an error and is not replaced by a trusted default. Configuration by itself does not mark a run or task verified. The `weaver evidence inspect` output includes the source configuration and an observation for each referenced PR at its observed head SHA. A partial PR inventory stays partial; unavailable records are not empty records. Candidate PRs are not implicitly treated as referenced PRs.
 
 ## Trust and uncertainty
 

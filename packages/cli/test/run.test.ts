@@ -90,6 +90,32 @@ describe('weaver show', () => {
 });
 
 describe('weaver evidence inspect', () => {
+  it('reads configured workflow evidence for the referenced revision without claiming independent verification', async () => {
+    for (const lang of ['en', 'ko']) {
+      const s = setup();
+      const original = s.deps.fetch as Fetch;
+      const sha = 'a'.repeat(40);
+      s.deps.fetch = async (url, init) => {
+        const reply = (json: unknown) => ({ ok: true, status: 200, json: async () => json });
+        if (url.includes('/contents/.weaver/process.yaml')) return { ok: true, status: 200, headers: { get: () => null }, text: async () => 'evidence:\n  independent-tests:\n    source: github-actions\n    workflow-id: 7\n' } as never;
+        if (url.endsWith('/issues/10')) return reply({ number: 10, title: 'Task', html_url: 'https://github.com/me/Weaver/issues/10', state: 'open', labels: [], assignees: [] });
+        if (url.includes('/issues/10/timeline')) return reply([{ event: 'cross-referenced', source: { issue: { number: 7, title: 'work', html_url: 'https://github.com/me/Weaver/pull/7', repository_url: 'https://api.github.com/repos/me/Weaver', pull_request: {} } } }]);
+        if (url.includes('/issues/10/comments') || url.includes('/pulls/7/reviews') || url.includes('/pulls?state=all')) return reply([]);
+        if (url.endsWith('/pulls/7')) return reply({ state: 'open', merged_at: null, body: '', head: { sha } });
+        if (url.includes('/check-runs')) return reply({ total_count: 0, check_runs: [] });
+        if (url.endsWith('/actions/workflows/7')) return reply({ id: 7, path: '.github/workflows/test.yml' });
+        if (url.includes('/actions/workflows/7/runs?')) return reply({ total_count: 1, workflow_runs: [{ id: 12, workflow_id: 7, html_url: 'https://github.com/me/Weaver/actions/runs/12', head_sha: sha, event: 'pull_request', status: 'completed', conclusion: 'success', actor: { login: 'author' }, triggering_actor: { login: 'reviewer' }, run_attempt: 1 }] });
+        if (url.endsWith('/graphql') && init?.body && (JSON.parse(init.body).query as string).includes('closingIssuesReferences(first:100')) return reply({ data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+        return original(url, init);
+      };
+      expect(await run(['evidence', 'inspect', 'TASK-010', '--lang', lang], s.deps)).toBe(EXIT.ok);
+      const evidence = JSON.parse(s.out.join('')).independentTests;
+      expect(evidence.source).toEqual({ status: 'configured', source: 'github-actions', workflowId: 7 });
+      expect(evidence.workflowObservations).toMatchObject([{ observation: { status: 'read', revision: sha, runs: [{ conclusion: 'success', triggeringActor: 'reviewer' }] } }]);
+      expect(evidence.status).not.toBe('verified');
+      expect(s.writes.some((write) => write.includes('mutation'))).toBe(false);
+    }
+  });
   it('observes a closed shared Issue without inferring verification from a non-closing merged PR', async () => {
     const s = setup();
     s.deps.files = async () => [...FILES, { path: 'tasks/TASK-011.md', text: FILES[1].text.replaceAll('TASK-010', 'TASK-011').replace('assignee: claude-code', 'assignee: other\ntests: self-reported passing\nevidence_exception: approved exception') }];

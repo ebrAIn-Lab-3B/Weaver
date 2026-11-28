@@ -28,7 +28,11 @@ export async function verifyTaskFiles(input: ExistingPullCheck, sha: string): Pr
   };
   const [task, requirement] = await Promise.all([readFile(input.taskPath), readFile(input.requirementPath)]);
   const taskLines = requirement.split('\n').filter((line) => line.includes(`\`${input.taskId}\``));
-  if (task !== input.expectedTask.replace(/\r\n/g, '\n') || taskLines.length !== 1 || taskLines[0] !== input.expectedRequirementLine) throw new Error('Task contents differ');
+  const expectedTask = input.expectedTask.replace(/\r\n/g, '\n');
+  // Registration PRs created before the placement wording changed remain recoverable.
+  // Accept only the exact previous generated document, not arbitrary edits.
+  const legacyTask = expectedTask.replace('Ownership is recorded here; the configured process determines Kanban placement.', 'Ownership is recorded here; the Kanban column comes from the Issue.');
+  if ((task !== expectedTask && task !== legacyTask) || taskLines.length !== 1 || taskLines[0] !== input.expectedRequirementLine) throw new Error('Task contents differ');
 }
 
 /** Inspect one open PR and both files at its immutable head. No write or merge is performed. */
